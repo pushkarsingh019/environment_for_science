@@ -498,7 +498,12 @@ def compile_frozen_bundle(
     )
     apparatus_document = state.apparatus.model_dump(mode="json", round_trip=True)
     configuration_document = state.procedure.model_dump(mode="json", round_trip=True)
-    document["bundle_revision"] = f"1.2.{revision}"
+    revision_family, separator, _source_patch = source_bundle.bundle_revision.rpartition(".")
+    if not separator or not revision_family:
+        raise BundleValidationError(
+            "the EEG source bundle revision must contain a patch component"
+        )
+    document["bundle_revision"] = f"{revision_family}.{revision}"
     document["apparatus"] = apparatus_document
     document["procedure"]["configuration"] = deepcopy(configuration_document)
 

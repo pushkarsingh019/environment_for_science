@@ -22,6 +22,7 @@ import type {
   ReplayReport,
   ReplayResponse,
   RouteNodePresentation,
+  ScalpSitePresentation,
   RunLineage,
   RunSnapshot,
   TraceAction,
@@ -42,11 +43,29 @@ function parseActionPresentation(
   value: unknown,
   path: string,
 ): ActionPresentation {
-  const record = exactRecord(value, ["type", "title", "description"], path);
+  const record = exactRecord(
+    value,
+    [
+      "type",
+      "title",
+      "description",
+      "input_schema",
+      "group",
+      "changes_state",
+    ],
+    path,
+  );
   return {
     type: nonEmptyString(record.type, `${path}.type`),
     title: nonEmptyString(record.title, `${path}.title`),
     description: nonEmptyString(record.description, `${path}.description`),
+    input_schema: jsonObject(record.input_schema, `${path}.input_schema`),
+    group: oneOf(
+      record.group,
+      ["inspect", "collect", "remediate", "decide"] as const,
+      `${path}.group`,
+    ),
+    changes_state: booleanValue(record.changes_state, `${path}.changes_state`),
   };
 }
 
@@ -71,6 +90,53 @@ function parseVisualization(
   value: unknown,
   path: string,
 ): EnvironmentSummary["visualization"] {
+  if (isRecord(value) && value.kind === "eeg_preflight_v1") {
+    const record = exactRecord(
+      value,
+      [
+        "kind",
+        "title",
+        "trace_panel_label",
+        "frequency_panel_label",
+        "montage_panel_label",
+        "details_toggle_label",
+        "synthetic_label",
+        "scalp_sites",
+      ],
+      path,
+    );
+    if (!Array.isArray(record.scalp_sites)) {
+      malformed(`${path}.scalp_sites`, "be an array");
+    }
+    return {
+      kind: "eeg_preflight_v1",
+      title: nonEmptyString(record.title, `${path}.title`),
+      trace_panel_label: nonEmptyString(
+        record.trace_panel_label,
+        `${path}.trace_panel_label`,
+      ),
+      frequency_panel_label: nonEmptyString(
+        record.frequency_panel_label,
+        `${path}.frequency_panel_label`,
+      ),
+      montage_panel_label: nonEmptyString(
+        record.montage_panel_label,
+        `${path}.montage_panel_label`,
+      ),
+      details_toggle_label: nonEmptyString(
+        record.details_toggle_label,
+        `${path}.details_toggle_label`,
+      ),
+      synthetic_label: oneOf(
+        record.synthetic_label,
+        ["Synthetic EEG apparatus simulation"] as const,
+        `${path}.synthetic_label`,
+      ),
+      scalp_sites: record.scalp_sites.map((site, index) =>
+        parseScalpSite(site, `${path}.scalp_sites[${index}]`),
+      ),
+    };
+  }
   const record = exactRecord(
     value,
     [
@@ -103,6 +169,17 @@ function parseVisualization(
       record.freshness_label,
       `${path}.freshness_label`,
     ),
+  };
+}
+
+function parseScalpSite(value: unknown, path: string): ScalpSitePresentation {
+  const record = exactRecord(value, ["id", "label", "x", "y", "kind"], path);
+  return {
+    id: nonEmptyString(record.id, `${path}.id`),
+    label: nonEmptyString(record.label, `${path}.label`),
+    x: finiteNumber(record.x, `${path}.x`),
+    y: finiteNumber(record.y, `${path}.y`),
+    kind: oneOf(record.kind, ["scalp", "auxiliary"] as const, `${path}.kind`),
   };
 }
 
@@ -276,6 +353,7 @@ function parseEnvironmentSummary(value: unknown): EnvironmentSummary {
     [
       "environment_id",
       "scenario_id",
+      "scenario_ids",
       "name",
       "description",
       "simulation_label",
@@ -302,6 +380,7 @@ function parseEnvironmentSummary(value: unknown): EnvironmentSummary {
       `${path}.environment_id`,
     ),
     scenario_id: stringValue(record.scenario_id, `${path}.scenario_id`),
+    scenario_ids: stringArray(record.scenario_ids, `${path}.scenario_ids`),
     name: stringValue(record.name, `${path}.name`),
     description: stringValue(record.description, `${path}.description`),
     simulation_label: stringValue(
@@ -576,6 +655,7 @@ function parseFrozenEnvironment(value: unknown): FrozenEnvironment {
       "bundle_revision",
       "revision_digest",
       "scenario_id",
+      "scenario_ids",
       "draft_revision",
       "procedure",
     ],
@@ -592,6 +672,7 @@ function parseFrozenEnvironment(value: unknown): FrozenEnvironment {
     ),
     revision_digest: digest(record.revision_digest, `${path}.revision_digest`),
     scenario_id: nonEmptyString(record.scenario_id, `${path}.scenario_id`),
+    scenario_ids: stringArray(record.scenario_ids, `${path}.scenario_ids`),
     draft_revision: integerValue(
       record.draft_revision,
       `${path}.draft_revision`,
@@ -628,18 +709,32 @@ function parseTraceTransition(value: unknown, path: string): TraceTransition {
 }
 
 function parseVerifierResult(value: unknown, path: string): VerifierResult {
+  const hasOutcomeCategory =
+    isRecord(value) && Object.prototype.hasOwnProperty.call(value, "outcome_category");
   const record = exactRecord(
     value,
-    [
-      "verifier_id",
-      "result_version",
-      "passed",
-      "terminal_disposition",
-      "summary",
-      "metrics",
-      "evidence",
-      "reasons",
-    ],
+    hasOutcomeCategory
+      ? [
+          "verifier_id",
+          "result_version",
+          "passed",
+          "terminal_disposition",
+          "outcome_category",
+          "summary",
+          "metrics",
+          "evidence",
+          "reasons",
+        ]
+      : [
+          "verifier_id",
+          "result_version",
+          "passed",
+          "terminal_disposition",
+          "summary",
+          "metrics",
+          "evidence",
+          "reasons",
+        ],
     path,
   );
   return {
@@ -651,9 +746,13 @@ function parseVerifierResult(value: unknown, path: string): VerifierResult {
     passed: booleanValue(record.passed, `${path}.passed`),
     terminal_disposition: oneOf(
       record.terminal_disposition,
-      ["recovered", "failed"] as const,
+      ["recovered", "aborted", "failed"] as const,
       `${path}.terminal_disposition`,
     ),
+    outcome_category:
+      !hasOutcomeCategory || record.outcome_category === null
+        ? null
+        : nonEmptyString(record.outcome_category, `${path}.outcome_category`),
     summary: nonEmptyString(record.summary, `${path}.summary`),
     metrics: numberMap(record.metrics, `${path}.metrics`),
     evidence: jsonObject(record.evidence, `${path}.evidence`),
@@ -968,10 +1067,14 @@ export const environmentApi = {
     return request(`/api/runs/${runId}`, parseRunSnapshot);
   },
 
-  async apply(runId: string, type: string): Promise<RunSnapshot> {
+  async apply(
+    runId: string,
+    type: string,
+    input: JsonObject = {},
+  ): Promise<RunSnapshot> {
     return request(`/api/runs/${runId}/actions`, parseRunSnapshot, {
       method: "POST",
-      body: JSON.stringify({ type, input: {} }),
+      body: JSON.stringify({ type, input }),
     });
   },
 

@@ -18,12 +18,20 @@ from uuid import uuid4
 
 from jsonschema import Draft202012Validator
 from jsonschema.exceptions import ValidationError as JsonSchemaValidationError
-from pydantic import BaseModel, ConfigDict, Field, ValidationError
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    SerializerFunctionWrapHandler,
+    ValidationError,
+    model_serializer,
+)
 
 from studio.bundle import EnvironmentBundle, ScenarioManifest
 
 RuntimeErrorCode = Literal["invalid", "not_found", "conflict", "internal"]
 TraceMutationOperation = Literal["action", "verify"]
+TerminalDisposition = Literal["recovered", "aborted", "failed"]
 _RUN_LOCK_STRIPE_COUNT = 64
 
 
@@ -80,11 +88,23 @@ class VerifierResult(BaseModel):
     verifier_id: str = Field(min_length=1)
     result_version: str = Field(min_length=1)
     passed: bool
-    terminal_disposition: Literal["recovered", "failed"]
+    terminal_disposition: TerminalDisposition
+    outcome_category: str | None = Field(default=None, min_length=1)
     summary: str = Field(min_length=1)
     metrics: dict[str, float]
     evidence: dict[str, Any]
     reasons: tuple[str, ...]
+
+    @model_serializer(mode="wrap")
+    def serialize_compatibly(
+        self,
+        handler: SerializerFunctionWrapHandler,
+    ) -> dict[str, Any]:
+        """Keep the optional category out of legacy canonical result payloads."""
+        serialized = cast(dict[str, Any], handler(self))
+        if self.outcome_category is None:
+            serialized.pop("outcome_category", None)
+        return serialized
 
 
 class RunLineage(BaseModel):
@@ -158,6 +178,8 @@ class EnvironmentModule(Protocol):
     @property
     def bundle(self) -> EnvironmentBundle: ...
 
+    def initialize(self, scenario: ScenarioManifest) -> EpisodeState: ...
+
     def apply_action(
         self,
         state: EpisodeState,
@@ -192,11 +214,12 @@ class VerifierOutcome:
     """Apparatus-specific judgment before Runtime provenance is attached."""
 
     passed: bool
-    terminal_disposition: Literal["recovered", "failed"]
+    terminal_disposition: TerminalDisposition
     summary: str
     metrics: dict[str, float]
     evidence: dict[str, Any]
     reasons: tuple[str, ...]
+    outcome_category: str | None = None
 
 
 @dataclass
@@ -886,8 +909,30 @@ class EnvironmentRuntime:
         persist: bool = True,
     ) -> RunSnapshot:
         frozen_scenario = scenario.model_copy(deep=True)
-        observation = deepcopy(frozen_scenario.initial_state.policy_visible)
-        hidden_state = deepcopy(frozen_scenario.initial_state.hidden)
+        initial_state = deepcopy(self._environment_module).initialize(
+            frozen_scenario.model_copy(deep=True)
+        )
+        if (
+            initial_state.procedure_state != self._bundle.procedure.initial_state
+            or initial_state.state_revision != 0
+        ):
+            raise RuntimeContractError(
+                "the Environment module returned an invalid initial episode state",
+                code="internal",
+            )
+        observation = deepcopy(initial_state.observation)
+        hidden_state = deepcopy(initial_state.hidden_state)
+        _validate_runtime_payload(
+            "Policy-visible observation",
+            observation,
+            self._bundle.observation_schema,
+        )
+        _validate_runtime_payload(
+            "hidden Environment state",
+            hidden_state,
+            self._bundle.hidden_state_schema,
+            expose_details=False,
+        )
         scenario_digest = self._scenario_digest(frozen_scenario)
         trace_header = CanonicalTraceHeader(
             bundle_id=self._bundle.bundle_id,
@@ -898,7 +943,7 @@ class EnvironmentRuntime:
             seed=frozen_scenario.seed,
             scenario_digest=scenario_digest,
             initial_state_digest=_digest(
-                frozen_scenario.initial_state.model_dump(mode="json")
+                {"policy_visible": observation, "hidden": hidden_state}
             ),
             policy_agent=policy_agent.model_copy(deep=True),
         )
@@ -928,10 +973,10 @@ class EnvironmentRuntime:
                 scenario=frozen_scenario,
                 policy_agent=policy_agent.model_copy(deep=True),
                 state=EpisodeState(
-                    procedure_state=self._bundle.procedure.initial_state,
+                    procedure_state=initial_state.procedure_state,
                     observation=observation,
                     hidden_state=hidden_state,
-                    state_revision=0,
+                    state_revision=initial_state.state_revision,
                 ),
                 trace=trace,
                 status="active",
@@ -1114,15 +1159,17 @@ class EnvironmentRuntime:
             result_version=str(self._bundle.verifier["result_version"]),
             passed=outcome.passed,
             terminal_disposition=outcome.terminal_disposition,
+            outcome_category=outcome.outcome_category,
             summary=outcome.summary,
             metrics=deepcopy(outcome.metrics),
             evidence=deepcopy(outcome.evidence),
             reasons=outcome.reasons,
         )
+        result_payload = result.model_dump(mode="json", exclude_none=True)
         source_trace_digest = self._trace_digest(record)
         result_digest = _digest(
             {
-                "result": result.model_dump(mode="json"),
+                "result": result_payload,
                 "source_trace_digest": source_trace_digest,
             }
         )
@@ -1130,7 +1177,7 @@ class EnvironmentRuntime:
             sequence=len(record.trace) + 1,
             type="verifier",
             summary=result.summary,
-            verifier=result.model_dump(mode="json"),
+            verifier=result_payload,
         )
         final_trace_digest = _trace_digest(record.trace_header, [*record.trace, verifier_event])
         if persist and self._trace_journal is not None:

@@ -18,7 +18,10 @@ from environments.eeg.authoring import (
     EegDescriptiveNote,
     EegProcedureConfiguration,
 )
-from environments.eeg.presentation import EegOnsetRouteVisualization
+from environments.eeg.presentation import (
+    EegOnsetRouteVisualization,
+    EegPreflightVisualization,
+)
 from studio.authoring import DraftRepositoryError, DraftSnapshot
 from studio.runtime import (
     EnvironmentAction,
@@ -52,16 +55,20 @@ class ActionPresentation(_StrictModel):
     type: str
     title: str
     description: str
+    input_schema: dict[str, object]
+    group: Literal["inspect", "collect", "remediate", "decide"]
+    changes_state: bool
 
 
 class EnvironmentSummary(_StrictModel):
     environment_id: str
     scenario_id: str
+    scenario_ids: tuple[str, ...]
     name: str
     description: str
     simulation_label: str
     actions: tuple[ActionPresentation, ...]
-    visualization: EegOnsetRouteVisualization
+    visualization: EegOnsetRouteVisualization | EegPreflightVisualization
     validation: EnvironmentValidationSummary
     hidden_state_exposed: Literal[False]
     policy_agents: tuple[PolicyAgentIdentity, ...]
@@ -237,6 +244,7 @@ def create_app(
         return EnvironmentSummary(
             environment_id=bundle.bundle_id,
             scenario_id=scenario_id,
+            scenario_ids=tuple(scenario.id for scenario in bundle.scenarios),
             name=bundle.title,
             description=bundle.description or bundle.simulation_label,
             simulation_label=bundle.simulation_label,
@@ -245,6 +253,9 @@ def create_app(
                     type=action.type,
                     title=action.title,
                     description=action.description,
+                    input_schema=action.input_schema,
+                    group=action.presentation_group,
+                    changes_state=action.presentation_changes_state,
                 )
                 for action in bundle.actions
             ),
@@ -441,6 +452,3 @@ def _public_draft_operation(operation: str) -> PublicDraftOperation:
     if operation == "restore_seed":
         return "restore_seed"
     raise RuntimeError("draft activity used an unknown operation")
-
-
-app = create_app()

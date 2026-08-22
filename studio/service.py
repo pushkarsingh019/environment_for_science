@@ -10,7 +10,7 @@ from pathlib import Path
 from threading import RLock
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from environments.eeg import load_seeded_bundle
 from environments.eeg.authoring import (
@@ -22,7 +22,7 @@ from environments.eeg.authoring import (
     seed_authoring_state,
     stage_descriptive_note,
 )
-from environments.eeg.runtime import EegMarkerRecoveryModule
+from environments.eeg.runtime import EegEnvironmentModule
 from studio.authoring import (
     DraftActor,
     DraftRepository,
@@ -82,8 +82,21 @@ class FrozenEnvironment(_FrozenModel):
     bundle_revision: str = Field(min_length=1)
     revision_digest: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
     scenario_id: str = Field(min_length=1)
+    scenario_ids: tuple[str, ...] = Field(min_length=1)
     draft_revision: int = Field(ge=1)
     procedure: EegProcedureConfiguration
+
+    @model_validator(mode="before")
+    @classmethod
+    def accept_legacy_single_scenario_metadata(cls, value: object) -> object:
+        """Promote persisted Ticket 02 metadata without rewriting its record."""
+        if isinstance(value, dict) and "scenario_ids" not in value:
+            promoted = dict(value)
+            scenario_id = promoted.get("scenario_id")
+            if isinstance(scenario_id, str):
+                promoted["scenario_ids"] = [scenario_id]
+            return promoted
+        return value
 
 
 class AuthoringCommandOutcome(_FrozenModel):
@@ -155,8 +168,8 @@ class ScienceStudio:
         return self._source_bundle.model_copy(deep=True)
 
     @property
-    def source_environment(self) -> EegMarkerRecoveryModule:
-        return EegMarkerRecoveryModule(self._source_bundle)
+    def source_environment(self) -> EegEnvironmentModule:
+        return EegEnvironmentModule(self._source_bundle)
 
     @property
     def authoring_assistant(self) -> AuthoringAssistantIdentity:
@@ -281,6 +294,7 @@ class ScienceStudio:
             bundle_revision=bundle.bundle_revision,
             revision_digest=revision_digest,
             scenario_id=bundle.scenarios[0].id,
+            scenario_ids=tuple(scenario.id for scenario in bundle.scenarios),
             draft_revision=draft.revision,
             procedure=state.procedure.model_copy(deep=True),
         )
@@ -306,7 +320,7 @@ class ScienceStudio:
     ) -> RunSnapshot:
         runtime = self._runtime_for_frozen(frozen_environment_id)
         frozen = self._frozen_metadata[frozen_environment_id]
-        if scenario_id != frozen.scenario_id:
+        if scenario_id not in frozen.scenario_ids:
             raise RuntimeContractError(
                 "the scenario does not match the frozen Environment identity",
                 code="invalid",
@@ -515,8 +529,13 @@ class ScienceStudio:
             or metadata.revision_digest != record.revision_digest
             or metadata.revision_digest != _bundle_digest(bundle)
             or metadata.bundle_revision != bundle.bundle_revision
-            or metadata.bundle_revision != f"1.2.{metadata.draft_revision}"
+            or not _bundle_revision_matches_draft(
+                metadata.bundle_revision,
+                metadata.draft_revision,
+            )
             or metadata.scenario_id != bundle.scenarios[0].id
+            or metadata.scenario_ids
+            != tuple(scenario.id for scenario in bundle.scenarios)
             or metadata.procedure != procedure
         ):
             raise RuntimeContractError(
@@ -654,7 +673,7 @@ def _runtime_for_bundle(
     trace_directory: Path,
 ) -> EnvironmentRuntime:
     return EnvironmentRuntime(
-        EegMarkerRecoveryModule(bundle.model_copy(deep=True)),
+        EegEnvironmentModule(bundle.model_copy(deep=True)),
         trace_directory=trace_directory,
     )
 
@@ -671,6 +690,11 @@ def _bundle_digest(bundle: EnvironmentBundle) -> str:
 
 def _frozen_id(revision_digest: str) -> str:
     return f"frozen-{revision_digest.removeprefix('sha256:')[:24]}"
+
+
+def _bundle_revision_matches_draft(bundle_revision: str, draft_revision: int) -> bool:
+    family, separator, revision = bundle_revision.rpartition(".")
+    return bool(family and separator and revision == str(draft_revision))
 
 
 def _trace_header_digest(snapshot: RunSnapshot) -> str:

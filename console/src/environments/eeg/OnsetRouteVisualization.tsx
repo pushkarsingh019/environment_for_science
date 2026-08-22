@@ -30,6 +30,7 @@ export function EegOnsetRouteVisualization({
   run: RunSnapshot | null;
 }) {
   const definition = environment.visualization;
+  if (definition.kind !== "eeg_onset_route") return null;
   const observation = run?.observation ?? {};
   const timeline = asRecord(observation.onset_timeline);
   const route = asRecord(observation.route_inspection);

@@ -201,5 +201,5 @@ The same Environment Bundle and runtime compile into Verifiers v1 artifacts for 
 - Mesoscope credibility comes from the sealed handoff and package-verification boundary, not from simulated operational control.
 - The renderer commit pinned by prime-rl lacks Gemma 4 tool support. The implementation must use and record the audited later renderer revision before any GPU training acceptance claim.
 - Hosted model identifiers can change or disappear. Validate availability when credentialed evaluation begins, record exact requested and returned identities, and preserve the provider-neutral comparison contract if a documented fallback is required.
-- Ticket 03 closes only after a real GPU adapter is trained, saved, reloaded, and evaluated. Ticket 08 closes only after the mesoscope state machine and verifier run interactively. Ticket 12 closes only after the entire authoring-to-comparison path is runnable and replayable.
+- Ticket 10 closes only after a real GPU adapter is trained, saved, reloaded, and evaluated. Ticket 05 closes only after the mesoscope state machine and verifier run interactively. Ticket 13 closes only after the entire authoring-to-comparison path is runnable and replayable.
 - No credential, token, private key, host address, or private SSH material may be written to the repository or surfaced in UI artifacts.

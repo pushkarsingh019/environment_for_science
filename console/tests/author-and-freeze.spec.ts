@@ -1,5 +1,7 @@
 import { expect, test } from "@playwright/test";
 
+import { recoverDefaultEegScenario } from "./eeg-test-helpers";
+
 const ADD_CZ = "Add Cz to the Montage";
 const REMOVE_FT8 = "Remove FT8 from the Montage";
 const SET_512_HZ = "Set the sampling rate to 512 Hz";
@@ -302,11 +304,10 @@ test("freezes and starts one revision while later Edit changes leave its configu
     .getAttribute("title");
   const frozenConfiguration = await page.getByTestId("frozen-configuration").innerText();
 
-  await page.getByTestId("action-inspect_onset_route").click();
-  await page.getByTestId("action-repair_refractory_route").click();
-  await page.getByTestId("action-present_test_flash").click();
+  await recoverDefaultEegScenario(page);
   await page.getByTestId("verify-run").click();
-  await expect(page.getByTestId("verifier-result")).toContainText("Recovery verified");
+  await expect(page.getByTestId("verifier-result")).toContainText("Verifier passed");
+  await expect(page.getByTestId("verifier-result")).toContainText("targeted recovery");
   const sourceTrace = await page.getByTestId("trace-list").innerText();
 
   await page.getByTestId("mode-edit").click();

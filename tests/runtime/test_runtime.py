@@ -6,7 +6,7 @@ from threading import Event, Lock
 
 import pytest
 
-from environments.eeg import load_seeded_bundle
+from environments.eeg import load_legacy_bundle
 from environments.eeg.runtime import EegMarkerRecoveryModule
 from studio.bundle import validate_environment_bundle
 from studio.runtime import (
@@ -89,7 +89,7 @@ def test_canonical_trace_header_binds_frozen_scenario_and_policy_identity() -> N
 
 
 def test_frozen_run_is_unchanged_by_later_authored_bundle_mutation() -> None:
-    authored_bundle = validate_environment_bundle(load_seeded_bundle())
+    authored_bundle = validate_environment_bundle(load_legacy_bundle())
     environment_module = EegMarkerRecoveryModule(authored_bundle)
     runtime = EnvironmentRuntime(environment_module)
     started = runtime.start(
@@ -807,7 +807,7 @@ def test_failed_action_reconstruction_removes_only_its_partial_run(
 
 
 def test_action_arguments_are_json_schema_validated_before_state_changes() -> None:
-    document = load_seeded_bundle()
+    document = load_legacy_bundle()
     inspect_action = next(
         action for action in document["actions"] if action["type"] == "inspect_onset_route"
     )

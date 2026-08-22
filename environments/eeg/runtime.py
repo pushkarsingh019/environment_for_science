@@ -4,12 +4,19 @@ from __future__ import annotations
 
 from typing import Literal
 
-from environments.eeg import load_seeded_bundle
+from environments.eeg import load_legacy_bundle, load_seeded_bundle
+from environments.eeg._preflight import EegPreflightRuntime
 from environments.eeg.presentation import (
     EegOnsetRouteVisualization,
+    EegPreflightVisualization,
     validate_eeg_visualization,
 )
-from studio.bundle import EnvironmentBundle, validate_environment_bundle
+from studio.bundle import (
+    BundleValidationError,
+    EnvironmentBundle,
+    ScenarioManifest,
+    validate_environment_bundle,
+)
 from studio.runtime import (
     EnvironmentAction,
     EpisodeState,
@@ -19,16 +26,21 @@ from studio.runtime import (
 )
 
 
-class EegMarkerRecoveryModule:
+class _LegacyMarkerRecoveryRuntime:
     """Seeded synthetic marker-recovery Environment implementation."""
 
     def __init__(self, bundle: EnvironmentBundle) -> None:
         self._bundle = bundle.model_copy(deep=True)
-        self._visualization = validate_eeg_visualization(self._bundle.visualization)
+        visualization = validate_eeg_visualization(self._bundle.visualization)
+        if not isinstance(visualization, EegOnsetRouteVisualization):
+            raise BundleValidationError(
+                "the legacy EEG generator requires an onset-route visualization"
+            )
+        self._visualization = visualization
 
     @classmethod
-    def from_seed(cls) -> EegMarkerRecoveryModule:
-        return cls(validate_environment_bundle(load_seeded_bundle()))
+    def from_seed(cls) -> _LegacyMarkerRecoveryRuntime:
+        return cls(validate_environment_bundle(load_legacy_bundle()))
 
     @property
     def bundle(self) -> EnvironmentBundle:
@@ -37,6 +49,14 @@ class EegMarkerRecoveryModule:
     @property
     def visualization(self) -> EegOnsetRouteVisualization:
         return self._visualization.model_copy(deep=True)
+
+    def initialize(self, scenario: ScenarioManifest) -> EpisodeState:
+        return EpisodeState(
+            procedure_state=self._bundle.procedure.initial_state,
+            observation=scenario.initial_state.policy_visible.copy(),
+            hidden_state=scenario.initial_state.hidden.copy(),
+            state_revision=0,
+        )
 
     def apply_action(
         self,
@@ -211,3 +231,55 @@ class EegMarkerRecoveryModule:
             },
             reasons=tuple(reasons),
         )
+
+
+class EegEnvironmentModule:
+    """Version-routed EEG module behind the product-owned Runtime seam."""
+
+    def __init__(self, bundle: EnvironmentBundle) -> None:
+        self._bundle = bundle.model_copy(deep=True)
+        visualization = validate_eeg_visualization(self._bundle.visualization)
+        self._visualization = visualization.model_copy(deep=True)
+        if bundle.generator_revision == "eeg-marker-generator-1":
+            self._implementation: _LegacyMarkerRecoveryRuntime | EegPreflightRuntime = (
+                _LegacyMarkerRecoveryRuntime(self._bundle)
+            )
+        elif bundle.generator_revision == "eeg-preflight-generator-1":
+            self._implementation = EegPreflightRuntime(self._bundle)
+        else:
+            raise BundleValidationError("unsupported EEG generator revision")
+
+    @classmethod
+    def from_seed(cls) -> EegEnvironmentModule:
+        return cls(validate_environment_bundle(load_seeded_bundle()))
+
+    @property
+    def bundle(self) -> EnvironmentBundle:
+        return self._bundle.model_copy(deep=True)
+
+    @property
+    def visualization(
+        self,
+    ) -> EegOnsetRouteVisualization | EegPreflightVisualization:
+        return self._visualization.model_copy(deep=True)
+
+    def initialize(self, scenario: ScenarioManifest) -> EpisodeState:
+        return self._implementation.initialize(scenario.model_copy(deep=True))
+
+    def apply_action(
+        self,
+        state: EpisodeState,
+        action: EnvironmentAction,
+    ) -> EpisodeUpdate:
+        return self._implementation.apply_action(state, action)
+
+    def verify(self, state: EpisodeState) -> VerifierOutcome:
+        return self._implementation.verify(state)
+
+
+class EegMarkerRecoveryModule(EegEnvironmentModule):
+    """Compatibility facade for callers and frozen Ticket 01 EEG bundles."""
+
+    @classmethod
+    def from_seed(cls) -> EegMarkerRecoveryModule:
+        return cls(validate_environment_bundle(load_legacy_bundle()))

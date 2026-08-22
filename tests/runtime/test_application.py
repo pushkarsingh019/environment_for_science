@@ -13,6 +13,15 @@ _HIDDEN_STATE_KEYS = (
     "route_inspected",
     "inspected_before_repair",
     "repair_transition",
+    "abort_request",
+    "case_id",
+    "current_evidence_ids",
+    "domain_sequences",
+    "inspections",
+    "latest_retest_revisions",
+    "relevant_attempts",
+    "state_changes",
+    "window_sequence",
 )
 
 
@@ -40,89 +49,55 @@ def _start_frozen_run(client: TestClient) -> dict[str, object]:
     return response.json()
 
 
-def test_http_environment_and_start_run_use_the_real_runtime_contract() -> None:
-    client = TestClient(create_app())
+def _complete_default_eeg_recovery(
+    client: TestClient,
+    run_id: str,
+) -> dict[str, object]:
+    actions = (
+        ("inspect_eeg_signals", {}),
+        ("inspect_frequency_evidence", {}),
+        ("reseat_electrode", {"site": "FC3"}),
+        ("collect_fresh_eeg_window", {}),
+        ("complete_preflight", {}),
+    )
+    for action_type, action_input in actions:
+        response = client.post(
+            f"/api/runs/{run_id}/actions",
+            json={"type": action_type, "input": action_input},
+        )
+        assert response.status_code == 200
+    verified = client.post(f"/api/runs/{run_id}/verify")
+    assert verified.status_code == 200
+    return verified.json()
+
+
+def test_http_environment_and_start_run_use_the_real_runtime_contract(tmp_path: Path) -> None:
+    client = TestClient(create_app(artifact_root=tmp_path))
 
     environment_response = client.get("/api/environment")
     assert environment_response.status_code == 200
     environment = environment_response.json()
-    assert environment == {
-        "environment_id": "eeg-onset-marker-recovery",
-        "scenario_id": "eeg-marker-recovery-001",
-        "name": "EEG onset-marker preflight",
-        "description": "A deterministic synthetic preflight for the onset-marker route.",
-        "simulation_label": "Synthetic EEG apparatus simulation",
-        "actions": [
-            {
-                "type": "inspect_onset_route",
-                "title": "Inspect simulated onset route",
-                "description": (
-                    "Inspect current evidence from the simulated lower-right onset route."
-                ),
-            },
-            {
-                "type": "repair_refractory_route",
-                "title": "Apply targeted simulated repair",
-                "description": (
-                    "Apply the targeted repair to the simulated refractory route."
-                ),
-            },
-            {
-                "type": "present_test_flash",
-                "title": "Present fresh synthetic test flash",
-                "description": (
-                    "Present a fresh synthetic lower-right test flash and observe onset "
-                    "markers."
-                ),
-            },
-            {
-                "type": "restart_response_handshake",
-                "title": "Restart simulated response handshake",
-                "description": (
-                    "Restart the simulated response handshake; this does not alter the "
-                    "onset route."
-                ),
-            },
-        ],
-        "visualization": {
-            "kind": "eeg_onset_route",
-            "title": "Onset-marker preflight",
-            "display_label": "Presentation display",
-            "flash_label": "Lower-right test flash",
-            "route_nodes": [
-                {
-                    "id": "light_detector",
-                    "name": "Light detector",
-                    "detail": "simulated signal",
-                    "emphasis": False,
-                },
-                {
-                    "id": "refractory_route",
-                    "name": "Refractory route",
-                    "detail": "not inspected",
-                    "emphasis": True,
-                },
-            ],
-            "marker_lane_label": "Marker event lane",
-            "freshness_label": "Evidence freshness",
-        },
-        "validation": {
-            "status": "valid",
-            "summary": "Environment Bundle v1 validated",
-            "checks": [
-                "Contract version supported",
-                "Action and observation schemas validated",
-                "Policy-visible observations separated from hidden scenario truth",
-            ],
-        },
-        "hidden_state_exposed": False,
-        "policy_agents": [
-            {
-                "id": "seeded-policy-agent",
-                "name": "Seeded recovery Policy agent",
-            }
-        ],
-    }
+    assert environment["environment_id"] == "eeg-onset-marker-recovery"
+    assert environment["scenario_id"] == "eeg-demo-001"
+    assert environment["scenario_ids"] == [
+        f"eeg-demo-{index:03d}" for index in range(1, 21)
+    ]
+    assert environment["name"] == "EEG diagnostic preflight"
+    assert environment["simulation_label"] == "Synthetic EEG apparatus simulation"
+    assert environment["visualization"]["kind"] == "eeg_preflight_v1"
+    assert len(environment["visualization"]["scalp_sites"]) == 33
+    assert environment["validation"]["status"] == "valid"
+    assert environment["hidden_state_exposed"] is False
+    assert environment["policy_agents"] == [
+        {
+            "id": "seeded-policy-agent",
+            "name": "Seeded recovery Policy agent",
+        }
+    ]
+    actions = {action["type"]: action for action in environment["actions"]}
+    assert actions["reseat_electrode"]["group"] == "remediate"
+    assert actions["reseat_electrode"]["changes_state"] is True
+    assert actions["inspect_frequency_evidence"]["group"] == "inspect"
 
     frozen = _freeze_current_draft(client)
     start_response = client.post(
@@ -135,9 +110,10 @@ def test_http_environment_and_start_run_use_the_real_runtime_contract() -> None:
     )
     assert start_response.status_code == 201
     snapshot = start_response.json()
-    assert snapshot["scenario_id"] == "eeg-marker-recovery-001"
+    assert snapshot["scenario_id"] == "eeg-demo-001"
     assert snapshot["policy_agent"] == environment["policy_agents"][0]
-    assert snapshot["observation"]["onset_timeline"]["marker_count"] == 2
+    assert snapshot["observation"]["eeg_window"]["display_sample_count"] == 96
+    assert snapshot["observation"]["frequency_evidence"] is None
     assert snapshot["status"] == "active"
     serialized = start_response.text
     for hidden_key in _HIDDEN_STATE_KEYS:
@@ -145,28 +121,21 @@ def test_http_environment_and_start_run_use_the_real_runtime_contract() -> None:
     assert '"hidden"' not in serialized
 
 
-def test_http_runs_actions_verification_reset_and_true_replay() -> None:
-    client = TestClient(create_app())
+def test_http_runs_actions_verification_reset_and_true_replay(tmp_path: Path) -> None:
+    client = TestClient(create_app(artifact_root=tmp_path))
     started = _start_frozen_run(client)
     run_id = started["run_id"]
 
-    for action_type in (
-        "inspect_onset_route",
-        "repair_refractory_route",
-        "present_test_flash",
-    ):
-        response = client.post(
-            f"/api/runs/{run_id}/actions",
-            json={"type": action_type, "input": {}},
-        )
-        assert response.status_code == 200
-
-    verify_response = client.post(f"/api/runs/{run_id}/verify")
-    assert verify_response.status_code == 200
-    completed = verify_response.json()
+    completed = _complete_default_eeg_recovery(client, run_id)
     assert completed["verifier_result"]["passed"] is True
+    assert completed["verifier_result"]["outcome_category"] == "targeted_recovery"
+    serialized_completed = json.dumps(completed, sort_keys=True)
     for hidden_key in _HIDDEN_STATE_KEYS:
-        assert hidden_key not in verify_response.text
+        assert hidden_key not in serialized_completed
+    # The verifier intentionally reports a numeric targeted-intervention metric;
+    # the private state flag itself must never cross the HTTP boundary.
+    assert '"targeted_intervention": true' not in serialized_completed
+    assert '"targeted_intervention": false' not in serialized_completed
 
     get_response = client.get(f"/api/runs/{run_id}")
     assert get_response.status_code == 200
@@ -185,16 +154,18 @@ def test_http_runs_actions_verification_reset_and_true_replay() -> None:
     reset = reset_response.json()
     assert reset["run_id"] != run_id
     assert reset["lineage"] == {"operation": "reset", "source_run_id": run_id}
-    assert reset["observation"]["onset_timeline"]["marker_count"] == 2
+    assert reset["observation"] == started["observation"]
     assert client.get(f"/api/runs/{run_id}").json() == completed
 
 
-def test_local_application_serves_built_console_without_shadowing_api(tmp_path) -> None:
+def test_local_application_serves_built_console_without_shadowing_api(tmp_path: Path) -> None:
     (tmp_path / "index.html").write_text(
         "<!doctype html><title>Science Environment Studio</title>",
         encoding="utf-8",
     )
-    client = TestClient(create_app(console_dist=tmp_path))
+    client = TestClient(
+        create_app(console_dist=tmp_path, artifact_root=tmp_path / "artifacts")
+    )
 
     console_response = client.get("/")
     assert console_response.status_code == 200
@@ -215,7 +186,7 @@ def test_local_application_restores_a_frozen_run_after_restart(tmp_path: Path) -
     started = _start_frozen_run(first)
     active = first.post(
         f"/api/runs/{started['run_id']}/actions",
-        json={"type": "inspect_onset_route", "input": {}},
+        json={"type": "inspect_eeg_signals", "input": {}},
     ).json()
 
     reopened = TestClient(create_app(artifact_root=tmp_path))
@@ -337,8 +308,8 @@ def test_application_fails_closed_for_a_legacy_run_without_provenance_bindings(
     }
 
 
-def test_http_rejects_unknown_identity_scenario_run_action_and_extra_input() -> None:
-    client = TestClient(create_app())
+def test_http_rejects_unknown_identity_scenario_run_action_and_extra_input(tmp_path: Path) -> None:
+    client = TestClient(create_app(artifact_root=tmp_path))
     frozen = _freeze_current_draft(client)
 
     assert (
@@ -356,7 +327,7 @@ def test_http_rejects_unknown_identity_scenario_run_action_and_extra_input() -> 
         client.post(
             "/api/runs",
             json={
-                "scenario_id": "eeg-marker-recovery-001",
+                "scenario_id": frozen["scenario_id"],
                 "policy_agent": "unknown-policy-agent",
                 "frozen_environment_id": frozen["frozen_environment_id"],
             },
@@ -367,7 +338,7 @@ def test_http_rejects_unknown_identity_scenario_run_action_and_extra_input() -> 
         client.post(
             "/api/runs",
             json={
-                "scenario_id": "eeg-marker-recovery-001",
+                "scenario_id": frozen["scenario_id"],
                 "policy_agent": "seeded-policy-agent",
             },
         ).status_code
@@ -377,7 +348,7 @@ def test_http_rejects_unknown_identity_scenario_run_action_and_extra_input() -> 
         client.post(
             "/api/runs",
             json={
-                "scenario_id": "eeg-marker-recovery-001",
+                "scenario_id": frozen["scenario_id"],
                 "policy_agent": "seeded-policy-agent",
                 "frozen_environment_id": "unknown-frozen-environment",
             },
@@ -387,7 +358,7 @@ def test_http_rejects_unknown_identity_scenario_run_action_and_extra_input() -> 
     started = client.post(
         "/api/runs",
         json={
-            "scenario_id": "eeg-marker-recovery-001",
+            "scenario_id": frozen["scenario_id"],
             "policy_agent": "seeded-policy-agent",
             "frozen_environment_id": frozen["frozen_environment_id"],
         },
@@ -485,12 +456,18 @@ def test_http_role_boundaries_are_explicit_disjoint_and_enforced(
         "set_online_bandpass",
         "set_notch_filter",
     }
-    assert set(policy["tool_catalog"]) == {
-        "inspect_onset_route",
-        "repair_refractory_route",
-        "present_test_flash",
-        "restart_response_handshake",
+    environment_actions = {
+        action["type"] for action in client.get("/api/environment").json()["actions"]
     }
+    assert set(policy["tool_catalog"]) == environment_actions
+    assert {
+        "inspect_eeg_signals",
+        "inspect_frequency_evidence",
+        "reseat_electrode",
+        "collect_fresh_eeg_window",
+        "complete_preflight",
+        "abort_preflight",
+    }.issubset(environment_actions)
     assert set(authoring["tool_catalog"]).isdisjoint(policy["tool_catalog"])
     assert "no live model prompt" in authoring["prompt_contract"].lower()
     assert "no live model prompt" in policy["prompt_contract"].lower()
@@ -768,7 +745,7 @@ def test_http_frozen_run_isolated_from_later_draft_edits_and_authoring_context(
     assert frozen_response.status_code == 201
     frozen = frozen_response.json()
     assert frozen["draft_revision"] == noted["revision"]
-    assert frozen["bundle_revision"].startswith("1.2.")
+    assert frozen["bundle_revision"].startswith("1.3.")
     assert "Cz" in frozen["procedure"]["montage"]["recording_sites"]
 
     start_response = client.post(
@@ -809,19 +786,7 @@ def test_http_frozen_run_isolated_from_later_draft_edits_and_authoring_context(
     assert rejected_authoring_action.status_code == 422
     assert client.get("/api/draft").json()["revision"] == later_draft["revision"]
 
-    for action_type in (
-        "inspect_onset_route",
-        "repair_refractory_route",
-        "present_test_flash",
-    ):
-        assert (
-            client.post(
-                f"/api/runs/{run_id}/actions",
-                json={"type": action_type, "input": {}},
-            ).status_code
-            == 200
-        )
-    completed = client.post(f"/api/runs/{run_id}/verify").json()
+    completed = _complete_default_eeg_recovery(client, run_id)
     assert completed["verifier_result"]["passed"] is True
     serialized_completed = str(completed)
     assert "AUTHORING-NOTE-SENTINEL" not in serialized_completed
@@ -898,12 +863,7 @@ def test_http_frozen_environment_and_run_survive_application_restart(
         "procedure_configuration"
     ]["montage"]["recording_sites"]
 
-    for action_type in ("repair_refractory_route", "present_test_flash"):
-        assert second.post(
-            f"/api/runs/{started['run_id']}/actions",
-            json={"type": action_type, "input": {}},
-        ).status_code == 200
-    completed = second.post(f"/api/runs/{started['run_id']}/verify").json()
+    completed = _complete_default_eeg_recovery(second, started["run_id"])
     assert completed["verifier_result"]["passed"] is True
 
     third = TestClient(create_app(artifact_root=tmp_path))

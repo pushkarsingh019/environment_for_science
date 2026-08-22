@@ -5,7 +5,7 @@ from __future__ import annotations
 import re
 from collections import deque
 from collections.abc import Mapping
-from typing import Any
+from typing import Any, Literal
 
 from jsonschema import Draft202012Validator
 from jsonschema.exceptions import SchemaError
@@ -29,6 +29,35 @@ class ActionDefinition(_ExtensibleModel):
     title: str = Field(min_length=1)
     description: str = Field(min_length=1)
     input_schema: dict[str, Any]
+
+    @model_validator(mode="after")
+    def validate_presentation_metadata(self) -> ActionDefinition:
+        extras = self.model_extra or {}
+        group = extras.get("group", "inspect")
+        changes_state = extras.get("changes_state", False)
+        if group not in {"inspect", "collect", "remediate", "decide"}:
+            raise ValueError("action group must be inspect, collect, remediate, or decide")
+        if not isinstance(changes_state, bool):
+            raise ValueError("action changes_state must be a boolean")
+        return self
+
+    @property
+    def presentation_group(self) -> Literal[
+        "inspect", "collect", "remediate", "decide"
+    ]:
+        value = (self.model_extra or {}).get("group", "inspect")
+        if value == "collect":
+            return "collect"
+        if value == "remediate":
+            return "remediate"
+        if value == "decide":
+            return "decide"
+        return "inspect"
+
+    @property
+    def presentation_changes_state(self) -> bool:
+        value = (self.model_extra or {}).get("changes_state", False)
+        return value if isinstance(value, bool) else False
 
 
 class ProcedureState(_ExtensibleModel):

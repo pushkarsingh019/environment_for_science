@@ -1,0 +1,352 @@
+{
+  "fixture_revision": "eeg-preflight-fixture-1",
+  "cases": [
+    {
+      "id": "eeg-demo-001",
+      "domain": "eeg",
+      "evidence_variant": "signal_window",
+      "signal_profile": "local_noise",
+      "target": "FC3",
+      "recoverable": true,
+      "starts_resolved": false,
+      "relevant_actions": [
+        "reseat_electrode",
+        "replace_electrode"
+      ],
+      "effective_actions": [
+        "reseat_electrode",
+        "replace_electrode"
+      ],
+      "retest_action": "collect_fresh_eeg_window",
+      "initial_summary": "FC3 shows a large, irregular contrast with the other required recording sites.",
+      "optional_site": null
+    },
+    {
+      "id": "eeg-demo-002",
+      "domain": "eeg",
+      "evidence_variant": "signal_window",
+      "signal_profile": "intermittent",
+      "target": "FT7",
+      "recoverable": true,
+      "starts_resolved": false,
+      "relevant_actions": [
+        "reseat_electrode",
+        "replace_electrode"
+      ],
+      "effective_actions": [
+        "replace_electrode"
+      ],
+      "retest_action": "collect_fresh_eeg_window",
+      "initial_summary": "FT7 shows intermittent dropout and unstable amplitude relative to the other required sites.",
+      "optional_site": null
+    },
+    {
+      "id": "eeg-demo-003",
+      "domain": "eeg",
+      "evidence_variant": "signal_window",
+      "signal_profile": "flat",
+      "target": "FC4",
+      "recoverable": true,
+      "starts_resolved": false,
+      "relevant_actions": [
+        "reconnect_electrode_path"
+      ],
+      "effective_actions": [
+        "reconnect_electrode_path"
+      ],
+      "retest_action": "collect_fresh_eeg_window",
+      "initial_summary": "FC4 remains nearly constant while other required sites remain dynamic.",
+      "optional_site": null
+    },
+    {
+      "id": "eeg-demo-004",
+      "domain": "eeg",
+      "evidence_variant": "signal_window",
+      "signal_profile": "clipped",
+      "target": "FT8",
+      "recoverable": true,
+      "starts_resolved": false,
+      "relevant_actions": [
+        "reconnect_electrode_path"
+      ],
+      "effective_actions": [
+        "reconnect_electrode_path"
+      ],
+      "retest_action": "collect_fresh_eeg_window",
+      "initial_summary": "FT8 repeatedly reaches the same display rails while other required sites remain dynamic.",
+      "optional_site": null
+    },
+    {
+      "id": "eeg-demo-005",
+      "domain": "eeg",
+      "evidence_variant": "signal_window",
+      "signal_profile": "reference_shared",
+      "target": "FCz",
+      "recoverable": true,
+      "starts_resolved": false,
+      "relevant_actions": [
+        "reconnect_reference"
+      ],
+      "effective_actions": [
+        "reconnect_reference"
+      ],
+      "retest_action": "collect_fresh_eeg_window",
+      "initial_summary": "A similar broad pattern is visible across the required recording sites and the reference comparison.",
+      "optional_site": null
+    },
+    {
+      "id": "eeg-demo-006",
+      "domain": "eeg",
+      "evidence_variant": "signal_window",
+      "signal_profile": "ground_shared",
+      "target": "A1",
+      "recoverable": true,
+      "starts_resolved": false,
+      "relevant_actions": [
+        "reconnect_ground"
+      ],
+      "effective_actions": [
+        "reconnect_ground"
+      ],
+      "retest_action": "collect_fresh_eeg_window",
+      "initial_summary": "A shared slow displacement is visible across the required recording sites.",
+      "optional_site": null
+    },
+    {
+      "id": "eeg-demo-007",
+      "domain": "eeg",
+      "evidence_variant": "signal_window",
+      "signal_profile": "environment_shared",
+      "target": "source-a",
+      "recoverable": true,
+      "starts_resolved": false,
+      "relevant_actions": [
+        "isolate_electrical_source"
+      ],
+      "effective_actions": [
+        "isolate_electrical_source"
+      ],
+      "retest_action": "collect_fresh_eeg_window",
+      "initial_summary": "A shared rhythmic component is visible across the required recording sites.",
+      "optional_site": null
+    },
+    {
+      "id": "eeg-demo-008",
+      "domain": "onset",
+      "evidence_variant": "duplicate_onset",
+      "signal_profile": "nominal",
+      "target": "refractory_route",
+      "recoverable": true,
+      "starts_resolved": false,
+      "relevant_actions": [
+        "repair_refractory_route"
+      ],
+      "effective_actions": [
+        "repair_refractory_route"
+      ],
+      "retest_action": "present_test_flash",
+      "initial_summary": "One lower-right test flash produced two onset markers.",
+      "optional_site": null
+    },
+    {
+      "id": "eeg-demo-009",
+      "domain": "onset",
+      "evidence_variant": "missing_onset",
+      "signal_profile": "nominal",
+      "target": "event_route",
+      "recoverable": true,
+      "starts_resolved": false,
+      "relevant_actions": [
+        "repair_onset_route"
+      ],
+      "effective_actions": [
+        "repair_onset_route"
+      ],
+      "retest_action": "present_test_flash",
+      "initial_summary": "One lower-right test flash has no corresponding onset marker.",
+      "optional_site": null
+    },
+    {
+      "id": "eeg-demo-010",
+      "domain": "onset",
+      "evidence_variant": "visible_trigger",
+      "signal_profile": "nominal",
+      "target": "trigger_patch",
+      "recoverable": true,
+      "starts_resolved": false,
+      "relevant_actions": [
+        "correct_trigger_visibility"
+      ],
+      "effective_actions": [
+        "correct_trigger_visibility"
+      ],
+      "retest_action": "present_test_flash",
+      "initial_summary": "One onset marker is present while the lower-right cue remains visible in the participant view.",
+      "optional_site": null
+    },
+    {
+      "id": "eeg-demo-011",
+      "domain": "response",
+      "evidence_variant": "missing_response_occurrence",
+      "signal_profile": "nominal",
+      "target": "occurrence_line",
+      "recoverable": true,
+      "starts_resolved": false,
+      "relevant_actions": [
+        "restart_response_handshake"
+      ],
+      "effective_actions": [
+        "restart_response_handshake"
+      ],
+      "retest_action": "run_response_preflight",
+      "initial_summary": "A simulated press has no corresponding response-occurrence event.",
+      "optional_site": null
+    },
+    {
+      "id": "eeg-demo-012",
+      "domain": "response",
+      "evidence_variant": "response_identity_mismatch",
+      "signal_profile": "nominal",
+      "target": "identity_mapping",
+      "recoverable": true,
+      "starts_resolved": false,
+      "relevant_actions": [
+        "correct_response_mapping"
+      ],
+      "effective_actions": [
+        "correct_response_mapping"
+      ],
+      "retest_action": "run_response_preflight",
+      "initial_summary": "A response-occurrence event is present, but the queried identity does not match the simulated press.",
+      "optional_site": null
+    },
+    {
+      "id": "eeg-demo-013",
+      "domain": "recording",
+      "evidence_variant": "inactive_recording",
+      "signal_profile": "nominal",
+      "target": "recording_state",
+      "recoverable": true,
+      "starts_resolved": false,
+      "relevant_actions": [
+        "restore_recording_state"
+      ],
+      "effective_actions": [
+        "restore_recording_state"
+      ],
+      "retest_action": "run_recording_preflight",
+      "initial_summary": "A test event is visible while the simulated acquisition reports that recording is not active.",
+      "optional_site": null
+    },
+    {
+      "id": "eeg-demo-014",
+      "domain": "recording",
+      "evidence_variant": "timeline_misalignment",
+      "signal_profile": "nominal",
+      "target": "timeline_alignment",
+      "recoverable": true,
+      "starts_resolved": false,
+      "relevant_actions": [
+        "realign_timeline"
+      ],
+      "effective_actions": [
+        "realign_timeline"
+      ],
+      "retest_action": "run_recording_preflight",
+      "initial_summary": "The EEG, stimulus, marker, and response timestamps do not describe one coherent test event.",
+      "optional_site": null
+    },
+    {
+      "id": "eeg-demo-015",
+      "domain": "eeg",
+      "evidence_variant": "signal_window",
+      "signal_profile": "quiet_dynamic",
+      "target": null,
+      "recoverable": true,
+      "starts_resolved": true,
+      "relevant_actions": [],
+      "effective_actions": [],
+      "retest_action": "collect_fresh_eeg_window",
+      "initial_summary": "The required recording sites are low-amplitude but remain dynamic and mutually coherent.",
+      "optional_site": null
+    },
+    {
+      "id": "eeg-demo-016",
+      "domain": "eeg",
+      "evidence_variant": "signal_window",
+      "signal_profile": "nominal",
+      "target": null,
+      "recoverable": true,
+      "starts_resolved": true,
+      "relevant_actions": [],
+      "effective_actions": [],
+      "retest_action": "collect_fresh_eeg_window",
+      "initial_summary": "The required recording sites are dynamic and mutually coherent in the current synthetic window.",
+      "optional_site": null
+    },
+    {
+      "id": "eeg-demo-017",
+      "domain": "onset",
+      "evidence_variant": "missing_onset",
+      "signal_profile": "nominal",
+      "target": "event_route",
+      "recoverable": false,
+      "starts_resolved": false,
+      "relevant_actions": [
+        "repair_onset_route"
+      ],
+      "effective_actions": [],
+      "retest_action": "present_test_flash",
+      "initial_summary": "One lower-right test flash has no corresponding onset marker.",
+      "optional_site": null
+    },
+    {
+      "id": "eeg-demo-018",
+      "domain": "eeg",
+      "evidence_variant": "signal_window",
+      "signal_profile": "intermittent",
+      "target": "FC3",
+      "recoverable": false,
+      "starts_resolved": false,
+      "relevant_actions": [
+        "replace_electrode"
+      ],
+      "effective_actions": [],
+      "retest_action": "collect_fresh_eeg_window",
+      "initial_summary": "FC3 continues to show dropout and unstable amplitude relative to the other required sites.",
+      "optional_site": null
+    },
+    {
+      "id": "eeg-demo-019",
+      "domain": "eeg",
+      "evidence_variant": "signal_window",
+      "signal_profile": "participant_activity",
+      "target": "frontal_group",
+      "recoverable": true,
+      "starts_resolved": false,
+      "relevant_actions": [
+        "ask_participant_to_relax"
+      ],
+      "effective_actions": [
+        "ask_participant_to_relax"
+      ],
+      "retest_action": "collect_fresh_eeg_window",
+      "initial_summary": "Dense higher-frequency activity is visible across frontal required sites alongside observable simulated tension.",
+      "optional_site": null
+    },
+    {
+      "id": "eeg-demo-020",
+      "domain": "eeg",
+      "evidence_variant": "signal_window",
+      "signal_profile": "optional_noise",
+      "target": "C3",
+      "recoverable": true,
+      "starts_resolved": true,
+      "relevant_actions": [],
+      "effective_actions": [],
+      "retest_action": "collect_fresh_eeg_window",
+      "initial_summary": "Optional site C3 contrasts with the required Montage while required sites remain coherent.",
+      "optional_site": "C3"
+    }
+  ]
+}

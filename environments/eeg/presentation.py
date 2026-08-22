@@ -45,6 +45,43 @@ class EegOnsetRouteVisualization(BaseModel):
         return self
 
 
+class ScalpSitePresentation(BaseModel):
+    """One schematic site coordinate supplied by the EEG Environment."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    id: str = Field(min_length=1)
+    label: str = Field(min_length=1)
+    x: float = Field(ge=0, le=100)
+    y: float = Field(ge=0, le=100)
+    kind: Literal["scalp", "auxiliary"]
+
+
+class EegPreflightVisualization(BaseModel):
+    """Static visualization vocabulary for the dynamic EEG preflight evidence."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    kind: Literal["eeg_preflight_v1"]
+    title: str = Field(min_length=1)
+    trace_panel_label: str = Field(min_length=1)
+    frequency_panel_label: str = Field(min_length=1)
+    montage_panel_label: str = Field(min_length=1)
+    details_toggle_label: str = Field(min_length=1)
+    synthetic_label: Literal["Synthetic EEG apparatus simulation"]
+    scalp_sites: tuple[ScalpSitePresentation, ...] = Field(min_length=6)
+
+    @model_validator(mode="after")
+    def validate_site_catalog(self) -> EegPreflightVisualization:
+        site_ids = [site.id for site in self.scalp_sites]
+        if len(site_ids) != len(set(site_ids)):
+            raise ValueError("scalp site identities must be unique")
+        required_seed_sites = {"FC3", "FC4", "FT7", "FT8", "FCz", "A1"}
+        if not required_seed_sites.issubset(site_ids):
+            raise ValueError("the seeded Montage sites must be present")
+        return self
+
+
 class _LegacyEegVisualization(BaseModel):
     """Exact presentation shape accepted by the original Bundle v1 fixture."""
 
@@ -83,8 +120,16 @@ _LEGACY_ONSET_ROUTE_ADAPTER = {
 
 def validate_eeg_visualization(
     document: Mapping[str, Any],
-) -> EegOnsetRouteVisualization:
+) -> EegOnsetRouteVisualization | EegPreflightVisualization:
     """Validate current EEG presentation data or adapt the original v1 shape."""
+    if document.get("kind") == "eeg_preflight_v1":
+        try:
+            return EegPreflightVisualization.model_validate(document)
+        except ValidationError as error:
+            messages = "; ".join(item["msg"] for item in error.errors())
+            raise BundleValidationError(
+                f"invalid EEG preflight visualization: {messages}"
+            ) from error
     try:
         return EegOnsetRouteVisualization.model_validate(document)
     except ValidationError as current_error:

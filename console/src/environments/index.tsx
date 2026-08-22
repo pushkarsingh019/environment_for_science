@@ -3,15 +3,34 @@ import {
   EegOnsetRouteVisualization,
   eegOnsetRouteTraceEvidence,
 } from "./eeg/OnsetRouteVisualization";
+import {
+  EegPreflightVisualization,
+  eegPreflightTraceEvidence,
+} from "./eeg/PreflightVisualization";
+
+type EnvironmentAdapter = {
+  Visualization: (properties: {
+    environment: EnvironmentSummary;
+    run: RunSnapshot | null;
+  }) => JSX.Element | null;
+  traceEvidence: (event: TraceEvent) => string | null;
+};
 
 const environmentAdapters = {
   eeg_onset_route: {
     Visualization: EegOnsetRouteVisualization,
     traceEvidence: eegOnsetRouteTraceEvidence,
   },
-};
+  eeg_preflight_v1: {
+    Visualization: EegPreflightVisualization,
+    traceEvidence: eegPreflightTraceEvidence,
+  },
+} satisfies Record<
+  EnvironmentSummary["visualization"]["kind"],
+  EnvironmentAdapter
+>;
 
-function adapterFor(environment: EnvironmentSummary) {
+function adapterFor(environment: EnvironmentSummary): EnvironmentAdapter {
   return environmentAdapters[environment.visualization.kind];
 }
 

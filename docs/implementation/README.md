@@ -4,17 +4,26 @@ Source specification: [Science Environment Studio executable prototype specifica
 
 ## Progress
 
-- Completed: **2 / 13**
+- Completed: **3 / 13**
 - In progress: **None**
-- Ready now: **03, 05**
+- Ready now: **04, 05**
 - A ticket counts as complete only after its acceptance criteria, tests, review, and commit pass.
 
 ## Current checkpoint
 
-Tickets 01 and 02 are complete. One local command builds and serves the Scientist Console
+Tickets 01 through 03 are complete. One local command builds and serves the Scientist Console
 with the loopback-only deterministic Environment Runtime. The console runs and replays the
-targeted EEG marker-recovery episode and now provides a configurable schematic whole-cap
-Apparatus with a distinct Procedure-selected Montage.
+targeted EEG recovery episodes and now provides a scientifically recognizable EEG
+diagnostic preflight over a configurable schematic whole-cap Apparatus and distinct
+Procedure-selected Montage.
+
+The run view presents deterministic aligned synthetic traces, a compact Montage, on-demand
+frequency measurements, and separate onset, response, and recording timelines. Twenty opaque
+singleton cases cover the Ticket 03 evidence families and controls through one constant typed
+action catalog. State-changing simulated remediation invalidates relevant evidence until a
+fresh retest, and deterministic Verifiers distinguish targeted recovery, ineffective or lucky
+terminal behavior, restraint, justified abort, and blanket caution without exposing causal
+scenario truth.
 
 An Environment author can make bounded conversational edits, inspect changes immediately,
 undo, redo, restore the seed, and stage explicitly unverified descriptive notes. The draft is
@@ -30,15 +39,15 @@ negative, restart, tamper, partial-write, reset, and replay paths.
 
 ## Frontier
 
-- [03: Diagnose EEG signal and response failures visually](issues/03-diagnose-eeg-signal-and-response-failures-visually.md) — can start immediately
+- [04: Run the complete EEG curriculum and fixed splits](issues/04-run-the-complete-eeg-curriculum-and-fixed-splits.md) — can start immediately
 - [05: Run the sealed mesoscope four-region handoff](issues/05-run-the-sealed-mesoscope-four-region-handoff.md) — can start immediately
 
 ## Dependency order
 
 1. [Run and replay one EEG marker-recovery episode](issues/01-run-and-replay-one-eeg-marker-recovery-episode.md) — complete
 2. [Author and freeze a configurable EEG Montage](issues/02-author-and-freeze-a-configurable-eeg-montage.md) — complete
-3. [Diagnose EEG signal and response failures visually](issues/03-diagnose-eeg-signal-and-response-failures-visually.md) — ready
-4. [Run the complete EEG curriculum and fixed splits](issues/04-run-the-complete-eeg-curriculum-and-fixed-splits.md) — blocked by 03
+3. [Diagnose EEG signal and response failures visually](issues/03-diagnose-eeg-signal-and-response-failures-visually.md) — complete
+4. [Run the complete EEG curriculum and fixed splits](issues/04-run-the-complete-eeg-curriculum-and-fixed-splits.md) — ready
 5. [Run the sealed mesoscope four-region handoff](issues/05-run-the-sealed-mesoscope-four-region-handoff.md) — ready
 6. [Evaluate EEG through Verifiers and local base Gemma](issues/06-evaluate-eeg-through-verifiers-and-local-base-gemma.md) — blocked by 04
 7. [Prove mesoscope portability through the same compiler](issues/07-prove-mesoscope-portability-through-the-same-compiler.md) — blocked by 05 and 06

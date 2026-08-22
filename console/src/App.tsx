@@ -8,11 +8,13 @@ import {
   EnvironmentVisualization,
   environmentTraceEvidence,
 } from "./environments";
+import { RunActionComposer } from "./environments/RunActionComposer";
 import type {
   DraftCommandResult,
   EnvironmentDraft,
   EnvironmentSummary,
   FrozenEnvironment,
+  JsonObject,
   ReplayReport,
   RunSnapshot,
   TraceEvent,
@@ -85,10 +87,6 @@ function DraftIdentity({ draft }: { draft: EnvironmentDraft }) {
   );
 }
 
-function actionPresentation(environment: EnvironmentSummary, type: string) {
-  return environment.actions.find((action) => action.type === type);
-}
-
 function ActionPanel({
   environment,
   run,
@@ -101,11 +99,22 @@ function ActionPanel({
   environment: EnvironmentSummary;
   run: RunSnapshot | null;
   busy: boolean;
-  onAction: (type: string) => void;
+  onAction: (type: string, arguments_: JsonObject) => void;
   onVerify: () => void;
   onReset: () => void;
   onReplay: () => void;
 }) {
+  const evidenceFreshness = run?.observation.evidence_freshness;
+  const currentEvidenceIds = evidenceFreshness !== null
+    && typeof evidenceFreshness === "object"
+    && !Array.isArray(evidenceFreshness)
+    ? Object.values(evidenceFreshness).flatMap((entry) => {
+        if (entry === null || typeof entry !== "object" || Array.isArray(entry)) return [];
+        return entry.status === "current" && typeof entry.evidence_id === "string"
+          ? [entry.evidence_id]
+          : [];
+      })
+    : [];
   return (
     <section className="action-panel" aria-labelledby="actions-title">
       <p className="eyebrow">Permitted actions</p>
@@ -114,21 +123,15 @@ function ActionPanel({
         <p className="panel-copy">Start the frozen run to inspect this Environment.</p>
       ) : (
         <>
-          <div className="action-grid">
-            {run.permitted_actions.map((actionType) => (
-              <button
-                className="action-button"
-                data-testid={`action-${actionType}`}
-                disabled={busy}
-                key={actionType}
-                onClick={() => onAction(actionType)}
-                title={actionPresentation(environment, actionType)?.description}
-                type="button"
-              >
-                {actionPresentation(environment, actionType)?.title ?? actionType}
-              </button>
-            ))}
-          </div>
+          <RunActionComposer
+            actions={environment.actions}
+            busy={busy || run.status === "completed"}
+            key={run.run_id}
+            onAction={onAction}
+            permittedActions={run.permitted_actions}
+            resultSummary={String(run.observation.summary ?? "Current observation loaded.")}
+            suggestedValues={{ evidence_id: currentEvidenceIds }}
+          />
           <div className="run-control-row">
             {run.status !== "completed" && (
               <button
@@ -227,13 +230,35 @@ function ResultPanel({
   replay: ReplayReport | null;
 }) {
   if (!run.verifier_result && !replay) return null;
+  const result = run.verifier_result;
   return (
     <section className="result-panel" aria-live="polite" aria-label="Run result">
-      {run.verifier_result && (
+      {result && (
         <div data-testid="verifier-result">
           <p className="eyebrow">Verifier result</p>
-          <h2>{run.verifier_result.passed ? "Verifier passed" : "Verifier did not pass"}</h2>
-          <p>{run.verifier_result.summary}</p>
+          <h2>{result.passed ? "Verifier passed" : "Verifier did not pass"}</h2>
+          <p className="result-classification">
+            {result.outcome_category
+              ? result.outcome_category.replaceAll("_", " ")
+              : result.terminal_disposition}
+          </p>
+          <p>{result.summary}</p>
+          <details data-testid="verifier-explanation">
+            <summary>Why the verifier reached this result</summary>
+            {result.reasons.length > 0 ? (
+              <ul className="quiet-list">
+                {result.reasons.map((reason) => <li key={reason}>{reason}</li>)}
+              </ul>
+            ) : <p>No blocking reason was recorded.</p>}
+            <dl className="verifier-metrics">
+              {Object.entries(result.metrics).map(([name, value]) => (
+                <div key={name}>
+                  <dt>{name.replaceAll("_", " ")}</dt>
+                  <dd>{value.toFixed(2)}</dd>
+                </div>
+              ))}
+            </dl>
+          </details>
         </div>
       )}
       {replay && (
@@ -454,9 +479,9 @@ export function App() {
     }
   }
 
-  function applyAction(type: string) {
+  function applyAction(type: string, arguments_: JsonObject) {
     if (!run) return;
-    void perform(() => environmentApi.apply(run.run_id, type));
+    void perform(() => environmentApi.apply(run.run_id, type, arguments_));
   }
 
   function verifyRun() {
@@ -591,7 +616,13 @@ export function App() {
               </div>
               <span className="scenario-tag">Frozen run</span>
             </div>
-            {environment && <EnvironmentVisualization environment={environment} run={run} />}
+            {environment && (
+              <EnvironmentVisualization
+                environment={environment}
+                key={run?.run_id ?? "no-run"}
+                run={run}
+              />
+            )}
             {run && <ResultPanel run={run} replay={replay} />}
             <section className="lower-workspace" aria-label="Run actions and canonical trace">
               {environment && (

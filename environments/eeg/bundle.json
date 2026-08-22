@@ -1,10 +1,10 @@
 {
   "contract_version": "1.0",
   "bundle_id": "eeg-onset-marker-recovery",
-  "bundle_revision": "1.2.0",
-  "generator_revision": "eeg-marker-generator-1",
-  "title": "EEG onset-marker preflight",
-  "description": "A deterministic synthetic preflight for the onset-marker route.",
+  "bundle_revision": "1.3.0",
+  "generator_revision": "eeg-preflight-generator-1",
+  "title": "EEG diagnostic preflight",
+  "description": "Deterministic synthetic EEG evidence for diagnosis, targeted recovery, fresh retesting, or evidence-bound abort.",
   "simulation_label": "Synthetic EEG apparatus simulation",
   "apparatus": {
     "kind": "eeg",
@@ -13,39 +13,237 @@
     "coordinate_system": "Schematic whole-cap site catalog",
     "scientific_claim": "The site positions are schematic interface coordinates, not exact cap geometry.",
     "sites": [
-      {"id": "Fp1", "label": "Fp1", "x": 35, "y": 9, "kind": "scalp"},
-      {"id": "Fpz", "label": "Fpz", "x": 50, "y": 7, "kind": "scalp"},
-      {"id": "Fp2", "label": "Fp2", "x": 65, "y": 9, "kind": "scalp"},
-      {"id": "F7", "label": "F7", "x": 18, "y": 25, "kind": "scalp"},
-      {"id": "F3", "label": "F3", "x": 36, "y": 24, "kind": "scalp"},
-      {"id": "Fz", "label": "Fz", "x": 50, "y": 22, "kind": "scalp"},
-      {"id": "F4", "label": "F4", "x": 64, "y": 24, "kind": "scalp"},
-      {"id": "F8", "label": "F8", "x": 82, "y": 25, "kind": "scalp"},
-      {"id": "FT7", "label": "FT7", "x": 13, "y": 36, "kind": "scalp"},
-      {"id": "FC3", "label": "FC3", "x": 35, "y": 35, "kind": "scalp"},
-      {"id": "FCz", "label": "FCz", "x": 50, "y": 34, "kind": "scalp"},
-      {"id": "FC4", "label": "FC4", "x": 65, "y": 35, "kind": "scalp"},
-      {"id": "FT8", "label": "FT8", "x": 87, "y": 36, "kind": "scalp"},
-      {"id": "T7", "label": "T7", "x": 10, "y": 50, "kind": "scalp"},
-      {"id": "C3", "label": "C3", "x": 34, "y": 50, "kind": "scalp"},
-      {"id": "Cz", "label": "Cz", "x": 50, "y": 50, "kind": "scalp"},
-      {"id": "C4", "label": "C4", "x": 66, "y": 50, "kind": "scalp"},
-      {"id": "T8", "label": "T8", "x": 90, "y": 50, "kind": "scalp"},
-      {"id": "TP7", "label": "TP7", "x": 13, "y": 64, "kind": "scalp"},
-      {"id": "CP3", "label": "CP3", "x": 35, "y": 65, "kind": "scalp"},
-      {"id": "CPz", "label": "CPz", "x": 50, "y": 66, "kind": "scalp"},
-      {"id": "CP4", "label": "CP4", "x": 65, "y": 65, "kind": "scalp"},
-      {"id": "TP8", "label": "TP8", "x": 87, "y": 64, "kind": "scalp"},
-      {"id": "P7", "label": "P7", "x": 18, "y": 75, "kind": "scalp"},
-      {"id": "P3", "label": "P3", "x": 36, "y": 76, "kind": "scalp"},
-      {"id": "Pz", "label": "Pz", "x": 50, "y": 78, "kind": "scalp"},
-      {"id": "P4", "label": "P4", "x": 64, "y": 76, "kind": "scalp"},
-      {"id": "P8", "label": "P8", "x": 82, "y": 75, "kind": "scalp"},
-      {"id": "O1", "label": "O1", "x": 36, "y": 91, "kind": "scalp"},
-      {"id": "Oz", "label": "Oz", "x": 50, "y": 93, "kind": "scalp"},
-      {"id": "O2", "label": "O2", "x": 64, "y": 91, "kind": "scalp"},
-      {"id": "A1", "label": "A1", "x": 3, "y": 53, "kind": "auxiliary"},
-      {"id": "A2", "label": "A2", "x": 97, "y": 53, "kind": "auxiliary"}
+      {
+        "id": "Fp1",
+        "label": "Fp1",
+        "x": 35,
+        "y": 9,
+        "kind": "scalp"
+      },
+      {
+        "id": "Fpz",
+        "label": "Fpz",
+        "x": 50,
+        "y": 7,
+        "kind": "scalp"
+      },
+      {
+        "id": "Fp2",
+        "label": "Fp2",
+        "x": 65,
+        "y": 9,
+        "kind": "scalp"
+      },
+      {
+        "id": "F7",
+        "label": "F7",
+        "x": 18,
+        "y": 25,
+        "kind": "scalp"
+      },
+      {
+        "id": "F3",
+        "label": "F3",
+        "x": 36,
+        "y": 24,
+        "kind": "scalp"
+      },
+      {
+        "id": "Fz",
+        "label": "Fz",
+        "x": 50,
+        "y": 22,
+        "kind": "scalp"
+      },
+      {
+        "id": "F4",
+        "label": "F4",
+        "x": 64,
+        "y": 24,
+        "kind": "scalp"
+      },
+      {
+        "id": "F8",
+        "label": "F8",
+        "x": 82,
+        "y": 25,
+        "kind": "scalp"
+      },
+      {
+        "id": "FT7",
+        "label": "FT7",
+        "x": 13,
+        "y": 36,
+        "kind": "scalp"
+      },
+      {
+        "id": "FC3",
+        "label": "FC3",
+        "x": 35,
+        "y": 35,
+        "kind": "scalp"
+      },
+      {
+        "id": "FCz",
+        "label": "FCz",
+        "x": 50,
+        "y": 34,
+        "kind": "scalp"
+      },
+      {
+        "id": "FC4",
+        "label": "FC4",
+        "x": 65,
+        "y": 35,
+        "kind": "scalp"
+      },
+      {
+        "id": "FT8",
+        "label": "FT8",
+        "x": 87,
+        "y": 36,
+        "kind": "scalp"
+      },
+      {
+        "id": "T7",
+        "label": "T7",
+        "x": 10,
+        "y": 50,
+        "kind": "scalp"
+      },
+      {
+        "id": "C3",
+        "label": "C3",
+        "x": 34,
+        "y": 50,
+        "kind": "scalp"
+      },
+      {
+        "id": "Cz",
+        "label": "Cz",
+        "x": 50,
+        "y": 50,
+        "kind": "scalp"
+      },
+      {
+        "id": "C4",
+        "label": "C4",
+        "x": 66,
+        "y": 50,
+        "kind": "scalp"
+      },
+      {
+        "id": "T8",
+        "label": "T8",
+        "x": 90,
+        "y": 50,
+        "kind": "scalp"
+      },
+      {
+        "id": "TP7",
+        "label": "TP7",
+        "x": 13,
+        "y": 64,
+        "kind": "scalp"
+      },
+      {
+        "id": "CP3",
+        "label": "CP3",
+        "x": 35,
+        "y": 65,
+        "kind": "scalp"
+      },
+      {
+        "id": "CPz",
+        "label": "CPz",
+        "x": 50,
+        "y": 66,
+        "kind": "scalp"
+      },
+      {
+        "id": "CP4",
+        "label": "CP4",
+        "x": 65,
+        "y": 65,
+        "kind": "scalp"
+      },
+      {
+        "id": "TP8",
+        "label": "TP8",
+        "x": 87,
+        "y": 64,
+        "kind": "scalp"
+      },
+      {
+        "id": "P7",
+        "label": "P7",
+        "x": 18,
+        "y": 75,
+        "kind": "scalp"
+      },
+      {
+        "id": "P3",
+        "label": "P3",
+        "x": 36,
+        "y": 76,
+        "kind": "scalp"
+      },
+      {
+        "id": "Pz",
+        "label": "Pz",
+        "x": 50,
+        "y": 78,
+        "kind": "scalp"
+      },
+      {
+        "id": "P4",
+        "label": "P4",
+        "x": 64,
+        "y": 76,
+        "kind": "scalp"
+      },
+      {
+        "id": "P8",
+        "label": "P8",
+        "x": 82,
+        "y": 75,
+        "kind": "scalp"
+      },
+      {
+        "id": "O1",
+        "label": "O1",
+        "x": 36,
+        "y": 91,
+        "kind": "scalp"
+      },
+      {
+        "id": "Oz",
+        "label": "Oz",
+        "x": 50,
+        "y": 93,
+        "kind": "scalp"
+      },
+      {
+        "id": "O2",
+        "label": "O2",
+        "x": 64,
+        "y": 91,
+        "kind": "scalp"
+      },
+      {
+        "id": "A1",
+        "label": "A1",
+        "x": 3,
+        "y": 53,
+        "kind": "auxiliary"
+      },
+      {
+        "id": "A2",
+        "label": "A2",
+        "x": 97,
+        "y": 53,
+        "kind": "auxiliary"
+      }
     ]
   },
   "observation_schema": {
@@ -55,231 +253,2478 @@
         "type": "string",
         "const": "Synthetic EEG apparatus simulation"
       },
-      "stage": {"type": "string", "const": "onset_marker_recovery"},
-      "summary": {"type": "string", "minLength": 1},
-      "onset_timeline": {
+      "stage": {
+        "type": "string",
+        "const": "diagnostic_preflight"
+      },
+      "summary": {
+        "type": "string",
+        "minLength": 1
+      },
+      "montage": {
         "type": "object",
         "properties": {
-          "flash_sequence": {"type": "integer", "minimum": 1},
-          "location": {"type": "string", "const": "lower-right"},
-          "marker_count": {"type": "integer", "minimum": 1, "maximum": 2},
-          "evidence_id": {"type": "string", "pattern": "^flash-[0-9]{3}$"}
+          "recording_sites": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            },
+            "minItems": 1,
+            "uniqueItems": true
+          },
+          "reference": {
+            "type": "string",
+            "minLength": 1
+          },
+          "ground": {
+            "type": "string",
+            "minLength": 1
+          },
+          "coordinate_note": {
+            "type": "string",
+            "minLength": 1
+          }
         },
-        "required": ["flash_sequence", "location", "marker_count", "evidence_id"],
+        "required": [
+          "recording_sites",
+          "reference",
+          "ground",
+          "coordinate_note"
+        ],
         "additionalProperties": false
       },
-      "route_inspection": {
-        "type": ["object", "null"],
+      "eeg_window": {
+        "type": "object",
         "properties": {
+          "evidence_id": {
+            "type": "string",
+            "minLength": 1
+          },
           "status": {
             "type": "string",
-            "enum": ["inspected", "repair_applied"]
+            "enum": [
+              "current",
+              "stale"
+            ]
           },
-          "finding": {"type": "string", "minLength": 1}
+          "signal_stage": {
+            "type": "string",
+            "const": "synthetic post-online-bandpass display window"
+          },
+          "source_sampling_hz": {
+            "type": "integer",
+            "minimum": 128,
+            "maximum": 4096
+          },
+          "display_sampling_hz": {
+            "type": "integer",
+            "const": 64
+          },
+          "display_duration_seconds": {
+            "type": "number",
+            "const": 1.5
+          },
+          "window_start_sample": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "display_sample_count": {
+            "type": "integer",
+            "const": 96
+          },
+          "display_representation": {
+            "type": "string",
+            "minLength": 1
+          },
+          "channels": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "object",
+              "properties": {
+                "site": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "role": {
+                  "type": "string",
+                  "enum": [
+                    "required",
+                    "optional"
+                  ]
+                },
+                "samples": {
+                  "type": "array",
+                  "items": {
+                    "type": "number"
+                  },
+                  "minItems": 96,
+                  "maxItems": 96
+                },
+                "measurements": {
+                  "type": "object",
+                  "properties": {
+                    "range_uv": {
+                      "type": "number",
+                      "minimum": 0
+                    },
+                    "unique_value_count": {
+                      "type": "integer",
+                      "minimum": 1
+                    },
+                    "rail_fraction": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 1
+                    },
+                    "near_zero_fraction": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 1
+                    }
+                  },
+                  "required": [
+                    "range_uv",
+                    "unique_value_count",
+                    "rail_fraction",
+                    "near_zero_fraction"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "required": [
+                "site",
+                "role",
+                "samples",
+                "measurements"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "reference_comparison": {
+            "type": "object",
+            "properties": {
+              "site": {
+                "type": "string",
+                "minLength": 1
+              },
+              "samples": {
+                "type": "array",
+                "items": {
+                  "type": "number"
+                },
+                "minItems": 96,
+                "maxItems": 96
+              }
+            },
+            "required": [
+              "site",
+              "samples"
+            ],
+            "additionalProperties": false
+          },
+          "measurement_note": {
+            "type": "string",
+            "minLength": 1
+          }
         },
-        "required": ["status", "finding"],
+        "required": [
+          "evidence_id",
+          "status",
+          "signal_stage",
+          "source_sampling_hz",
+          "display_sampling_hz",
+          "display_duration_seconds",
+          "window_start_sample",
+          "display_sample_count",
+          "display_representation",
+          "channels",
+          "reference_comparison",
+          "measurement_note"
+        ],
         "additionalProperties": false
       },
-      "freshness": {
+      "frequency_evidence": {
+        "type": [
+          "object",
+          "null"
+        ],
+        "properties": {
+          "source_window_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "current",
+              "stale"
+            ]
+          },
+          "signal_stage": {
+            "type": "string",
+            "minLength": 1
+          },
+          "bins_hz": {
+            "type": "array",
+            "items": {
+              "type": "number"
+            },
+            "minItems": 5,
+            "maxItems": 5
+          },
+          "channels": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "object",
+              "properties": {
+                "site": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "magnitudes": {
+                  "type": "array",
+                  "items": {
+                    "type": "number",
+                    "minimum": 0
+                  },
+                  "minItems": 5,
+                  "maxItems": 5
+                }
+              },
+              "required": [
+                "site",
+                "magnitudes"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "reference_comparison": {
+            "type": "object",
+            "properties": {
+              "site": {
+                "type": "string",
+                "minLength": 1
+              },
+              "magnitudes": {
+                "type": "array",
+                "items": {
+                  "type": "number",
+                  "minimum": 0
+                },
+                "minItems": 5,
+                "maxItems": 5
+              }
+            },
+            "required": [
+              "site",
+              "magnitudes"
+            ],
+            "additionalProperties": false
+          },
+          "relationships": {
+            "type": "object",
+            "properties": {
+              "mean_absolute_pairwise_waveform_correlation": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1
+              },
+              "mean_absolute_reference_waveform_correlation": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1
+              }
+            },
+            "required": [
+              "mean_absolute_pairwise_waveform_correlation",
+              "mean_absolute_reference_waveform_correlation"
+            ],
+            "additionalProperties": false
+          },
+          "measurement_note": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "source_window_id",
+          "status",
+          "signal_stage",
+          "bins_hz",
+          "channels",
+          "reference_comparison",
+          "relationships",
+          "measurement_note"
+        ],
+        "additionalProperties": false
+      },
+      "onset_evidence": {
         "type": "object",
         "properties": {
-          "evidence_id": {"type": "string", "pattern": "^flash-[0-9]{3}$"},
-          "evidence_state_revision": {"type": "integer", "minimum": 0},
-          "state_revision": {"type": "integer", "minimum": 0},
-          "status": {"type": "string", "enum": ["current", "stale"]},
-          "reason": {"type": "string", "minLength": 1}
-        },
-        "required": ["evidence_id", "state_revision", "status"],
-        "additionalProperties": false,
-        "allOf": [
-          {
-            "if": {"properties": {"status": {"const": "stale"}}},
-            "then": {"required": ["evidence_state_revision", "reason"]}
+          "evidence_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "current",
+              "stale"
+            ]
+          },
+          "flash_sequence": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "location": {
+            "type": "string",
+            "const": "lower-right"
+          },
+          "flash_time_ms": {
+            "type": "number",
+            "minimum": 0
+          },
+          "marker_times_ms": {
+            "type": "array",
+            "items": {
+              "type": "number",
+              "minimum": 0
+            },
+            "maxItems": 2
+          },
+          "participant_view": {
+            "type": "object",
+            "properties": {
+              "lower_right_cue_visible": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "lower_right_cue_visible"
+            ],
+            "additionalProperties": false
           }
-        ]
+        },
+        "required": [
+          "evidence_id",
+          "status",
+          "flash_sequence",
+          "location",
+          "flash_time_ms",
+          "marker_times_ms",
+          "participant_view"
+        ],
+        "additionalProperties": false
+      },
+      "response_evidence": {
+        "type": "object",
+        "properties": {
+          "evidence_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "current",
+              "stale"
+            ]
+          },
+          "simulated_press": {
+            "type": "string",
+            "minLength": 1
+          },
+          "occurrence_detected": {
+            "type": "boolean"
+          },
+          "queried_identity": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "event_time_ms": {
+            "type": "number",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "evidence_id",
+          "status",
+          "simulated_press",
+          "occurrence_detected",
+          "queried_identity",
+          "event_time_ms"
+        ],
+        "additionalProperties": false
+      },
+      "recording_evidence": {
+        "type": "object",
+        "properties": {
+          "evidence_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "current",
+              "stale"
+            ]
+          },
+          "recording_active": {
+            "type": "boolean"
+          },
+          "timeline": {
+            "type": "object",
+            "properties": {
+              "stimulus_ms": {
+                "type": "number",
+                "minimum": 0
+              },
+              "marker_ms": {
+                "type": "number",
+                "minimum": 0
+              },
+              "eeg_anchor_ms": {
+                "type": "number",
+                "minimum": 0
+              },
+              "response_ms": {
+                "type": "number",
+                "minimum": 0
+              }
+            },
+            "required": [
+              "stimulus_ms",
+              "marker_ms",
+              "eeg_anchor_ms",
+              "response_ms"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "evidence_id",
+          "status",
+          "recording_active",
+          "timeline"
+        ],
+        "additionalProperties": false
+      },
+      "participant_evidence": {
+        "type": "object",
+        "properties": {
+          "simulated_tension_reported": {
+            "type": "boolean"
+          },
+          "recent_instruction": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "simulated_tension_reported",
+          "recent_instruction"
+        ],
+        "additionalProperties": false
+      },
+      "evidence_freshness": {
+        "type": "object",
+        "properties": {
+          "eeg": {
+            "type": "object",
+            "properties": {
+              "evidence_id": {
+                "type": "string",
+                "minLength": 1
+              },
+              "state_revision": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "status": {
+                "type": "string",
+                "enum": [
+                  "current",
+                  "stale"
+                ]
+              },
+              "evidence_state_revision": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "reason": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "required": [
+              "evidence_id",
+              "state_revision",
+              "status"
+            ],
+            "additionalProperties": false
+          },
+          "onset": {
+            "type": "object",
+            "properties": {
+              "evidence_id": {
+                "type": "string",
+                "minLength": 1
+              },
+              "state_revision": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "status": {
+                "type": "string",
+                "enum": [
+                  "current",
+                  "stale"
+                ]
+              },
+              "evidence_state_revision": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "reason": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "required": [
+              "evidence_id",
+              "state_revision",
+              "status"
+            ],
+            "additionalProperties": false
+          },
+          "response": {
+            "type": "object",
+            "properties": {
+              "evidence_id": {
+                "type": "string",
+                "minLength": 1
+              },
+              "state_revision": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "status": {
+                "type": "string",
+                "enum": [
+                  "current",
+                  "stale"
+                ]
+              },
+              "evidence_state_revision": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "reason": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "required": [
+              "evidence_id",
+              "state_revision",
+              "status"
+            ],
+            "additionalProperties": false
+          },
+          "recording": {
+            "type": "object",
+            "properties": {
+              "evidence_id": {
+                "type": "string",
+                "minLength": 1
+              },
+              "state_revision": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "status": {
+                "type": "string",
+                "enum": [
+                  "current",
+                  "stale"
+                ]
+              },
+              "evidence_state_revision": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "reason": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "required": [
+              "evidence_id",
+              "state_revision",
+              "status"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "eeg",
+          "onset",
+          "response",
+          "recording"
+        ],
+        "additionalProperties": false
       },
       "procedure_configuration": {
         "type": "object",
         "properties": {
-          "name": {"type": "string", "minLength": 1},
+          "name": {
+            "type": "string",
+            "minLength": 1
+          },
           "montage": {
             "type": "object",
             "properties": {
               "recording_sites": {
                 "type": "array",
-                "items": {"type": "string", "minLength": 1},
+                "items": {
+                  "type": "string",
+                  "minLength": 1
+                },
                 "minItems": 1,
                 "uniqueItems": true
               },
-              "reference": {"type": "string", "minLength": 1},
-              "ground": {"type": "string", "minLength": 1}
+              "reference": {
+                "type": "string",
+                "minLength": 1
+              },
+              "ground": {
+                "type": "string",
+                "minLength": 1
+              }
             },
-            "required": ["recording_sites", "reference", "ground"],
+            "required": [
+              "recording_sites",
+              "reference",
+              "ground"
+            ],
             "additionalProperties": true
           },
           "acquisition_profile": {
             "type": "object",
             "properties": {
-              "sampling_hz": {"type": "integer", "minimum": 128, "maximum": 4096},
+              "sampling_hz": {
+                "type": "integer",
+                "minimum": 128,
+                "maximum": 4096
+              },
               "online_bandpass_hz": {
                 "type": "array",
-                "prefixItems": [{"type": "number"}, {"type": "number"}],
+                "prefixItems": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "number"
+                  }
+                ],
                 "minItems": 2,
                 "maxItems": 2
               },
-              "notch_hz": {"type": "integer", "enum": [50, 60]}
+              "notch_hz": {
+                "type": "integer",
+                "enum": [
+                  50,
+                  60
+                ]
+              }
             },
-            "required": ["sampling_hz", "online_bandpass_hz", "notch_hz"],
+            "required": [
+              "sampling_hz",
+              "online_bandpass_hz",
+              "notch_hz"
+            ],
             "additionalProperties": true
           }
         },
-        "required": ["name", "montage", "acquisition_profile"],
+        "required": [
+          "name",
+          "montage",
+          "acquisition_profile"
+        ],
         "additionalProperties": true
       }
     },
-    "required": ["simulation_label", "stage", "summary", "onset_timeline", "freshness", "procedure_configuration"],
+    "required": [
+      "simulation_label",
+      "stage",
+      "summary",
+      "procedure_configuration"
+    ],
     "additionalProperties": false
   },
   "hidden_state_schema": {
     "type": "object",
     "properties": {
-      "refractory_route_repaired": {"type": "boolean"},
-      "route_inspected": {"type": "boolean"},
-      "inspected_before_repair": {"type": "boolean"},
-      "repair_transition": {
-        "type": ["integer", "null"],
+      "case_id": {
+        "type": "string",
+        "pattern": "^eeg-demo-[0-9]{3}$"
+      },
+      "resolved": {
+        "type": "boolean"
+      },
+      "window_sequence": {
+        "type": "integer",
         "minimum": 1
       },
-      "flash_sequence": {"type": "integer", "minimum": 1}
+      "domain_sequences": {
+        "type": "object",
+        "properties": {
+          "eeg": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "onset": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "response": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "recording": {
+            "type": "integer",
+            "minimum": 1
+          }
+        },
+        "required": [
+          "eeg",
+          "onset",
+          "response",
+          "recording"
+        ],
+        "additionalProperties": false
+      },
+      "inspections": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "action": {
+              "type": "string"
+            },
+            "domain": {
+              "type": "string",
+              "enum": [
+                "eeg",
+                "onset",
+                "response",
+                "recording"
+              ]
+            },
+            "evidence_id": {
+              "type": "string"
+            },
+            "state_revision": {
+              "type": "integer",
+              "minimum": 0
+            }
+          },
+          "required": [
+            "action",
+            "domain",
+            "evidence_id",
+            "state_revision"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "state_changes": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "action": {
+              "type": "string"
+            },
+            "domain": {
+              "type": "string",
+              "enum": [
+                "eeg",
+                "onset",
+                "response",
+                "recording"
+              ]
+            },
+            "state_revision": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "relevant": {
+              "type": "boolean"
+            },
+            "targeted": {
+              "type": "boolean"
+            },
+            "effective": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "action",
+            "domain",
+            "state_revision",
+            "relevant",
+            "targeted",
+            "effective"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "targeted_intervention": {
+        "type": "boolean"
+      },
+      "relevant_attempts": {
+        "type": "integer",
+        "minimum": 0
+      },
+      "latest_retest_revisions": {
+        "type": "object",
+        "properties": {
+          "eeg": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0
+          },
+          "onset": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0
+          },
+          "response": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0
+          },
+          "recording": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0
+          }
+        },
+        "required": [
+          "eeg",
+          "onset",
+          "response",
+          "recording"
+        ],
+        "additionalProperties": false
+      },
+      "current_evidence_ids": {
+        "type": "object",
+        "properties": {
+          "eeg": {
+            "type": "string"
+          },
+          "onset": {
+            "type": "string"
+          },
+          "response": {
+            "type": "string"
+          },
+          "recording": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "eeg",
+          "onset",
+          "response",
+          "recording"
+        ],
+        "additionalProperties": false
+      },
+      "decision": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "enum": [
+          "complete",
+          "abort",
+          null
+        ]
+      },
+      "abort_request": {
+        "type": [
+          "object",
+          "null"
+        ],
+        "properties": {
+          "path": {
+            "type": "string",
+            "enum": [
+              "eeg",
+              "onset",
+              "response",
+              "recording"
+            ]
+          },
+          "evidence_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "path",
+          "evidence_id"
+        ],
+        "additionalProperties": false
+      }
     },
-    "required": ["refractory_route_repaired", "route_inspected", "inspected_before_repair", "repair_transition", "flash_sequence"],
+    "required": [
+      "case_id"
+    ],
     "additionalProperties": false
   },
   "actions": [
     {
+      "type": "inspect_eeg_signals",
+      "title": "Inspect synthetic EEG traces",
+      "description": "Inspect the current synthetic multichannel trace window.",
+      "group": "inspect",
+      "changes_state": false,
+      "input_schema": {
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false
+      }
+    },
+    {
+      "type": "inspect_frequency_evidence",
+      "title": "Inspect frequency evidence",
+      "description": "Derive frequency measurements from the current displayed synthetic window.",
+      "group": "inspect",
+      "changes_state": false,
+      "input_schema": {
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false
+      }
+    },
+    {
       "type": "inspect_onset_route",
       "title": "Inspect simulated onset route",
-      "description": "Inspect current evidence from the simulated lower-right onset route.",
-      "input_schema": {"type": "object", "properties": {}, "additionalProperties": false}
+      "description": "Inspect flash, marker, route, and participant-view evidence.",
+      "group": "inspect",
+      "changes_state": false,
+      "input_schema": {
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false
+      }
+    },
+    {
+      "type": "inspect_response_timeline",
+      "title": "Inspect simulated response path",
+      "description": "Inspect response occurrence and queried-identity evidence.",
+      "group": "inspect",
+      "changes_state": false,
+      "input_schema": {
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false
+      }
+    },
+    {
+      "type": "inspect_recording_timeline",
+      "title": "Inspect simulated recording timeline",
+      "description": "Inspect recording state and aligned event timestamps.",
+      "group": "inspect",
+      "changes_state": false,
+      "input_schema": {
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false
+      }
+    },
+    {
+      "type": "reseat_electrode",
+      "title": "Reseat simulated electrode",
+      "description": "Reseat one selected simulated Montage electrode.",
+      "group": "remediate",
+      "changes_state": true,
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "site": {
+            "type": "string",
+            "enum": [
+                "FC3",
+                "FC4",
+                "FT7",
+                "FT8"
+            ]
+          }
+        },
+        "required": [
+          "site"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "type": "replace_electrode",
+      "title": "Replace simulated electrode",
+      "description": "Replace one selected simulated Montage electrode.",
+      "group": "remediate",
+      "changes_state": true,
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "site": {
+            "type": "string",
+            "enum": [
+                "FC3",
+                "FC4",
+                "FT7",
+                "FT8"
+            ]
+          }
+        },
+        "required": [
+          "site"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "type": "reconnect_electrode_path",
+      "title": "Reconnect simulated electrode path",
+      "description": "Reconnect one selected simulated electrode path.",
+      "group": "remediate",
+      "changes_state": true,
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "site": {
+            "type": "string",
+            "enum": [
+                "FC3",
+                "FC4",
+                "FT7",
+                "FT8"
+            ]
+          }
+        },
+        "required": [
+          "site"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "type": "reconnect_reference",
+      "title": "Reconnect simulated reference",
+      "description": "Reconnect the Procedure-selected simulated reference path.",
+      "group": "remediate",
+      "changes_state": true,
+      "input_schema": {
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false
+      }
+    },
+    {
+      "type": "reconnect_ground",
+      "title": "Reconnect simulated ground",
+      "description": "Reconnect the Procedure-selected simulated ground path.",
+      "group": "remediate",
+      "changes_state": true,
+      "input_schema": {
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false
+      }
+    },
+    {
+      "type": "isolate_electrical_source",
+      "title": "Isolate simulated electrical source",
+      "description": "Isolate the inspected simulated common electrical source.",
+      "group": "remediate",
+      "changes_state": true,
+      "input_schema": {
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false
+      }
+    },
+    {
+      "type": "ask_participant_to_relax",
+      "title": "Ask simulated participant to relax",
+      "description": "Ask the simulated participant to relax and remain still.",
+      "group": "remediate",
+      "changes_state": true,
+      "input_schema": {
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false
+      }
     },
     {
       "type": "repair_refractory_route",
-      "title": "Apply targeted simulated repair",
-      "description": "Apply the targeted repair to the simulated refractory route.",
-      "input_schema": {"type": "object", "properties": {}, "additionalProperties": false}
+      "title": "Repair simulated refractory route",
+      "description": "Repair the simulated refractory route used by the onset path.",
+      "group": "remediate",
+      "changes_state": true,
+      "input_schema": {
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false
+      }
     },
     {
-      "type": "present_test_flash",
-      "title": "Present fresh synthetic test flash",
-      "description": "Present a fresh synthetic lower-right test flash and observe onset markers.",
-      "input_schema": {"type": "object", "properties": {}, "additionalProperties": false}
+      "type": "repair_onset_route",
+      "title": "Reconnect simulated onset route",
+      "description": "Reconnect the inspected simulated onset event route.",
+      "group": "remediate",
+      "changes_state": true,
+      "input_schema": {
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false
+      }
+    },
+    {
+      "type": "correct_trigger_visibility",
+      "title": "Correct simulated cue visibility",
+      "description": "Make the simulated lower-right trigger patch unavailable to participant view.",
+      "group": "remediate",
+      "changes_state": true,
+      "input_schema": {
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false
+      }
     },
     {
       "type": "restart_response_handshake",
       "title": "Restart simulated response handshake",
-      "description": "Restart the simulated response handshake; this does not alter the onset route.",
-      "input_schema": {"type": "object", "properties": {}, "additionalProperties": false}
+      "description": "Restart the simulated response-occurrence handshake.",
+      "group": "remediate",
+      "changes_state": true,
+      "input_schema": {
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false
+      }
+    },
+    {
+      "type": "correct_response_mapping",
+      "title": "Correct simulated response mapping",
+      "description": "Correct the simulated response identity mapping.",
+      "group": "remediate",
+      "changes_state": true,
+      "input_schema": {
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false
+      }
+    },
+    {
+      "type": "restore_recording_state",
+      "title": "Restore simulated recording state",
+      "description": "Restore the intended simulated acquisition recording state.",
+      "group": "remediate",
+      "changes_state": true,
+      "input_schema": {
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false
+      }
+    },
+    {
+      "type": "realign_timeline",
+      "title": "Realign simulated event integration",
+      "description": "Restart the simulated integration to collect a coherent event timeline.",
+      "group": "remediate",
+      "changes_state": true,
+      "input_schema": {
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false
+      }
+    },
+    {
+      "type": "collect_fresh_eeg_window",
+      "title": "Collect fresh synthetic EEG window",
+      "description": "Collect a fresh comparative multichannel display window.",
+      "group": "collect",
+      "changes_state": false,
+      "input_schema": {
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false
+      }
+    },
+    {
+      "type": "present_test_flash",
+      "title": "Present fresh synthetic test flash",
+      "description": "Present one fresh synthetic lower-right test flash.",
+      "group": "collect",
+      "changes_state": false,
+      "input_schema": {
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false
+      }
+    },
+    {
+      "type": "run_response_preflight",
+      "title": "Run fresh simulated response preflight",
+      "description": "Record a fresh simulated response occurrence and identity check.",
+      "group": "collect",
+      "changes_state": false,
+      "input_schema": {
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false
+      }
+    },
+    {
+      "type": "run_recording_preflight",
+      "title": "Run fresh simulated recording preflight",
+      "description": "Record a fresh simulated recording-state and timeline check.",
+      "group": "collect",
+      "changes_state": false,
+      "input_schema": {
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false
+      }
+    },
+    {
+      "type": "complete_preflight",
+      "title": "Submit preflight for verification",
+      "description": "Submit the current Policy-visible evidence for deterministic verification.",
+      "group": "decide",
+      "changes_state": false,
+      "input_schema": {
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false
+      }
+    },
+    {
+      "type": "abort_preflight",
+      "title": "Abort simulated preflight with evidence",
+      "description": "Stop the simulated preflight and cite current evidence for a blocking path.",
+      "group": "decide",
+      "changes_state": false,
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": "string",
+            "enum": [
+              "eeg",
+              "onset",
+              "response",
+              "recording"
+            ]
+          },
+          "evidence_id": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "path",
+          "evidence_id"
+        ],
+        "additionalProperties": false
+      }
     }
   ],
   "procedure": {
     "configuration": {
       "name": "EEG onset-marker preflight",
       "montage": {
-        "recording_sites": ["FC3", "FC4", "FT7", "FT8"],
+        "recording_sites": [
+          "FC3",
+          "FC4",
+          "FT7",
+          "FT8"
+        ],
         "reference": "FCz",
         "ground": "A1"
       },
       "acquisition_profile": {
         "sampling_hz": 1017,
-        "online_bandpass_hz": [0.1, 30.0],
+        "online_bandpass_hz": [
+          0.1,
+          30
+        ],
         "notch_hz": 50
       }
     },
-    "initial_state": "onset_recovery",
+    "initial_state": "diagnostic_preflight",
     "states": [
-      {"id": "onset_recovery", "terminal": false},
-      {"id": "evidence_ready", "terminal": true}
+      {
+        "id": "diagnostic_preflight",
+        "terminal": false
+      },
+      {
+        "id": "preflight_complete",
+        "terminal": true
+      },
+      {
+        "id": "preflight_aborted",
+        "terminal": true
+      }
     ],
     "transitions": [
-      {"id": "inspect-route", "from_state": "onset_recovery", "action": "inspect_onset_route", "to_state": "onset_recovery"},
-      {"id": "repair-route", "from_state": "onset_recovery", "action": "repair_refractory_route", "to_state": "onset_recovery"},
-      {"id": "test-flash", "from_state": "onset_recovery", "action": "present_test_flash", "to_state": "evidence_ready"},
-      {"id": "restart-response", "from_state": "onset_recovery", "action": "restart_response_handshake", "to_state": "onset_recovery"}
+      {
+        "id": "preflight-inspect-eeg-signals",
+        "from_state": "diagnostic_preflight",
+        "action": "inspect_eeg_signals",
+        "to_state": "diagnostic_preflight"
+      },
+      {
+        "id": "preflight-inspect-frequency-evidence",
+        "from_state": "diagnostic_preflight",
+        "action": "inspect_frequency_evidence",
+        "to_state": "diagnostic_preflight"
+      },
+      {
+        "id": "preflight-inspect-onset-route",
+        "from_state": "diagnostic_preflight",
+        "action": "inspect_onset_route",
+        "to_state": "diagnostic_preflight"
+      },
+      {
+        "id": "preflight-inspect-response-path",
+        "from_state": "diagnostic_preflight",
+        "action": "inspect_response_timeline",
+        "to_state": "diagnostic_preflight"
+      },
+      {
+        "id": "preflight-inspect-recording-timeline",
+        "from_state": "diagnostic_preflight",
+        "action": "inspect_recording_timeline",
+        "to_state": "diagnostic_preflight"
+      },
+      {
+        "id": "preflight-reseat-electrode",
+        "from_state": "diagnostic_preflight",
+        "action": "reseat_electrode",
+        "to_state": "diagnostic_preflight"
+      },
+      {
+        "id": "preflight-replace-electrode",
+        "from_state": "diagnostic_preflight",
+        "action": "replace_electrode",
+        "to_state": "diagnostic_preflight"
+      },
+      {
+        "id": "preflight-reconnect-electrode-path",
+        "from_state": "diagnostic_preflight",
+        "action": "reconnect_electrode_path",
+        "to_state": "diagnostic_preflight"
+      },
+      {
+        "id": "preflight-reconnect-reference",
+        "from_state": "diagnostic_preflight",
+        "action": "reconnect_reference",
+        "to_state": "diagnostic_preflight"
+      },
+      {
+        "id": "preflight-reconnect-ground",
+        "from_state": "diagnostic_preflight",
+        "action": "reconnect_ground",
+        "to_state": "diagnostic_preflight"
+      },
+      {
+        "id": "preflight-isolate-electrical-source",
+        "from_state": "diagnostic_preflight",
+        "action": "isolate_electrical_source",
+        "to_state": "diagnostic_preflight"
+      },
+      {
+        "id": "preflight-ask-participant-to-relax",
+        "from_state": "diagnostic_preflight",
+        "action": "ask_participant_to_relax",
+        "to_state": "diagnostic_preflight"
+      },
+      {
+        "id": "preflight-repair-refractory-route",
+        "from_state": "diagnostic_preflight",
+        "action": "repair_refractory_route",
+        "to_state": "diagnostic_preflight"
+      },
+      {
+        "id": "preflight-repair-onset-route",
+        "from_state": "diagnostic_preflight",
+        "action": "repair_onset_route",
+        "to_state": "diagnostic_preflight"
+      },
+      {
+        "id": "preflight-correct-trigger-visibility",
+        "from_state": "diagnostic_preflight",
+        "action": "correct_trigger_visibility",
+        "to_state": "diagnostic_preflight"
+      },
+      {
+        "id": "preflight-restart-response-handshake",
+        "from_state": "diagnostic_preflight",
+        "action": "restart_response_handshake",
+        "to_state": "diagnostic_preflight"
+      },
+      {
+        "id": "preflight-correct-response-mapping",
+        "from_state": "diagnostic_preflight",
+        "action": "correct_response_mapping",
+        "to_state": "diagnostic_preflight"
+      },
+      {
+        "id": "preflight-restore-recording-state",
+        "from_state": "diagnostic_preflight",
+        "action": "restore_recording_state",
+        "to_state": "diagnostic_preflight"
+      },
+      {
+        "id": "preflight-realign-timeline",
+        "from_state": "diagnostic_preflight",
+        "action": "realign_timeline",
+        "to_state": "diagnostic_preflight"
+      },
+      {
+        "id": "preflight-collect-fresh-eeg-window",
+        "from_state": "diagnostic_preflight",
+        "action": "collect_fresh_eeg_window",
+        "to_state": "diagnostic_preflight"
+      },
+      {
+        "id": "preflight-present-test-flash",
+        "from_state": "diagnostic_preflight",
+        "action": "present_test_flash",
+        "to_state": "diagnostic_preflight"
+      },
+      {
+        "id": "preflight-run-response-preflight",
+        "from_state": "diagnostic_preflight",
+        "action": "run_response_preflight",
+        "to_state": "diagnostic_preflight"
+      },
+      {
+        "id": "preflight-run-recording-preflight",
+        "from_state": "diagnostic_preflight",
+        "action": "run_recording_preflight",
+        "to_state": "diagnostic_preflight"
+      },
+      {
+        "id": "preflight-complete-preflight",
+        "from_state": "diagnostic_preflight",
+        "action": "complete_preflight",
+        "to_state": "preflight_complete"
+      },
+      {
+        "id": "preflight-abort-preflight",
+        "from_state": "diagnostic_preflight",
+        "action": "abort_preflight",
+        "to_state": "preflight_aborted"
+      }
     ]
   },
-  "split_identities": ["demonstration"],
+  "split_identities": [
+    "demonstration"
+  ],
   "scenarios": [
     {
-      "id": "eeg-marker-recovery-001",
+      "id": "eeg-demo-001",
       "split": "demonstration",
       "seed": 104729,
       "initial_state": {
         "policy_visible": {
           "simulation_label": "Synthetic EEG apparatus simulation",
-          "stage": "onset_marker_recovery",
-          "summary": "One lower-right test flash produced two onset markers.",
-          "onset_timeline": {
-            "flash_sequence": 1,
-            "location": "lower-right",
-            "marker_count": 2,
-            "evidence_id": "flash-001"
-          },
-          "route_inspection": null,
-          "freshness": {
-            "evidence_id": "flash-001",
-            "state_revision": 0,
-            "status": "current"
-          },
+          "stage": "diagnostic_preflight",
+          "summary": "Synthetic diagnostic evidence is generated from the pinned scenario when the run starts.",
           "procedure_configuration": {
             "name": "EEG onset-marker preflight",
             "montage": {
-              "recording_sites": ["FC3", "FC4", "FT7", "FT8"],
+              "recording_sites": [
+                "FC3",
+                "FC4",
+                "FT7",
+                "FT8"
+              ],
               "reference": "FCz",
               "ground": "A1"
             },
             "acquisition_profile": {
               "sampling_hz": 1017,
-              "online_bandpass_hz": [0.1, 30.0],
+              "online_bandpass_hz": [
+                0.1,
+                30
+              ],
               "notch_hz": 50
             }
           }
         },
         "hidden": {
-          "refractory_route_repaired": false,
-          "route_inspected": false,
-          "inspected_before_repair": false,
-          "repair_transition": null,
-          "flash_sequence": 1
+          "case_id": "eeg-demo-001"
+        }
+      }
+    },
+    {
+      "id": "eeg-demo-002",
+      "split": "demonstration",
+      "seed": 104743,
+      "initial_state": {
+        "policy_visible": {
+          "simulation_label": "Synthetic EEG apparatus simulation",
+          "stage": "diagnostic_preflight",
+          "summary": "Synthetic diagnostic evidence is generated from the pinned scenario when the run starts.",
+          "procedure_configuration": {
+            "name": "EEG onset-marker preflight",
+            "montage": {
+              "recording_sites": [
+                "FC3",
+                "FC4",
+                "FT7",
+                "FT8"
+              ],
+              "reference": "FCz",
+              "ground": "A1"
+            },
+            "acquisition_profile": {
+              "sampling_hz": 1017,
+              "online_bandpass_hz": [
+                0.1,
+                30
+              ],
+              "notch_hz": 50
+            }
+          }
+        },
+        "hidden": {
+          "case_id": "eeg-demo-002"
+        }
+      }
+    },
+    {
+      "id": "eeg-demo-003",
+      "split": "demonstration",
+      "seed": 104759,
+      "initial_state": {
+        "policy_visible": {
+          "simulation_label": "Synthetic EEG apparatus simulation",
+          "stage": "diagnostic_preflight",
+          "summary": "Synthetic diagnostic evidence is generated from the pinned scenario when the run starts.",
+          "procedure_configuration": {
+            "name": "EEG onset-marker preflight",
+            "montage": {
+              "recording_sites": [
+                "FC3",
+                "FC4",
+                "FT7",
+                "FT8"
+              ],
+              "reference": "FCz",
+              "ground": "A1"
+            },
+            "acquisition_profile": {
+              "sampling_hz": 1017,
+              "online_bandpass_hz": [
+                0.1,
+                30
+              ],
+              "notch_hz": 50
+            }
+          }
+        },
+        "hidden": {
+          "case_id": "eeg-demo-003"
+        }
+      }
+    },
+    {
+      "id": "eeg-demo-004",
+      "split": "demonstration",
+      "seed": 104761,
+      "initial_state": {
+        "policy_visible": {
+          "simulation_label": "Synthetic EEG apparatus simulation",
+          "stage": "diagnostic_preflight",
+          "summary": "Synthetic diagnostic evidence is generated from the pinned scenario when the run starts.",
+          "procedure_configuration": {
+            "name": "EEG onset-marker preflight",
+            "montage": {
+              "recording_sites": [
+                "FC3",
+                "FC4",
+                "FT7",
+                "FT8"
+              ],
+              "reference": "FCz",
+              "ground": "A1"
+            },
+            "acquisition_profile": {
+              "sampling_hz": 1017,
+              "online_bandpass_hz": [
+                0.1,
+                30
+              ],
+              "notch_hz": 50
+            }
+          }
+        },
+        "hidden": {
+          "case_id": "eeg-demo-004"
+        }
+      }
+    },
+    {
+      "id": "eeg-demo-005",
+      "split": "demonstration",
+      "seed": 104773,
+      "initial_state": {
+        "policy_visible": {
+          "simulation_label": "Synthetic EEG apparatus simulation",
+          "stage": "diagnostic_preflight",
+          "summary": "Synthetic diagnostic evidence is generated from the pinned scenario when the run starts.",
+          "procedure_configuration": {
+            "name": "EEG onset-marker preflight",
+            "montage": {
+              "recording_sites": [
+                "FC3",
+                "FC4",
+                "FT7",
+                "FT8"
+              ],
+              "reference": "FCz",
+              "ground": "A1"
+            },
+            "acquisition_profile": {
+              "sampling_hz": 1017,
+              "online_bandpass_hz": [
+                0.1,
+                30
+              ],
+              "notch_hz": 50
+            }
+          }
+        },
+        "hidden": {
+          "case_id": "eeg-demo-005"
+        }
+      }
+    },
+    {
+      "id": "eeg-demo-006",
+      "split": "demonstration",
+      "seed": 104779,
+      "initial_state": {
+        "policy_visible": {
+          "simulation_label": "Synthetic EEG apparatus simulation",
+          "stage": "diagnostic_preflight",
+          "summary": "Synthetic diagnostic evidence is generated from the pinned scenario when the run starts.",
+          "procedure_configuration": {
+            "name": "EEG onset-marker preflight",
+            "montage": {
+              "recording_sites": [
+                "FC3",
+                "FC4",
+                "FT7",
+                "FT8"
+              ],
+              "reference": "FCz",
+              "ground": "A1"
+            },
+            "acquisition_profile": {
+              "sampling_hz": 1017,
+              "online_bandpass_hz": [
+                0.1,
+                30
+              ],
+              "notch_hz": 50
+            }
+          }
+        },
+        "hidden": {
+          "case_id": "eeg-demo-006"
+        }
+      }
+    },
+    {
+      "id": "eeg-demo-007",
+      "split": "demonstration",
+      "seed": 104789,
+      "initial_state": {
+        "policy_visible": {
+          "simulation_label": "Synthetic EEG apparatus simulation",
+          "stage": "diagnostic_preflight",
+          "summary": "Synthetic diagnostic evidence is generated from the pinned scenario when the run starts.",
+          "procedure_configuration": {
+            "name": "EEG onset-marker preflight",
+            "montage": {
+              "recording_sites": [
+                "FC3",
+                "FC4",
+                "FT7",
+                "FT8"
+              ],
+              "reference": "FCz",
+              "ground": "A1"
+            },
+            "acquisition_profile": {
+              "sampling_hz": 1017,
+              "online_bandpass_hz": [
+                0.1,
+                30
+              ],
+              "notch_hz": 50
+            }
+          }
+        },
+        "hidden": {
+          "case_id": "eeg-demo-007"
+        }
+      }
+    },
+    {
+      "id": "eeg-demo-008",
+      "split": "demonstration",
+      "seed": 104801,
+      "initial_state": {
+        "policy_visible": {
+          "simulation_label": "Synthetic EEG apparatus simulation",
+          "stage": "diagnostic_preflight",
+          "summary": "Synthetic diagnostic evidence is generated from the pinned scenario when the run starts.",
+          "procedure_configuration": {
+            "name": "EEG onset-marker preflight",
+            "montage": {
+              "recording_sites": [
+                "FC3",
+                "FC4",
+                "FT7",
+                "FT8"
+              ],
+              "reference": "FCz",
+              "ground": "A1"
+            },
+            "acquisition_profile": {
+              "sampling_hz": 1017,
+              "online_bandpass_hz": [
+                0.1,
+                30
+              ],
+              "notch_hz": 50
+            }
+          }
+        },
+        "hidden": {
+          "case_id": "eeg-demo-008"
+        }
+      }
+    },
+    {
+      "id": "eeg-demo-009",
+      "split": "demonstration",
+      "seed": 104803,
+      "initial_state": {
+        "policy_visible": {
+          "simulation_label": "Synthetic EEG apparatus simulation",
+          "stage": "diagnostic_preflight",
+          "summary": "Synthetic diagnostic evidence is generated from the pinned scenario when the run starts.",
+          "procedure_configuration": {
+            "name": "EEG onset-marker preflight",
+            "montage": {
+              "recording_sites": [
+                "FC3",
+                "FC4",
+                "FT7",
+                "FT8"
+              ],
+              "reference": "FCz",
+              "ground": "A1"
+            },
+            "acquisition_profile": {
+              "sampling_hz": 1017,
+              "online_bandpass_hz": [
+                0.1,
+                30
+              ],
+              "notch_hz": 50
+            }
+          }
+        },
+        "hidden": {
+          "case_id": "eeg-demo-009"
+        }
+      }
+    },
+    {
+      "id": "eeg-demo-010",
+      "split": "demonstration",
+      "seed": 104827,
+      "initial_state": {
+        "policy_visible": {
+          "simulation_label": "Synthetic EEG apparatus simulation",
+          "stage": "diagnostic_preflight",
+          "summary": "Synthetic diagnostic evidence is generated from the pinned scenario when the run starts.",
+          "procedure_configuration": {
+            "name": "EEG onset-marker preflight",
+            "montage": {
+              "recording_sites": [
+                "FC3",
+                "FC4",
+                "FT7",
+                "FT8"
+              ],
+              "reference": "FCz",
+              "ground": "A1"
+            },
+            "acquisition_profile": {
+              "sampling_hz": 1017,
+              "online_bandpass_hz": [
+                0.1,
+                30
+              ],
+              "notch_hz": 50
+            }
+          }
+        },
+        "hidden": {
+          "case_id": "eeg-demo-010"
+        }
+      }
+    },
+    {
+      "id": "eeg-demo-011",
+      "split": "demonstration",
+      "seed": 104831,
+      "initial_state": {
+        "policy_visible": {
+          "simulation_label": "Synthetic EEG apparatus simulation",
+          "stage": "diagnostic_preflight",
+          "summary": "Synthetic diagnostic evidence is generated from the pinned scenario when the run starts.",
+          "procedure_configuration": {
+            "name": "EEG onset-marker preflight",
+            "montage": {
+              "recording_sites": [
+                "FC3",
+                "FC4",
+                "FT7",
+                "FT8"
+              ],
+              "reference": "FCz",
+              "ground": "A1"
+            },
+            "acquisition_profile": {
+              "sampling_hz": 1017,
+              "online_bandpass_hz": [
+                0.1,
+                30
+              ],
+              "notch_hz": 50
+            }
+          }
+        },
+        "hidden": {
+          "case_id": "eeg-demo-011"
+        }
+      }
+    },
+    {
+      "id": "eeg-demo-012",
+      "split": "demonstration",
+      "seed": 104849,
+      "initial_state": {
+        "policy_visible": {
+          "simulation_label": "Synthetic EEG apparatus simulation",
+          "stage": "diagnostic_preflight",
+          "summary": "Synthetic diagnostic evidence is generated from the pinned scenario when the run starts.",
+          "procedure_configuration": {
+            "name": "EEG onset-marker preflight",
+            "montage": {
+              "recording_sites": [
+                "FC3",
+                "FC4",
+                "FT7",
+                "FT8"
+              ],
+              "reference": "FCz",
+              "ground": "A1"
+            },
+            "acquisition_profile": {
+              "sampling_hz": 1017,
+              "online_bandpass_hz": [
+                0.1,
+                30
+              ],
+              "notch_hz": 50
+            }
+          }
+        },
+        "hidden": {
+          "case_id": "eeg-demo-012"
+        }
+      }
+    },
+    {
+      "id": "eeg-demo-013",
+      "split": "demonstration",
+      "seed": 104851,
+      "initial_state": {
+        "policy_visible": {
+          "simulation_label": "Synthetic EEG apparatus simulation",
+          "stage": "diagnostic_preflight",
+          "summary": "Synthetic diagnostic evidence is generated from the pinned scenario when the run starts.",
+          "procedure_configuration": {
+            "name": "EEG onset-marker preflight",
+            "montage": {
+              "recording_sites": [
+                "FC3",
+                "FC4",
+                "FT7",
+                "FT8"
+              ],
+              "reference": "FCz",
+              "ground": "A1"
+            },
+            "acquisition_profile": {
+              "sampling_hz": 1017,
+              "online_bandpass_hz": [
+                0.1,
+                30
+              ],
+              "notch_hz": 50
+            }
+          }
+        },
+        "hidden": {
+          "case_id": "eeg-demo-013"
+        }
+      }
+    },
+    {
+      "id": "eeg-demo-014",
+      "split": "demonstration",
+      "seed": 104869,
+      "initial_state": {
+        "policy_visible": {
+          "simulation_label": "Synthetic EEG apparatus simulation",
+          "stage": "diagnostic_preflight",
+          "summary": "Synthetic diagnostic evidence is generated from the pinned scenario when the run starts.",
+          "procedure_configuration": {
+            "name": "EEG onset-marker preflight",
+            "montage": {
+              "recording_sites": [
+                "FC3",
+                "FC4",
+                "FT7",
+                "FT8"
+              ],
+              "reference": "FCz",
+              "ground": "A1"
+            },
+            "acquisition_profile": {
+              "sampling_hz": 1017,
+              "online_bandpass_hz": [
+                0.1,
+                30
+              ],
+              "notch_hz": 50
+            }
+          }
+        },
+        "hidden": {
+          "case_id": "eeg-demo-014"
+        }
+      }
+    },
+    {
+      "id": "eeg-demo-015",
+      "split": "demonstration",
+      "seed": 104879,
+      "initial_state": {
+        "policy_visible": {
+          "simulation_label": "Synthetic EEG apparatus simulation",
+          "stage": "diagnostic_preflight",
+          "summary": "Synthetic diagnostic evidence is generated from the pinned scenario when the run starts.",
+          "procedure_configuration": {
+            "name": "EEG onset-marker preflight",
+            "montage": {
+              "recording_sites": [
+                "FC3",
+                "FC4",
+                "FT7",
+                "FT8"
+              ],
+              "reference": "FCz",
+              "ground": "A1"
+            },
+            "acquisition_profile": {
+              "sampling_hz": 1017,
+              "online_bandpass_hz": [
+                0.1,
+                30
+              ],
+              "notch_hz": 50
+            }
+          }
+        },
+        "hidden": {
+          "case_id": "eeg-demo-015"
+        }
+      }
+    },
+    {
+      "id": "eeg-demo-016",
+      "split": "demonstration",
+      "seed": 104891,
+      "initial_state": {
+        "policy_visible": {
+          "simulation_label": "Synthetic EEG apparatus simulation",
+          "stage": "diagnostic_preflight",
+          "summary": "Synthetic diagnostic evidence is generated from the pinned scenario when the run starts.",
+          "procedure_configuration": {
+            "name": "EEG onset-marker preflight",
+            "montage": {
+              "recording_sites": [
+                "FC3",
+                "FC4",
+                "FT7",
+                "FT8"
+              ],
+              "reference": "FCz",
+              "ground": "A1"
+            },
+            "acquisition_profile": {
+              "sampling_hz": 1017,
+              "online_bandpass_hz": [
+                0.1,
+                30
+              ],
+              "notch_hz": 50
+            }
+          }
+        },
+        "hidden": {
+          "case_id": "eeg-demo-016"
+        }
+      }
+    },
+    {
+      "id": "eeg-demo-017",
+      "split": "demonstration",
+      "seed": 104911,
+      "initial_state": {
+        "policy_visible": {
+          "simulation_label": "Synthetic EEG apparatus simulation",
+          "stage": "diagnostic_preflight",
+          "summary": "Synthetic diagnostic evidence is generated from the pinned scenario when the run starts.",
+          "procedure_configuration": {
+            "name": "EEG onset-marker preflight",
+            "montage": {
+              "recording_sites": [
+                "FC3",
+                "FC4",
+                "FT7",
+                "FT8"
+              ],
+              "reference": "FCz",
+              "ground": "A1"
+            },
+            "acquisition_profile": {
+              "sampling_hz": 1017,
+              "online_bandpass_hz": [
+                0.1,
+                30
+              ],
+              "notch_hz": 50
+            }
+          }
+        },
+        "hidden": {
+          "case_id": "eeg-demo-017"
+        }
+      }
+    },
+    {
+      "id": "eeg-demo-018",
+      "split": "demonstration",
+      "seed": 104917,
+      "initial_state": {
+        "policy_visible": {
+          "simulation_label": "Synthetic EEG apparatus simulation",
+          "stage": "diagnostic_preflight",
+          "summary": "Synthetic diagnostic evidence is generated from the pinned scenario when the run starts.",
+          "procedure_configuration": {
+            "name": "EEG onset-marker preflight",
+            "montage": {
+              "recording_sites": [
+                "FC3",
+                "FC4",
+                "FT7",
+                "FT8"
+              ],
+              "reference": "FCz",
+              "ground": "A1"
+            },
+            "acquisition_profile": {
+              "sampling_hz": 1017,
+              "online_bandpass_hz": [
+                0.1,
+                30
+              ],
+              "notch_hz": 50
+            }
+          }
+        },
+        "hidden": {
+          "case_id": "eeg-demo-018"
+        }
+      }
+    },
+    {
+      "id": "eeg-demo-019",
+      "split": "demonstration",
+      "seed": 104933,
+      "initial_state": {
+        "policy_visible": {
+          "simulation_label": "Synthetic EEG apparatus simulation",
+          "stage": "diagnostic_preflight",
+          "summary": "Synthetic diagnostic evidence is generated from the pinned scenario when the run starts.",
+          "procedure_configuration": {
+            "name": "EEG onset-marker preflight",
+            "montage": {
+              "recording_sites": [
+                "FC3",
+                "FC4",
+                "FT7",
+                "FT8"
+              ],
+              "reference": "FCz",
+              "ground": "A1"
+            },
+            "acquisition_profile": {
+              "sampling_hz": 1017,
+              "online_bandpass_hz": [
+                0.1,
+                30
+              ],
+              "notch_hz": 50
+            }
+          }
+        },
+        "hidden": {
+          "case_id": "eeg-demo-019"
+        }
+      }
+    },
+    {
+      "id": "eeg-demo-020",
+      "split": "demonstration",
+      "seed": 104947,
+      "initial_state": {
+        "policy_visible": {
+          "simulation_label": "Synthetic EEG apparatus simulation",
+          "stage": "diagnostic_preflight",
+          "summary": "Synthetic diagnostic evidence is generated from the pinned scenario when the run starts.",
+          "procedure_configuration": {
+            "name": "EEG onset-marker preflight",
+            "montage": {
+              "recording_sites": [
+                "FC3",
+                "FC4",
+                "FT7",
+                "FT8"
+              ],
+              "reference": "FCz",
+              "ground": "A1"
+            },
+            "acquisition_profile": {
+              "sampling_hz": 1017,
+              "online_bandpass_hz": [
+                0.1,
+                30
+              ],
+              "notch_hz": 50
+            }
+          }
+        },
+        "hidden": {
+          "case_id": "eeg-demo-020"
         }
       }
     }
   ],
   "verifier": {
-    "id": "one-fresh-marker-after-targeted-repair",
+    "id": "eeg-diagnostic-preflight-verifier",
     "result_version": "1.0",
-    "success_state": "evidence_ready"
+    "success_state": "preflight_complete"
   },
-  "metrics": ["terminal_correctness", "fresh_validation", "targeted_intervention"],
+  "metrics": [
+    "terminal_correctness",
+    "fresh_validation",
+    "targeted_intervention"
+  ],
   "visualization": {
-    "kind": "eeg_onset_route",
-    "title": "Onset-marker preflight",
-    "display_label": "Presentation display",
-    "flash_label": "Lower-right test flash",
-    "route_nodes": [
+    "kind": "eeg_preflight_v1",
+    "title": "Synthetic EEG diagnostic preflight",
+    "trace_panel_label": "Multichannel traces",
+    "frequency_panel_label": "Frequency evidence",
+    "montage_panel_label": "Procedure Montage",
+    "details_toggle_label": "View frequency evidence",
+    "synthetic_label": "Synthetic EEG apparatus simulation",
+    "scalp_sites": [
       {
-        "id": "light_detector",
-        "name": "Light detector",
-        "detail": "simulated signal",
-        "emphasis": false
+        "id": "Fp1",
+        "label": "Fp1",
+        "x": 35,
+        "y": 9,
+        "kind": "scalp"
       },
       {
-        "id": "refractory_route",
-        "name": "Refractory route",
-        "detail": "not inspected",
-        "emphasis": true
+        "id": "Fpz",
+        "label": "Fpz",
+        "x": 50,
+        "y": 7,
+        "kind": "scalp"
+      },
+      {
+        "id": "Fp2",
+        "label": "Fp2",
+        "x": 65,
+        "y": 9,
+        "kind": "scalp"
+      },
+      {
+        "id": "F7",
+        "label": "F7",
+        "x": 18,
+        "y": 25,
+        "kind": "scalp"
+      },
+      {
+        "id": "F3",
+        "label": "F3",
+        "x": 36,
+        "y": 24,
+        "kind": "scalp"
+      },
+      {
+        "id": "Fz",
+        "label": "Fz",
+        "x": 50,
+        "y": 22,
+        "kind": "scalp"
+      },
+      {
+        "id": "F4",
+        "label": "F4",
+        "x": 64,
+        "y": 24,
+        "kind": "scalp"
+      },
+      {
+        "id": "F8",
+        "label": "F8",
+        "x": 82,
+        "y": 25,
+        "kind": "scalp"
+      },
+      {
+        "id": "FT7",
+        "label": "FT7",
+        "x": 13,
+        "y": 36,
+        "kind": "scalp"
+      },
+      {
+        "id": "FC3",
+        "label": "FC3",
+        "x": 35,
+        "y": 35,
+        "kind": "scalp"
+      },
+      {
+        "id": "FCz",
+        "label": "FCz",
+        "x": 50,
+        "y": 34,
+        "kind": "scalp"
+      },
+      {
+        "id": "FC4",
+        "label": "FC4",
+        "x": 65,
+        "y": 35,
+        "kind": "scalp"
+      },
+      {
+        "id": "FT8",
+        "label": "FT8",
+        "x": 87,
+        "y": 36,
+        "kind": "scalp"
+      },
+      {
+        "id": "T7",
+        "label": "T7",
+        "x": 10,
+        "y": 50,
+        "kind": "scalp"
+      },
+      {
+        "id": "C3",
+        "label": "C3",
+        "x": 34,
+        "y": 50,
+        "kind": "scalp"
+      },
+      {
+        "id": "Cz",
+        "label": "Cz",
+        "x": 50,
+        "y": 50,
+        "kind": "scalp"
+      },
+      {
+        "id": "C4",
+        "label": "C4",
+        "x": 66,
+        "y": 50,
+        "kind": "scalp"
+      },
+      {
+        "id": "T8",
+        "label": "T8",
+        "x": 90,
+        "y": 50,
+        "kind": "scalp"
+      },
+      {
+        "id": "TP7",
+        "label": "TP7",
+        "x": 13,
+        "y": 64,
+        "kind": "scalp"
+      },
+      {
+        "id": "CP3",
+        "label": "CP3",
+        "x": 35,
+        "y": 65,
+        "kind": "scalp"
+      },
+      {
+        "id": "CPz",
+        "label": "CPz",
+        "x": 50,
+        "y": 66,
+        "kind": "scalp"
+      },
+      {
+        "id": "CP4",
+        "label": "CP4",
+        "x": 65,
+        "y": 65,
+        "kind": "scalp"
+      },
+      {
+        "id": "TP8",
+        "label": "TP8",
+        "x": 87,
+        "y": 64,
+        "kind": "scalp"
+      },
+      {
+        "id": "P7",
+        "label": "P7",
+        "x": 18,
+        "y": 75,
+        "kind": "scalp"
+      },
+      {
+        "id": "P3",
+        "label": "P3",
+        "x": 36,
+        "y": 76,
+        "kind": "scalp"
+      },
+      {
+        "id": "Pz",
+        "label": "Pz",
+        "x": 50,
+        "y": 78,
+        "kind": "scalp"
+      },
+      {
+        "id": "P4",
+        "label": "P4",
+        "x": 64,
+        "y": 76,
+        "kind": "scalp"
+      },
+      {
+        "id": "P8",
+        "label": "P8",
+        "x": 82,
+        "y": 75,
+        "kind": "scalp"
+      },
+      {
+        "id": "O1",
+        "label": "O1",
+        "x": 36,
+        "y": 91,
+        "kind": "scalp"
+      },
+      {
+        "id": "Oz",
+        "label": "Oz",
+        "x": 50,
+        "y": 93,
+        "kind": "scalp"
+      },
+      {
+        "id": "O2",
+        "label": "O2",
+        "x": 64,
+        "y": 91,
+        "kind": "scalp"
+      },
+      {
+        "id": "A1",
+        "label": "A1",
+        "x": 3,
+        "y": 53,
+        "kind": "auxiliary"
+      },
+      {
+        "id": "A2",
+        "label": "A2",
+        "x": 97,
+        "y": 53,
+        "kind": "auxiliary"
       }
-    ],
-    "marker_lane_label": "Marker event lane",
-    "freshness_label": "Evidence freshness"
+    ]
   }
 }

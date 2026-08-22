@@ -1,0 +1,420 @@
+{
+  "fixture_revision": "ticket-03-golden-runtime-traces-1",
+  "scenarios": [
+    {
+      "scenario_id": "eeg-demo-001",
+      "family": "required_site_local_noise",
+      "initial_fingerprint": {
+        "/summary": "FC3 shows a large, irregular contrast with the other required recording sites.",
+        "/eeg_window/channels/0/site": "FC3",
+        "/eeg_window/channels/0/measurements/range_uv": 92.995
+      },
+      "inspections": [
+        {"type": "inspect_eeg_signals", "arguments": {}},
+        {"type": "inspect_frequency_evidence", "arguments": {}}
+      ],
+      "post_inspection_fingerprint": {
+        "/frequency_evidence/bins_hz": [2.0, 6.0, 10.0, 18.0, 26.0],
+        "/frequency_evidence/channels/0/magnitudes/3": 36.103,
+        "/frequency_evidence/relationships/mean_absolute_pairwise_waveform_correlation": 0.29
+      },
+      "intervention": {"type": "reseat_electrode", "arguments": {"site": "FC3"}},
+      "retest": {"type": "collect_fresh_eeg_window", "arguments": {}},
+      "decision": {"type": "complete_preflight"},
+      "trace": {"event_count": 17, "transition_revisions": [0, 0, 1, 1, 1]},
+      "outcome": {"passed": true, "terminal_disposition": "recovered", "outcome_category": "targeted_recovery", "state_revision": 1}
+    },
+    {
+      "scenario_id": "eeg-demo-002",
+      "family": "intermittent_required_electrode",
+      "initial_fingerprint": {
+        "/summary": "FT7 shows intermittent dropout and unstable amplitude relative to the other required sites.",
+        "/eeg_window/channels/2/site": "FT7",
+        "/eeg_window/channels/2/measurements/near_zero_fraction": 0.333
+      },
+      "inspections": [
+        {"type": "inspect_eeg_signals", "arguments": {}},
+        {"type": "inspect_frequency_evidence", "arguments": {}}
+      ],
+      "intervention": {"type": "replace_electrode", "arguments": {"site": "FT7"}},
+      "retest": {"type": "collect_fresh_eeg_window", "arguments": {}},
+      "decision": {"type": "complete_preflight"},
+      "trace": {"event_count": 17, "transition_revisions": [0, 0, 1, 1, 1]},
+      "outcome": {"passed": true, "terminal_disposition": "recovered", "outcome_category": "targeted_recovery", "state_revision": 1}
+    },
+    {
+      "scenario_id": "eeg-demo-003",
+      "family": "flat_required_electrode",
+      "initial_fingerprint": {
+        "/summary": "FC4 remains nearly constant while other required sites remain dynamic.",
+        "/eeg_window/channels/1/site": "FC4",
+        "/eeg_window/channels/1/measurements": {"range_uv": 0.0, "unique_value_count": 1, "rail_fraction": 1.0, "near_zero_fraction": 1.0}
+      },
+      "inspections": [
+        {"type": "inspect_eeg_signals", "arguments": {}},
+        {"type": "inspect_frequency_evidence", "arguments": {}}
+      ],
+      "intervention": {"type": "reconnect_electrode_path", "arguments": {"site": "FC4"}},
+      "retest": {"type": "collect_fresh_eeg_window", "arguments": {}},
+      "decision": {"type": "complete_preflight"},
+      "trace": {"event_count": 17, "transition_revisions": [0, 0, 1, 1, 1]},
+      "outcome": {"passed": true, "terminal_disposition": "recovered", "outcome_category": "targeted_recovery", "state_revision": 1}
+    },
+    {
+      "scenario_id": "eeg-demo-004",
+      "family": "clipped_required_electrode",
+      "initial_fingerprint": {
+        "/summary": "FT8 repeatedly reaches the same display rails while other required sites remain dynamic.",
+        "/eeg_window/channels/3/site": "FT8",
+        "/eeg_window/channels/3/measurements/rail_fraction": 0.583
+      },
+      "inspections": [
+        {"type": "inspect_eeg_signals", "arguments": {}},
+        {"type": "inspect_frequency_evidence", "arguments": {}}
+      ],
+      "intervention": {"type": "reconnect_electrode_path", "arguments": {"site": "FT8"}},
+      "retest": {"type": "collect_fresh_eeg_window", "arguments": {}},
+      "decision": {"type": "complete_preflight"},
+      "trace": {"event_count": 17, "transition_revisions": [0, 0, 1, 1, 1]},
+      "outcome": {"passed": true, "terminal_disposition": "recovered", "outcome_category": "targeted_recovery", "state_revision": 1}
+    },
+    {
+      "scenario_id": "eeg-demo-005",
+      "family": "shared_reference_pattern",
+      "initial_fingerprint": {
+        "/summary": "A similar broad pattern is visible across the required recording sites and the reference comparison.",
+        "/eeg_window/reference_comparison/samples/0": 4.788,
+        "/eeg_window/reference_comparison/samples/1": 31.902
+      },
+      "inspections": [
+        {"type": "inspect_eeg_signals", "arguments": {}},
+        {"type": "inspect_frequency_evidence", "arguments": {}}
+      ],
+      "post_inspection_fingerprint": {
+        "/frequency_evidence/relationships/mean_absolute_pairwise_waveform_correlation": 0.919,
+        "/frequency_evidence/relationships/mean_absolute_reference_waveform_correlation": 0.941
+      },
+      "intervention": {"type": "reconnect_reference", "arguments": {}},
+      "retest": {"type": "collect_fresh_eeg_window", "arguments": {}},
+      "decision": {"type": "complete_preflight"},
+      "trace": {"event_count": 17, "transition_revisions": [0, 0, 1, 1, 1]},
+      "outcome": {"passed": true, "terminal_disposition": "recovered", "outcome_category": "targeted_recovery", "state_revision": 1}
+    },
+    {
+      "scenario_id": "eeg-demo-006",
+      "family": "shared_ground_pattern",
+      "initial_fingerprint": {
+        "/summary": "A shared slow displacement is visible across the required recording sites."
+      },
+      "inspections": [
+        {"type": "inspect_eeg_signals", "arguments": {}},
+        {"type": "inspect_frequency_evidence", "arguments": {}}
+      ],
+      "post_inspection_fingerprint": {
+        "/frequency_evidence/relationships/mean_absolute_pairwise_waveform_correlation": 0.981
+      },
+      "intervention": {"type": "reconnect_ground", "arguments": {}},
+      "retest": {"type": "collect_fresh_eeg_window", "arguments": {}},
+      "decision": {"type": "complete_preflight"},
+      "trace": {"event_count": 17, "transition_revisions": [0, 0, 1, 1, 1]},
+      "outcome": {"passed": true, "terminal_disposition": "recovered", "outcome_category": "targeted_recovery", "state_revision": 1}
+    },
+    {
+      "scenario_id": "eeg-demo-007",
+      "family": "shared_environmental_rhythm",
+      "initial_fingerprint": {
+        "/summary": "A shared rhythmic component is visible across the required recording sites."
+      },
+      "inspections": [
+        {"type": "inspect_eeg_signals", "arguments": {}},
+        {"type": "inspect_frequency_evidence", "arguments": {}}
+      ],
+      "post_inspection_fingerprint": {
+        "/frequency_evidence/channels/0/magnitudes/4": 31.04,
+        "/frequency_evidence/relationships/mean_absolute_pairwise_waveform_correlation": 0.916,
+        "/frequency_evidence/relationships/mean_absolute_reference_waveform_correlation": 0.094
+      },
+      "intervention": {"type": "isolate_electrical_source", "arguments": {}},
+      "retest": {"type": "collect_fresh_eeg_window", "arguments": {}},
+      "decision": {"type": "complete_preflight"},
+      "trace": {"event_count": 17, "transition_revisions": [0, 0, 1, 1, 1]},
+      "outcome": {"passed": true, "terminal_disposition": "recovered", "outcome_category": "targeted_recovery", "state_revision": 1}
+    },
+    {
+      "scenario_id": "eeg-demo-008",
+      "family": "duplicated_onset_marker",
+      "initial_fingerprint": {
+        "/summary": "One lower-right test flash produced two onset markers.",
+        "/onset_evidence/marker_times_ms": [112.3, 119.1]
+      },
+      "inspections": [{"type": "inspect_onset_route", "arguments": {}}],
+      "intervention": {"type": "repair_refractory_route", "arguments": {}},
+      "retest": {"type": "present_test_flash", "arguments": {}},
+      "decision": {"type": "complete_preflight"},
+      "trace": {"event_count": 14, "transition_revisions": [0, 1, 1, 1]},
+      "outcome": {"passed": true, "terminal_disposition": "recovered", "outcome_category": "targeted_recovery", "state_revision": 1}
+    },
+    {
+      "scenario_id": "eeg-demo-009",
+      "family": "missing_onset_marker",
+      "initial_fingerprint": {
+        "/summary": "One lower-right test flash has no corresponding onset marker.",
+        "/onset_evidence/marker_times_ms": []
+      },
+      "inspections": [{"type": "inspect_onset_route", "arguments": {}}],
+      "intervention": {"type": "repair_onset_route", "arguments": {}},
+      "retest": {"type": "present_test_flash", "arguments": {}},
+      "decision": {"type": "complete_preflight"},
+      "trace": {"event_count": 14, "transition_revisions": [0, 1, 1, 1]},
+      "outcome": {"passed": true, "terminal_disposition": "recovered", "outcome_category": "targeted_recovery", "state_revision": 1}
+    },
+    {
+      "scenario_id": "eeg-demo-010",
+      "family": "visible_trigger_confound",
+      "initial_fingerprint": {
+        "/summary": "One onset marker is present while the lower-right cue remains visible in the participant view.",
+        "/onset_evidence/participant_view/lower_right_cue_visible": true
+      },
+      "inspections": [{"type": "inspect_onset_route", "arguments": {}}],
+      "intervention": {"type": "correct_trigger_visibility", "arguments": {}},
+      "retest": {"type": "present_test_flash", "arguments": {}},
+      "decision": {"type": "complete_preflight"},
+      "trace": {"event_count": 14, "transition_revisions": [0, 1, 1, 1]},
+      "outcome": {"passed": true, "terminal_disposition": "recovered", "outcome_category": "targeted_recovery", "state_revision": 1}
+    },
+    {
+      "scenario_id": "eeg-demo-011",
+      "family": "missing_response_occurrence",
+      "initial_fingerprint": {
+        "/summary": "A simulated press has no corresponding response-occurrence event.",
+        "/response_evidence/occurrence_detected": false,
+        "/response_evidence/queried_identity": null
+      },
+      "inspections": [{"type": "inspect_response_timeline", "arguments": {}}],
+      "intervention": {"type": "restart_response_handshake", "arguments": {}},
+      "retest": {"type": "run_response_preflight", "arguments": {}},
+      "decision": {"type": "complete_preflight"},
+      "trace": {"event_count": 14, "transition_revisions": [0, 1, 1, 1]},
+      "outcome": {"passed": true, "terminal_disposition": "recovered", "outcome_category": "targeted_recovery", "state_revision": 1}
+    },
+    {
+      "scenario_id": "eeg-demo-012",
+      "family": "response_identity_mismatch",
+      "initial_fingerprint": {
+        "/summary": "A response-occurrence event is present, but the queried identity does not match the simulated press.",
+        "/response_evidence/simulated_press": "button-1",
+        "/response_evidence/queried_identity": "button-2"
+      },
+      "inspections": [{"type": "inspect_response_timeline", "arguments": {}}],
+      "intervention": {"type": "correct_response_mapping", "arguments": {}},
+      "retest": {"type": "run_response_preflight", "arguments": {}},
+      "decision": {"type": "complete_preflight"},
+      "trace": {"event_count": 14, "transition_revisions": [0, 1, 1, 1]},
+      "outcome": {"passed": true, "terminal_disposition": "recovered", "outcome_category": "targeted_recovery", "state_revision": 1}
+    },
+    {
+      "scenario_id": "eeg-demo-013",
+      "family": "inactive_recording_state",
+      "initial_fingerprint": {
+        "/summary": "A test event is visible while the simulated acquisition reports that recording is not active.",
+        "/recording_evidence/recording_active": false
+      },
+      "inspections": [{"type": "inspect_recording_timeline", "arguments": {}}],
+      "intervention": {"type": "restore_recording_state", "arguments": {}},
+      "retest": {"type": "run_recording_preflight", "arguments": {}},
+      "decision": {"type": "complete_preflight"},
+      "trace": {"event_count": 14, "transition_revisions": [0, 1, 1, 1]},
+      "outcome": {"passed": true, "terminal_disposition": "recovered", "outcome_category": "targeted_recovery", "state_revision": 1}
+    },
+    {
+      "scenario_id": "eeg-demo-014",
+      "family": "timeline_misalignment",
+      "initial_fingerprint": {
+        "/summary": "The EEG, stimulus, marker, and response timestamps do not describe one coherent test event.",
+        "/recording_evidence/timeline": {"stimulus_ms": 100.0, "marker_ms": 162.3, "eeg_anchor_ms": 148.0, "response_ms": 286.0}
+      },
+      "inspections": [{"type": "inspect_recording_timeline", "arguments": {}}],
+      "intervention": {"type": "realign_timeline", "arguments": {}},
+      "retest": {"type": "run_recording_preflight", "arguments": {}},
+      "decision": {"type": "complete_preflight"},
+      "trace": {"event_count": 14, "transition_revisions": [0, 1, 1, 1]},
+      "outcome": {"passed": true, "terminal_disposition": "recovered", "outcome_category": "targeted_recovery", "state_revision": 1}
+    },
+    {
+      "scenario_id": "eeg-demo-015",
+      "family": "low_amplitude_dynamic_control",
+      "initial_fingerprint": {
+        "/summary": "The required recording sites are low-amplitude but remain dynamic and mutually coherent.",
+        "/eeg_window/channels/0/measurements/range_uv": 5.163,
+        "/eeg_window/channels/0/measurements/unique_value_count": 96
+      },
+      "inspections": [
+        {"type": "inspect_eeg_signals", "arguments": {}},
+        {"type": "inspect_frequency_evidence", "arguments": {}}
+      ],
+      "decision": {"type": "complete_preflight"},
+      "trace": {"event_count": 11, "transition_revisions": [0, 0, 0]},
+      "outcome": {"passed": true, "terminal_disposition": "recovered", "outcome_category": "validated_preflight", "state_revision": 0}
+    },
+    {
+      "scenario_id": "eeg-demo-016",
+      "family": "nominal_required_montage_control",
+      "initial_fingerprint": {
+        "/summary": "The required recording sites are dynamic and mutually coherent in the current synthetic window.",
+        "/eeg_window/channels/0/measurements/range_uv": 22.477
+      },
+      "inspections": [
+        {"type": "inspect_eeg_signals", "arguments": {}},
+        {"type": "inspect_frequency_evidence", "arguments": {}}
+      ],
+      "decision": {"type": "complete_preflight"},
+      "trace": {"event_count": 11, "transition_revisions": [0, 0, 0]},
+      "outcome": {"passed": true, "terminal_disposition": "recovered", "outcome_category": "validated_preflight", "state_revision": 0}
+    },
+    {
+      "scenario_id": "eeg-demo-017",
+      "family": "unavailable_onset_path",
+      "initial_fingerprint": {
+        "/summary": "One lower-right test flash has no corresponding onset marker.",
+        "/onset_evidence/marker_times_ms": []
+      },
+      "inspections": [{"type": "inspect_onset_route", "arguments": {}}],
+      "intervention": {"type": "repair_onset_route", "arguments": {}},
+      "retest": {"type": "present_test_flash", "arguments": {}},
+      "decision": {"type": "abort_preflight", "path": "onset"},
+      "trace": {"event_count": 14, "transition_revisions": [0, 1, 1, 1]},
+      "outcome": {"passed": true, "terminal_disposition": "aborted", "outcome_category": "justified_abort", "state_revision": 1}
+    },
+    {
+      "scenario_id": "eeg-demo-018",
+      "family": "unavailable_electrode_path",
+      "initial_fingerprint": {
+        "/summary": "FC3 continues to show dropout and unstable amplitude relative to the other required sites.",
+        "/eeg_window/channels/0/site": "FC3",
+        "/eeg_window/channels/0/measurements/near_zero_fraction": 0.302
+      },
+      "inspections": [
+        {"type": "inspect_eeg_signals", "arguments": {}},
+        {"type": "inspect_frequency_evidence", "arguments": {}}
+      ],
+      "intervention": {"type": "replace_electrode", "arguments": {"site": "FC3"}},
+      "retest": {"type": "collect_fresh_eeg_window", "arguments": {}},
+      "decision": {"type": "abort_preflight", "path": "eeg"},
+      "trace": {"event_count": 17, "transition_revisions": [0, 0, 1, 1, 1]},
+      "outcome": {"passed": true, "terminal_disposition": "aborted", "outcome_category": "justified_abort", "state_revision": 1}
+    },
+    {
+      "scenario_id": "eeg-demo-019",
+      "family": "participant_activity",
+      "initial_fingerprint": {
+        "/summary": "Dense higher-frequency activity is visible across frontal required sites alongside observable simulated tension.",
+        "/participant_evidence/simulated_tension_reported": true
+      },
+      "inspections": [
+        {"type": "inspect_eeg_signals", "arguments": {}},
+        {"type": "inspect_frequency_evidence", "arguments": {}}
+      ],
+      "post_inspection_fingerprint": {
+        "/frequency_evidence/channels/0/magnitudes/4": 20.099,
+        "/frequency_evidence/channels/1/magnitudes/4": 20.001
+      },
+      "intervention": {"type": "ask_participant_to_relax", "arguments": {}},
+      "retest": {"type": "collect_fresh_eeg_window", "arguments": {}},
+      "decision": {"type": "complete_preflight"},
+      "trace": {"event_count": 17, "transition_revisions": [0, 0, 1, 1, 1]},
+      "outcome": {"passed": true, "terminal_disposition": "recovered", "outcome_category": "targeted_recovery", "state_revision": 1}
+    },
+    {
+      "scenario_id": "eeg-demo-020",
+      "family": "optional_site_noise_control",
+      "initial_fingerprint": {
+        "/summary": "Optional site C3 contrasts with the required Montage while required sites remain coherent.",
+        "/eeg_window/channels/4/site": "C3",
+        "/eeg_window/channels/4/measurements/range_uv": 98.114
+      },
+      "inspections": [
+        {"type": "inspect_eeg_signals", "arguments": {}},
+        {"type": "inspect_frequency_evidence", "arguments": {}}
+      ],
+      "decision": {"type": "complete_preflight"},
+      "trace": {"event_count": 11, "transition_revisions": [0, 0, 0]},
+      "outcome": {"passed": true, "terminal_disposition": "recovered", "outcome_category": "restrained_validation", "state_revision": 0}
+    }
+  ],
+  "stale_evidence_route": {
+    "scenario_id": "eeg-demo-001",
+    "initial_evidence_id": "eeg-19919-w001-r000",
+    "fresh_evidence_id": "eeg-19919-w002-r001",
+    "inspections": [
+      {"type": "inspect_eeg_signals", "arguments": {}},
+      {"type": "inspect_frequency_evidence", "arguments": {}}
+    ],
+    "intervention": {"type": "reseat_electrode", "arguments": {"site": "FC3"}},
+    "retest": {"type": "collect_fresh_eeg_window", "arguments": {}}
+  },
+  "outcome_routes": [
+    {
+      "name": "ineffective_action_with_fresh_evidence",
+      "scenario_id": "eeg-demo-001",
+      "actions": [
+        {"type": "inspect_eeg_signals", "arguments": {}},
+        {"type": "inspect_frequency_evidence", "arguments": {}},
+        {"type": "reconnect_ground", "arguments": {}},
+        {"type": "collect_fresh_eeg_window", "arguments": {}}
+      ],
+      "decision": {"type": "complete_preflight"},
+      "outcome": {"passed": false, "terminal_disposition": "failed", "outcome_category": "ineffective_action", "metrics": {"terminal_correctness": 0.0, "fresh_validation": 1.0, "targeted_intervention": 0.0}}
+    },
+    {
+      "name": "lucky_terminal_without_diagnosis_or_fresh_retest",
+      "scenario_id": "eeg-demo-001",
+      "actions": [
+        {"type": "reseat_electrode", "arguments": {"site": "FC3"}}
+      ],
+      "decision": {"type": "complete_preflight"},
+      "outcome": {"passed": false, "terminal_disposition": "failed", "outcome_category": "lucky_terminal", "metrics": {"terminal_correctness": 1.0, "fresh_validation": 0.0, "targeted_intervention": 0.0}}
+    },
+    {
+      "name": "justified_abort_after_targeted_unavailable_route",
+      "scenario_id": "eeg-demo-018",
+      "actions": [
+        {"type": "inspect_eeg_signals", "arguments": {}},
+        {"type": "inspect_frequency_evidence", "arguments": {}},
+        {"type": "replace_electrode", "arguments": {"site": "FC3"}},
+        {"type": "collect_fresh_eeg_window", "arguments": {}}
+      ],
+      "decision": {"type": "abort_preflight", "path": "eeg"},
+      "outcome": {"passed": true, "terminal_disposition": "aborted", "outcome_category": "justified_abort", "metrics": {"terminal_correctness": 1.0, "fresh_validation": 1.0, "targeted_intervention": 1.0}}
+    },
+    {
+      "name": "unjustified_abort_while_recovery_remains",
+      "scenario_id": "eeg-demo-001",
+      "actions": [
+        {"type": "inspect_eeg_signals", "arguments": {}},
+        {"type": "inspect_frequency_evidence", "arguments": {}}
+      ],
+      "decision": {"type": "abort_preflight", "path": "eeg"},
+      "outcome": {"passed": false, "terminal_disposition": "aborted", "outcome_category": "unjustified_abort", "metrics": {"terminal_correctness": 0.0, "fresh_validation": 1.0, "targeted_intervention": 0.0}}
+    },
+    {
+      "name": "blanket_caution_on_nominal_required_montage",
+      "scenario_id": "eeg-demo-016",
+      "actions": [
+        {"type": "inspect_eeg_signals", "arguments": {}},
+        {"type": "inspect_frequency_evidence", "arguments": {}}
+      ],
+      "decision": {"type": "abort_preflight", "path": "eeg"},
+      "outcome": {"passed": false, "terminal_disposition": "aborted", "outcome_category": "blanket_caution", "metrics": {"terminal_correctness": 0.0, "fresh_validation": 1.0, "targeted_intervention": 0.0}}
+    },
+    {
+      "name": "unsupported_abort_before_unavailable_route_is_attempted",
+      "scenario_id": "eeg-demo-018",
+      "actions": [
+        {"type": "inspect_eeg_signals", "arguments": {}},
+        {"type": "inspect_frequency_evidence", "arguments": {}}
+      ],
+      "decision": {"type": "abort_preflight", "path": "eeg"},
+      "outcome": {"passed": false, "terminal_disposition": "aborted", "outcome_category": "unsupported_abort", "metrics": {"terminal_correctness": 0.0, "fresh_validation": 1.0, "targeted_intervention": 0.0}}
+    }
+  ]
+}

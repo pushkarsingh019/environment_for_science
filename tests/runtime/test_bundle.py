@@ -4,15 +4,16 @@ from typing import Any
 
 import pytest
 
-from environments.eeg import load_seeded_bundle
+from environments.eeg import load_legacy_bundle, load_seeded_bundle
 from environments.eeg.authoring import (
     apply_authoring_command,
     compile_frozen_bundle,
     seed_authoring_state,
     stage_descriptive_note,
 )
-from environments.eeg.runtime import EegMarkerRecoveryModule
+from environments.eeg.runtime import EegEnvironmentModule, EegMarkerRecoveryModule
 from studio.bundle import BundleValidationError, validate_environment_bundle
+from studio.runtime import EnvironmentRuntime, PolicyAgentIdentity
 
 
 def test_seeded_eeg_bundle_validates_as_environment_bundle_v1() -> None:
@@ -23,12 +24,68 @@ def test_seeded_eeg_bundle_validates_as_environment_bundle_v1() -> None:
     assert validated.contract_version == "1.0"
     assert validated.bundle_id == "eeg-onset-marker-recovery"
     assert validated.simulation_label == "Synthetic EEG apparatus simulation"
-    assert validated.action_types == (
+    assert len(validated.action_types) == 25
+    assert {
+        "inspect_eeg_signals",
+        "inspect_frequency_evidence",
         "inspect_onset_route",
+        "inspect_response_timeline",
+        "inspect_recording_timeline",
+        "reseat_electrode",
         "repair_refractory_route",
         "present_test_flash",
-        "restart_response_handshake",
+        "complete_preflight",
+        "abort_preflight",
+    }.issubset(validated.action_types)
+    assert len(validated.scenarios) == 20
+
+
+def test_preflight_fixture_content_is_bound_into_the_runtime_revision() -> None:
+    original = load_seeded_bundle()
+    changed = deepcopy(original)
+    changed["preflight_fixture"]["cases"][0]["initial_summary"] = (
+        "A deliberately changed but valid authored summary."
     )
+    policy = PolicyAgentIdentity(id="fixture-policy", name="Fixture policy")
+
+    original_run = EnvironmentRuntime(
+        EegEnvironmentModule(validate_environment_bundle(original))
+    ).start("eeg-demo-001", policy)
+    changed_run = EnvironmentRuntime(
+        EegEnvironmentModule(validate_environment_bundle(changed))
+    ).start("eeg-demo-001", policy)
+
+    assert original_run.revision_digest != changed_run.revision_digest
+    assert original_run.observation["summary"] != changed_run.observation["summary"]
+
+
+def test_preflight_rejects_disagreement_between_scenario_and_fixture_case_identity() -> None:
+    document = load_seeded_bundle()
+    document["scenarios"][0]["initial_state"]["hidden"]["case_id"] = "eeg-demo-002"
+
+    with pytest.raises(BundleValidationError, match="case identity"):
+        EegEnvironmentModule(validate_environment_bundle(document))
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("relevant_actions", ["repair_onset_route"]),
+        ("retest_action", "present_test_flash"),
+    ],
+)
+def test_preflight_fixture_actions_must_match_the_declared_evidence_domain(
+    field: str,
+    value: object,
+) -> None:
+    document = load_seeded_bundle()
+    case = document["preflight_fixture"]["cases"][0]
+    case[field] = value
+    if field == "relevant_actions":
+        case["effective_actions"] = ["repair_onset_route"]
+
+    with pytest.raises(BundleValidationError, match="case domain"):
+        EegEnvironmentModule(validate_environment_bundle(document))
 
 
 def test_seeded_eeg_authoring_state_separates_whole_cap_from_procedure_montage() -> None:
@@ -36,7 +93,7 @@ def test_seeded_eeg_authoring_state_separates_whole_cap_from_procedure_montage()
 
     draft = seed_authoring_state(bundle)
 
-    assert bundle.bundle_revision == "1.2.0"
+    assert bundle.bundle_revision == "1.3.0"
     assert draft.apparatus.recording_input_capacity == 32
     assert len(draft.apparatus.sites) > len(draft.procedure.montage.recording_sites)
     assert "not exact cap geometry" in draft.apparatus.scientific_claim.lower()
@@ -170,7 +227,7 @@ def test_eeg_authoring_compiles_a_validated_revision_without_note_content() -> N
 
     frozen = compile_frozen_bundle(source, draft, revision=7)
 
-    assert frozen.bundle_revision == "1.2.7"
+    assert frozen.bundle_revision == "1.3.7"
     configuration = frozen.procedure.model_extra["configuration"]
     assert configuration["montage"]["recording_sites"] == [
         "FC3",
@@ -183,6 +240,10 @@ def test_eeg_authoring_compiles_a_validated_revision_without_note_content() -> N
     assert observation["procedure_configuration"] == configuration
     assert note_text not in frozen.model_dump_json()
     assert "notes" not in observation
+    assert frozen.model_extra is not None
+    assert frozen.model_extra["preflight_fixture"] == source.model_extra[
+        "preflight_fixture"
+    ]
     assert compile_frozen_bundle(source, draft, revision=7) == frozen
 
 
@@ -306,13 +367,13 @@ def test_bundle_validation_accepts_supported_minor_versions_and_extensions() -> 
     validated = validate_environment_bundle(bundle)
 
     assert validated.contract_version == "1.7"
-    assert validated.model_extra == {
-        "future_minor_extension": {"enabled": True}
-    }
+    assert validated.model_extra is not None
+    assert validated.model_extra["future_minor_extension"] == {"enabled": True}
+    assert validated.model_extra["preflight_fixture"] == bundle["preflight_fixture"]
 
 
 def test_eeg_module_adapts_the_prior_v1_presentation_shape() -> None:
-    document = load_seeded_bundle()
+    document = load_legacy_bundle()
     del document["description"]
     document["visualization"] = {
         "primary_view": "onset_timeline",
@@ -331,7 +392,7 @@ def test_eeg_module_adapts_the_prior_v1_presentation_shape() -> None:
 
 
 def test_eeg_module_accepts_nested_minor_visualization_extensions() -> None:
-    document = load_seeded_bundle()
+    document = load_legacy_bundle()
     document["contract_version"] = "1.7"
     document["visualization"]["future_minor_extension"] = {"enabled": True}
     document["visualization"]["route_nodes"][0]["future_node_extension"] = "kept"
@@ -352,7 +413,7 @@ def test_eeg_module_accepts_nested_minor_visualization_extensions() -> None:
 def test_bundle_validation_keeps_visible_and_hidden_scenario_state_separate() -> None:
     bundle = load_seeded_bundle()
     leaky_bundle = deepcopy(bundle)
-    leaky_bundle["observation_schema"]["properties"]["refractory_route_repaired"] = {
+    leaky_bundle["observation_schema"]["properties"]["case_id"] = {
         "type": "boolean"
     }
 
@@ -373,9 +434,9 @@ def test_bundle_validation_rejects_missing_required_scenario_observation() -> No
 
 def test_bundle_validation_rejects_invalid_nested_observation_values() -> None:
     bundle = load_seeded_bundle()
-    bundle["scenarios"][0]["initial_state"]["policy_visible"]["onset_timeline"][
-        "marker_count"
-    ] = "two"
+    bundle["scenarios"][0]["initial_state"]["policy_visible"][
+        "procedure_configuration"
+    ]["acquisition_profile"]["sampling_hz"] = "fast"
 
     with pytest.raises(
         BundleValidationError,
@@ -428,7 +489,7 @@ def test_bundle_validation_rejects_invalid_references_and_duplicate_identities()
     duplicate_action["actions"].append(deepcopy(duplicate_action["actions"][0]))
     with pytest.raises(
         BundleValidationError,
-        match="duplicate action type identities: inspect_onset_route",
+        match="duplicate action type identities: inspect_eeg_signals",
     ):
         validate_environment_bundle(duplicate_action)
 
@@ -446,11 +507,11 @@ def test_bundle_validation_rejects_invalid_split_membership() -> None:
 
 def test_eeg_module_rejects_malformed_apparatus_visualization_data() -> None:
     document = load_seeded_bundle()
-    del document["visualization"]["route_nodes"]
+    del document["visualization"]["scalp_sites"]
     bundle = validate_environment_bundle(document)
 
     with pytest.raises(
         BundleValidationError,
-        match="invalid EEG onset-route visualization",
+        match="invalid EEG preflight visualization",
     ):
-        EegMarkerRecoveryModule(bundle)
+        EegEnvironmentModule(bundle)

@@ -24,6 +24,9 @@ export interface ActionPresentation {
   type: string;
   title: string;
   description: string;
+  input_schema: JsonObject;
+  group: "inspect" | "collect" | "remediate" | "decide";
+  changes_state: boolean;
 }
 
 export interface RouteNodePresentation {
@@ -43,15 +46,39 @@ export interface EegOnsetRouteVisualization {
   freshness_label: string;
 }
 
+export interface ScalpSitePresentation {
+  id: string;
+  label: string;
+  x: number;
+  y: number;
+  kind: "scalp" | "auxiliary";
+}
+
+export interface EegPreflightVisualization {
+  kind: "eeg_preflight_v1";
+  title: string;
+  trace_panel_label: string;
+  frequency_panel_label: string;
+  montage_panel_label: string;
+  details_toggle_label: string;
+  synthetic_label: "Synthetic EEG apparatus simulation";
+  scalp_sites: ScalpSitePresentation[];
+}
+
+export type EegVisualization =
+  | EegOnsetRouteVisualization
+  | EegPreflightVisualization;
+
 /** Exact JSON DTO returned by GET /api/environment. */
 export interface EnvironmentSummary {
   environment_id: string;
   scenario_id: string;
+  scenario_ids: string[];
   name: string;
   description: string;
   simulation_label: string;
   actions: ActionPresentation[];
-  visualization: EegOnsetRouteVisualization;
+  visualization: EegVisualization;
   validation: EnvironmentValidationSummary;
   hidden_state_exposed: false;
   policy_agents: PolicyAgentIdentity[];
@@ -152,6 +179,7 @@ export interface FrozenEnvironment {
   bundle_revision: string;
   revision_digest: string;
   scenario_id: string;
+  scenario_ids: string[];
   draft_revision: number;
   procedure: DraftProcedure;
 }
@@ -172,7 +200,8 @@ export interface VerifierResult {
   verifier_id: string;
   result_version: string;
   passed: boolean;
-  terminal_disposition: "recovered" | "failed";
+  terminal_disposition: "recovered" | "aborted" | "failed";
+  outcome_category: string | null;
   summary: string;
   metrics: Record<string, number>;
   evidence: JsonObject;

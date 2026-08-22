@@ -1,8 +1,7 @@
 # EEG scenario curriculum options
 
-> **Status:** Decision-ready proposal for ticket 07. This document does not
-> resolve the ticket. The Environment author must make the decisions in
-> [User decisions](#user-decisions).
+> **Status:** Approved design input. Decision 07 records the Environment
+> author's choices; implementation Ticket 04 materializes the fixed curriculum.
 
 This proposal turns the resolved
 [EEG apparatus model](eeg-apparatus-model.md) into a deterministic curriculum
@@ -711,6 +710,5 @@ follow the recommendations above.
 | **Status of a correct safe abort** | Give it lower terminal credit than recovery, or equal terminal credit when a required path is genuinely unavailable | Give an eligible unavailable-scenario abort equal terminal credit. Report abort precision and recall so this choice can't reward blanket caution. |
 | **Strength of the generalization claim** | Evaluate only new seeds of individual faults, or reserve exact pairs and triples under the 96/32/64 split | Reserve the listed pairs and triples. Claim only within-EEG compositional generalization, and report individual, ambiguous, pair, and triple results separately. |
 
-After the Environment author chooses these three items, ticket 07 can be updated
-by the owner. This proposal intentionally leaves the ticket and shared project
-map unchanged.
+These choices were approved in Decision 07. Ticket 04 implements the fixed
+curriculum and split controls; this document remains the detailed rationale.

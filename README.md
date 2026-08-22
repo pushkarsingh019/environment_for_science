@@ -10,8 +10,8 @@ handoff. The project doesn't connect to or control physical apparatus.
 ## Project status
 
 The product, domain, interface, runtime, evaluation, and training decisions are complete.
-Tickets 01 and 02 of 13 are complete and runnable end to end; eleven tickets remain. Ticket
-03 is the next dependency-order target, and ticket 05 is also unblocked.
+Tickets 01 through 03 of 13 are complete and runnable end to end; ten tickets remain. Ticket
+04 is the next dependency-order target, and ticket 05 is also unblocked.
 
 Read these documents before you implement a ticket:
 
@@ -25,11 +25,11 @@ Read these documents before you implement a ticket:
 5. [`DESIGN.md`](DESIGN.md) supplies visual tokens. It doesn't define the page layout.
 
 The next implementation target is
-[ticket 03: Diagnose EEG signal and response failures visually](docs/implementation/issues/03-diagnose-eeg-signal-and-response-failures-visually.md).
+[ticket 04: Run the complete EEG curriculum and fixed splits](docs/implementation/issues/04-run-the-complete-eeg-curriculum-and-fixed-splits.md).
 
 ## Implementation checkpoint
 
-Tickets 01 and 02 provide:
+Tickets 01 through 03 provide:
 
 - An extensible Environment Bundle v1 validator with nested JSON Schema checks.
 - A seeded synthetic EEG marker-recovery bundle and apparatus module.
@@ -43,6 +43,11 @@ Tickets 01 and 02 provide:
 - Durable frozen/run indexes, full-trace bindings, cross-process serialization, and
   crash-consistent prepared-intent recovery.
 - Runtime, HTTP, and real-backend browser coverage for positive and negative paths.
+- Deterministic synthetic multichannel traces, compact Montage context, on-demand frequency
+  measurements, and aligned onset, response, and recording evidence.
+- Opaque singleton diagnostic cases, a constant typed action catalog, stale-evidence
+  invalidation, evidence-bound aborts, behavioral Verifier classifications, and reviewed
+  golden replay traces.
 
 The repository also retains the disposable Gemma training-path probe under
 `probes/gemma-training-path/`; it is not product runtime code.
