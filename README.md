@@ -5,6 +5,8 @@ evaluating, and improving AI agents on scientific procedures. The first implemen
 Environments model scalp electroencephalography (EEG) and a sealed synthetic mesoscope
 handoff. The project doesn't connect to or control physical apparatus.
 
+![Current Hero of the Project - an eeg setup](assets/hero.png)
+
 ## Project status
 
 The product, domain, interface, runtime, evaluation, and training decisions are complete.
