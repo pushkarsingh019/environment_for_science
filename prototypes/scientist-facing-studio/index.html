@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="description" content="A throwaway, visualization-first console for simulated scientific environments." />
+    <title>Environment Console — prototype</title>
+    <link rel="stylesheet" href="styles.css" />
+    <script src="app.js" defer></script>
+  </head>
+  <body>
+    <!-- THROWAWAY PROTOTYPE — simulation only, with no APIs or hardware connections. -->
+    <a class="skip-link" href="#variant-root">Skip to console</a>
+    <header id="prototype-header" class="prototype-header"></header>
+    <main id="variant-root" tabindex="-1"></main>
+    <footer id="prototype-footer" class="prototype-footer"></footer>
+    <div id="overlay-root"></div>
+    <div id="toast" class="toast" role="status" aria-live="polite"></div>
+    <div id="announcer" class="sr-only" role="status" aria-live="polite"></div>
+    <nav id="variant-switcher" class="variant-switcher" aria-label="Prototype variants"></nav>
+    <noscript>This prototype requires JavaScript.</noscript>
+  </body>
+</html>

@@ -1,0 +1,33 @@
+# Operating system and editor files
+.DS_Store
+.idea/
+*.swp
+
+# Local environment and credentials
+.env
+.env.*
+!.env.example
+.venv/
+
+# Python caches and build output
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+build/
+dist/
+
+# JavaScript dependencies and generated output
+node_modules/
+console/dist/
+test-results/
+playwright-report/
+blob-report/
+
+# Local runtime data and generated artifacts
+/tmp/
+/artifacts/

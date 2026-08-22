@@ -1,0 +1,114 @@
+{
+  "contract_version": "1.0",
+  "bundle_id": "eeg-onset-marker-recovery",
+  "bundle_revision": "1.0.0",
+  "generator_revision": "eeg-marker-generator-1",
+  "title": "EEG onset-marker preflight",
+  "simulation_label": "Synthetic EEG apparatus simulation",
+  "apparatus": {
+    "kind": "eeg",
+    "presentation": {
+      "montage": ["FC3", "FC4", "FT7", "FT8"],
+      "reference": "FCz",
+      "ground": "A1",
+      "sampling_hz": 1017,
+      "online_bandpass_hz": [0.1, 30.0],
+      "notch_hz": 50,
+      "onset_route": "lower-right simulated optical onset route"
+    }
+  },
+  "observation_schema": {
+    "type": "object",
+    "properties": {
+      "simulation_label": {"type": "string"},
+      "stage": {"type": "string"},
+      "summary": {"type": "string"},
+      "onset_timeline": {"type": "object"},
+      "route_inspection": {"type": ["object", "null"]},
+      "freshness": {"type": "object"}
+    },
+    "required": ["simulation_label", "stage", "summary", "onset_timeline", "freshness"],
+    "additionalProperties": false
+  },
+  "hidden_state_schema": {
+    "type": "object",
+    "properties": {
+      "refractory_route_repaired": {"type": "boolean"},
+      "route_inspected": {"type": "boolean"},
+      "inspected_before_repair": {"type": "boolean"},
+      "repair_transition": {"type": ["integer", "null"]},
+      "flash_sequence": {"type": "integer"}
+    },
+    "required": ["refractory_route_repaired", "route_inspected", "inspected_before_repair", "flash_sequence"],
+    "additionalProperties": false
+  },
+  "actions": [
+    {
+      "type": "inspect_onset_route",
+      "title": "Inspect simulated onset route",
+      "description": "Inspect current evidence from the simulated lower-right onset route.",
+      "input_schema": {"type": "object", "properties": {}, "additionalProperties": false}
+    },
+    {
+      "type": "repair_refractory_route",
+      "title": "Repair simulated refractory route",
+      "description": "Apply the targeted repair to the simulated refractory route.",
+      "input_schema": {"type": "object", "properties": {}, "additionalProperties": false}
+    },
+    {
+      "type": "present_test_flash",
+      "title": "Present one synthetic test flash",
+      "description": "Present a fresh synthetic lower-right test flash and observe onset markers.",
+      "input_schema": {"type": "object", "properties": {}, "additionalProperties": false}
+    },
+    {
+      "type": "restart_response_handshake",
+      "title": "Restart simulated response handshake",
+      "description": "Restart the simulated response handshake; this does not alter the onset route.",
+      "input_schema": {"type": "object", "properties": {}, "additionalProperties": false}
+    }
+  ],
+  "procedure": {
+    "initial_state": "onset_recovery",
+    "states": [
+      {"id": "onset_recovery", "terminal": false},
+      {"id": "evidence_ready", "terminal": true}
+    ],
+    "transitions": [
+      {"id": "inspect-route", "from_state": "onset_recovery", "action": "inspect_onset_route", "to_state": "onset_recovery"},
+      {"id": "repair-route", "from_state": "onset_recovery", "action": "repair_refractory_route", "to_state": "onset_recovery"},
+      {"id": "test-flash", "from_state": "onset_recovery", "action": "present_test_flash", "to_state": "evidence_ready"},
+      {"id": "restart-response", "from_state": "onset_recovery", "action": "restart_response_handshake", "to_state": "onset_recovery"}
+    ]
+  },
+  "split_identities": ["demonstration"],
+  "scenarios": [
+    {
+      "id": "eeg-marker-recovery-001",
+      "split": "demonstration",
+      "seed": 104729,
+      "initial_state": {
+        "policy_visible": {
+          "stage": "onset_marker_recovery"
+        },
+        "hidden": {
+          "refractory_route_repaired": false,
+          "route_inspected": false,
+          "inspected_before_repair": false,
+          "repair_transition": null,
+          "flash_sequence": 1
+        }
+      }
+    }
+  ],
+  "verifier": {
+    "id": "one-fresh-marker-after-targeted-repair",
+    "result_version": "1.0",
+    "success_state": "evidence_ready"
+  },
+  "metrics": ["terminal_correctness", "fresh_validation", "targeted_intervention"],
+  "visualization": {
+    "primary_view": "onset_timeline",
+    "labels": ["Synthetic data", "Simulated apparatus only"]
+  }
+}

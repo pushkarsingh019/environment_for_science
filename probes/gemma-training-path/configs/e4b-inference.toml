@@ -1,0 +1,28 @@
+# Standalone policy inference for the one-GPU compatibility smoke. The model
+# directory must be the pinned snapshot recorded in docs/gemma-training-path-proof.md.
+
+[server]
+host = "127.0.0.1"
+port = 8000
+
+[vllm]
+model = "/srv/gemma-training-proof/models/gemma-4-E4B-it-ee0ef6023621cff504d758262d4e04895a5af4a2"
+dtype = "bfloat16"
+max_model_len = 1024
+gpu_memory_utilization = 0.35
+enforce_eager = true
+generation_config = "vllm"
+max_num_seqs = 16
+
+# Training uses the renderer/token-in route. Standalone held-out evaluation
+# uses chat completions, so the engine-side Gemma parser is also required.
+tool_call_parser = "gemma4"
+
+# The trainer reloads a new adapter from broadcasts/step_N after each step.
+enable_lora = true
+max_lora_rank = 8
+max_loras = 2
+max_cpu_loras = 4
+
+# This ticket proves a text-first path only.
+limit_mm_per_prompt = { image = 0, audio = 0, video = 0 }

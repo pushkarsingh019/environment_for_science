@@ -1,0 +1,86 @@
+# One optimizer step is enough to test Gemma rendering, tool traces, LoRA,
+# filesystem checkpoint/broadcast, and adapter reload. It is not a quality run.
+max_steps = 1
+seq_len = 1024
+
+# Inference is started manually on this same GPU before `rl`; therefore this
+# launcher allocates only the trainer. This non-default co-location must pass
+# the memory gate in the proof document before the model download begins.
+[deployment]
+gpus_per_node = 1
+num_train_gpus = 1
+num_infer_gpus = 0
+
+[model]
+name = "/srv/gemma-training-proof/models/gemma-4-E4B-it-ee0ef6023621cff504d758262d4e04895a5af4a2"
+
+[ckpt]
+interval = 1
+keep_last = 1
+
+# Persist complete train episodes and traces under the run directory.
+[monitors.file]
+
+[trainer.model]
+optimization_dtype = "bfloat16"
+reduce_dtype = "bfloat16"
+fused_lm_head_token_chunk_size = 1024
+
+# Deliberately truncate only the trainer for this compatibility smoke. vLLM
+# still serves the complete base checkpoint and reloads the resulting adapter.
+[trainer.model.debug]
+num_layers = 2
+
+[trainer.model.lora]
+rank = 8
+alpha = 16
+dropout = 0.0
+# Generic target names also match Gemma's vision/audio towers. Restrict LoRA to
+# the language backbone so the emitted PEFT adapter is loadable by text inference.
+target_modules = ['^model\.language_model\.layers\..*\.(q_proj|k_proj|v_proj|o_proj|gate_proj|up_proj|down_proj)$']
+
+[trainer.optim]
+lr = 1e-5
+weight_decay = 0.0
+
+[orchestrator]
+batch_size = 8
+group_size = 8
+
+[orchestrator.concurrency]
+min_inflight = 8
+max_inflight = 8
+
+# A local model snapshot cannot auto-resolve through the exact-ID renderer map.
+[orchestrator.renderer]
+name = "gemma4"
+enable_thinking = false
+preserve_thinking = false
+
+[orchestrator.model.client]
+base_url = "http://127.0.0.1:8000/v1"
+# The standalone inference entrypoint puts its engine behind a router on 8000.
+admin_base_url = ["http://127.0.0.1:8100/v1"]
+wait_for_ready_timeout = 1200
+
+[orchestrator.train.sampling]
+temperature = 1.0
+max_completion_tokens = 128
+
+[[orchestrator.train.source]]
+name = "gemma-training-proof-train"
+
+[orchestrator.train.source.env.taskset]
+id = "gemma-training-proof"
+split = "train"
+
+# A tiny trace-ID-derived reward prevents an all-equal one-step GRPO group.
+# It is mechanics-only and must remain disabled (weight 0) in held-out evals.
+[orchestrator.train.source.env.taskset.task.rewards.mechanical_jitter]
+weight = 0.001
+
+[orchestrator.train.source.env.agent.harness]
+id = "null"
+
+[orchestrator.train.source.env.agent.runtime]
+type = "subprocess"

@@ -1,0 +1,31 @@
+# Override `model` and `run.name` on the CLI for the reloaded adapter pass.
+model = "/srv/gemma-training-proof/models/gemma-4-E4B-it-ee0ef6023621cff504d758262d4e04895a5af4a2"
+num_tasks = 2
+num_rollouts = 2
+max_concurrent = 2
+server = true
+rich = false
+push = false
+output_dir = "/srv/gemma-training-proof/evals"
+
+[run]
+name = "baseline-heldout"
+
+[client]
+type = "eval"
+base_url = "http://127.0.0.1:8000/v1"
+api_key_var = "GEMMA_PROOF_UNUSED_API_KEY"
+
+[sampling]
+temperature = 0.0
+max_tokens = 128
+
+[env.taskset]
+id = "gemma-training-proof"
+split = "eval"
+
+[env.agent.harness]
+id = "null"
+
+[env.agent.runtime]
+type = "subprocess"
