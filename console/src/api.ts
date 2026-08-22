@@ -25,6 +25,7 @@ import type {
   ScalpSitePresentation,
   RunLineage,
   RunSnapshot,
+  SeededScenarioSummary,
   TraceAction,
   TraceEvent,
   TraceTransition,
@@ -346,17 +347,32 @@ function parseEnvironmentValidation(
   };
 }
 
+function parseSeededScenarioSummary(
+  value: unknown,
+  path: string,
+): SeededScenarioSummary {
+  const record = exactRecord(value, ["scenario_id", "label", "stage"], path);
+  return {
+    scenario_id: nonEmptyString(record.scenario_id, `${path}.scenario_id`),
+    label: nonEmptyString(record.label, `${path}.label`),
+    stage: oneOf(
+      record.stage,
+      ["preflight", "short_acquisition"] as const,
+      `${path}.stage`,
+    ),
+  };
+}
+
 function parseEnvironmentSummary(value: unknown): EnvironmentSummary {
   const path = "EnvironmentSummary";
   const record = exactRecord(
     value,
     [
       "environment_id",
-      "scenario_id",
-      "scenario_ids",
       "name",
       "description",
       "simulation_label",
+      "seeded_examples",
       "actions",
       "visualization",
       "validation",
@@ -374,18 +390,22 @@ function parseEnvironmentSummary(value: unknown): EnvironmentSummary {
   if (!Array.isArray(record.actions)) {
     malformed(`${path}.actions`, "be an array");
   }
+  if (!Array.isArray(record.seeded_examples)) {
+    malformed(`${path}.seeded_examples`, "be an array");
+  }
   return {
     environment_id: stringValue(
       record.environment_id,
       `${path}.environment_id`,
     ),
-    scenario_id: stringValue(record.scenario_id, `${path}.scenario_id`),
-    scenario_ids: stringArray(record.scenario_ids, `${path}.scenario_ids`),
     name: stringValue(record.name, `${path}.name`),
     description: stringValue(record.description, `${path}.description`),
     simulation_label: stringValue(
       record.simulation_label,
       `${path}.simulation_label`,
+    ),
+    seeded_examples: record.seeded_examples.map((example, index) =>
+      parseSeededScenarioSummary(example, `${path}.seeded_examples[${index}]`),
     ),
     actions: record.actions.map((action, index) =>
       parseActionPresentation(action, `${path}.actions[${index}]`),
@@ -654,8 +674,6 @@ function parseFrozenEnvironment(value: unknown): FrozenEnvironment {
       "frozen_environment_id",
       "bundle_revision",
       "revision_digest",
-      "scenario_id",
-      "scenario_ids",
       "draft_revision",
       "procedure",
     ],
@@ -671,8 +689,6 @@ function parseFrozenEnvironment(value: unknown): FrozenEnvironment {
       `${path}.bundle_revision`,
     ),
     revision_digest: digest(record.revision_digest, `${path}.revision_digest`),
-    scenario_id: nonEmptyString(record.scenario_id, `${path}.scenario_id`),
-    scenario_ids: stringArray(record.scenario_ids, `${path}.scenario_ids`),
     draft_revision: integerValue(
       record.draft_revision,
       `${path}.draft_revision`,
@@ -746,7 +762,7 @@ function parseVerifierResult(value: unknown, path: string): VerifierResult {
     passed: booleanValue(record.passed, `${path}.passed`),
     terminal_disposition: oneOf(
       record.terminal_disposition,
-      ["recovered", "aborted", "failed"] as const,
+      ["recovered", "closed", "aborted", "failed"] as const,
       `${path}.terminal_disposition`,
     ),
     outcome_category:

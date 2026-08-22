@@ -10,8 +10,8 @@ handoff. The project doesn't connect to or control physical apparatus.
 ## Project status
 
 The product, domain, interface, runtime, evaluation, and training decisions are complete.
-Tickets 01 through 03 of 13 are complete and runnable end to end; ten tickets remain. Ticket
-04 is the next dependency-order target, and ticket 05 is also unblocked.
+Tickets 01 through 04 of 13 are complete and runnable end to end; nine tickets remain.
+Tickets 05 and 06 are now unblocked.
 
 Read these documents before you implement a ticket:
 
@@ -25,11 +25,11 @@ Read these documents before you implement a ticket:
 5. [`DESIGN.md`](DESIGN.md) supplies visual tokens. It doesn't define the page layout.
 
 The next implementation target is
-[ticket 04: Run the complete EEG curriculum and fixed splits](docs/implementation/issues/04-run-the-complete-eeg-curriculum-and-fixed-splits.md).
+[ticket 05: Run the sealed mesoscope four-region handoff](docs/implementation/issues/05-run-the-sealed-mesoscope-four-region-handoff.md).
 
 ## Implementation checkpoint
 
-Tickets 01 through 03 provide:
+Tickets 01 through 04 provide:
 
 - An extensible Environment Bundle v1 validator with nested JSON Schema checks.
 - A seeded synthetic EEG marker-recovery bundle and apparatus module.
@@ -48,6 +48,15 @@ Tickets 01 through 03 provide:
 - Opaque singleton diagnostic cases, a constant typed action catalog, stale-evidence
   invalidation, evidence-bound aborts, behavioral Verifier classifications, and reviewed
   golden replay traces.
+- A staged full-episode EEG curriculum spanning preflight, short acquisition, runtime
+  recovery, annotation, valid close, and evidence-based abort.
+- Content-addressed 96/32/64 training, development, and evaluator-held-out manifests with
+  disjoint opaque identities and reserved compositional challenges.
+- Trace-derived diagnostic reports with exact terminal success, safe-abort precision and
+  recall, scientific strata, and sealed write-once scenario/rollout/model-configuration
+  attempt ledgers that preserve failed held-out slots across restarts.
+- A training-only wheel proven free of held-out resources, identities, canonical records,
+  seeds, evaluator code, and reserved fault compositions.
 
 The repository also retains the disposable Gemma training-path probe under
 `probes/gemma-training-path/`; it is not product runtime code.
@@ -100,8 +109,8 @@ Run the Python checks from the repository root:
 
 ```bash
 .venv/bin/python -m pytest
-.venv/bin/ruff check studio environments tests
-.venv/bin/mypy studio environments
+.venv/bin/ruff check .
+.venv/bin/mypy
 ```
 
 Run the console checks from the `console/` directory:
@@ -119,6 +128,8 @@ Runtime API; it does not mock HTTP responses.
 - `console/`: React and TypeScript Scientist Console.
 - `studio/`: Product-owned Python contract and runtime code.
 - `environments/`: Authored bundles and apparatus-specific Environment modules.
+- `evaluation/`: Evaluator-only held-out access, release audit, and confinement checks.
+- `scripts/`: Deterministic source generators for reviewed immutable resources.
 - `tests/`: Runtime and integration tests.
 - `docs/implementation/`: Dependency-ordered implementation tickets.
 - `docs/decisions/` and `docs/adr/`: Resolved product and architecture decisions.

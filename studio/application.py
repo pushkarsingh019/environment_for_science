@@ -18,6 +18,7 @@ from environments.eeg.authoring import (
     EegDescriptiveNote,
     EegProcedureConfiguration,
 )
+from environments.eeg.curriculum import ConsoleStage
 from environments.eeg.presentation import (
     EegOnsetRouteVisualization,
     EegPreflightVisualization,
@@ -60,10 +61,15 @@ class ActionPresentation(_StrictModel):
     changes_state: bool
 
 
+class SeededScenarioSummary(_StrictModel):
+    scenario_id: str
+    label: str
+    stage: ConsoleStage
+
+
 class EnvironmentSummary(_StrictModel):
     environment_id: str
-    scenario_id: str
-    scenario_ids: tuple[str, ...]
+    seeded_examples: tuple[SeededScenarioSummary, ...]
     name: str
     description: str
     simulation_label: str
@@ -103,6 +109,14 @@ class DraftSummary(_StrictModel):
     history: DraftHistorySummary
     last_change: DraftChangeSummary
     authoring_assistant: AuthoringAssistantIdentity
+
+
+class FrozenEnvironmentSummary(_StrictModel):
+    frozen_environment_id: str = Field(min_length=1)
+    bundle_revision: str = Field(min_length=1)
+    revision_digest: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
+    draft_revision: int = Field(ge=1)
+    procedure: EegProcedureConfiguration
 
 
 class StartRunRequest(_StrictModel):
@@ -182,7 +196,8 @@ def create_app(
     studio_lock = RLock()
     bundle = studio.source_bundle
     environment_module = studio.source_environment
-    scenario_id = bundle.scenarios[0].id
+    seeded_scenarios = studio.seeded_scenarios
+    seeded_scenario_ids = frozenset(choice.scenario_id for choice in seeded_scenarios)
 
     app = FastAPI(
         title="Science Environment Studio",
@@ -243,8 +258,14 @@ def create_app(
     def get_environment() -> EnvironmentSummary:
         return EnvironmentSummary(
             environment_id=bundle.bundle_id,
-            scenario_id=scenario_id,
-            scenario_ids=tuple(scenario.id for scenario in bundle.scenarios),
+            seeded_examples=tuple(
+                SeededScenarioSummary(
+                    scenario_id=choice.scenario_id,
+                    label=choice.label,
+                    stage=choice.stage,
+                )
+                for choice in seeded_scenarios
+            ),
             name=bundle.title,
             description=bundle.description or bundle.simulation_label,
             simulation_label=bundle.simulation_label,
@@ -336,12 +357,13 @@ def create_app(
 
     @app.post(
         "/api/draft/freeze",
-        response_model=FrozenEnvironment,
+        response_model=FrozenEnvironmentSummary,
         status_code=status.HTTP_201_CREATED,
     )
-    def freeze_draft(request: ExpectedRevisionRequest) -> FrozenEnvironment:
+    def freeze_draft(request: ExpectedRevisionRequest) -> FrozenEnvironmentSummary:
         with studio_lock:
-            return studio.freeze(expected_revision=request.expected_revision)
+            frozen = studio.freeze(expected_revision=request.expected_revision)
+            return _frozen_environment_summary(frozen)
 
     @app.post(
         "/api/runs",
@@ -353,6 +375,11 @@ def create_app(
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                 detail="Unknown Policy agent identity.",
+            )
+        if request.scenario_id not in seeded_scenario_ids:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="Unknown seeded curriculum example.",
             )
         with studio_lock:
             return studio.start_run(
@@ -437,6 +464,18 @@ def _draft_summary(snapshot: DraftSnapshot, studio: ScienceStudio) -> DraftSumma
             ),
         ),
         authoring_assistant=studio.authoring_assistant,
+    )
+
+
+def _frozen_environment_summary(
+    frozen: FrozenEnvironment,
+) -> FrozenEnvironmentSummary:
+    return FrozenEnvironmentSummary(
+        frozen_environment_id=frozen.frozen_environment_id,
+        bundle_revision=frozen.bundle_revision,
+        revision_digest=frozen.revision_digest,
+        draft_revision=frozen.draft_revision,
+        procedure=frozen.procedure.model_copy(deep=True),
     )
 
 

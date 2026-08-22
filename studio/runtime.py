@@ -31,7 +31,7 @@ from studio.bundle import EnvironmentBundle, ScenarioManifest
 
 RuntimeErrorCode = Literal["invalid", "not_found", "conflict", "internal"]
 TraceMutationOperation = Literal["action", "verify"]
-TerminalDisposition = Literal["recovered", "aborted", "failed"]
+TerminalDisposition = Literal["recovered", "closed", "aborted", "failed"]
 _RUN_LOCK_STRIPE_COUNT = 64
 
 

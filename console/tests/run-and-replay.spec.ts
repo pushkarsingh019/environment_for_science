@@ -3,7 +3,8 @@ import { expect, test } from "@playwright/test";
 import {
   applySimulatedAction,
   horizontalOverflowReport,
-  recoverDefaultEegScenario,
+  inspectCurriculumGates,
+  recoverVisibleOnsetCue,
   startSeededRun,
   tabToTestId,
 } from "./eeg-test-helpers";
@@ -11,43 +12,39 @@ import {
 test("recovers, verifies, replays, and resets through the real runtime", async ({
   page,
 }) => {
-  await startSeededRun(page);
+  await startSeededRun(page, "Seeded example B");
 
   const initialWindowId = await page
     .getByTestId("eeg-trace-window")
     .getAttribute("data-window-id");
-  await recoverDefaultEegScenario(page);
+  await recoverVisibleOnsetCue(page);
   await expect(page.getByTestId("run-status")).toContainText("Awaiting verification");
   await page.getByTestId("verify-run").click();
 
   await expect(page.getByTestId("verifier-result")).toContainText("Verifier passed");
-  await expect(page.getByTestId("verifier-result")).toContainText("targeted recovery");
+  await expect(page.getByTestId("terminal-disposition")).toHaveText("Closed");
+  await expect(page.getByTestId("outcome-category")).toHaveText("Individual");
   const traceRows = page.getByTestId("trace-list").locator("li");
-  await expect(traceRows).toHaveCount(17);
+  await expect(traceRows).toHaveCount(29);
   expect(
     await traceRows.evaluateAll((rows) =>
       rows.map((row) => row.getAttribute("data-event-type")),
     ),
   ).toEqual([
     "observation",
-    "action",
-    "transition",
-    "observation",
-    "action",
-    "transition",
-    "observation",
-    "action",
-    "transition",
-    "observation",
-    "action",
-    "transition",
-    "observation",
-    "action",
-    "transition",
-    "observation",
+    ...Array.from({ length: 9 }, () => [
+      "action",
+      "transition",
+      "observation",
+    ]).flat(),
     "verifier",
   ]);
-  await expect(page.getByTestId("trace-list")).toContainText("site=FC3");
+  await expect(page.getByTestId("trace-list")).toContainText(
+    "Correct trigger visibility",
+  );
+  await expect(page.getByTestId("trace-list")).toContainText(
+    "Present test flash",
+  );
   await expect(page.getByTestId("trace-list")).toContainText("stale");
   await expect(page.getByTestId("trace-list")).toContainText("current");
 
@@ -66,23 +63,20 @@ test("recovers, verifies, replays, and resets through the real runtime", async (
 });
 
 test("records an ineffective permitted action as a failed recovery", async ({ page }) => {
-  await startSeededRun(page);
+  await startSeededRun(page, "Seeded example B");
 
-  await applySimulatedAction(page, "inspect_eeg_signals");
-  await applySimulatedAction(page, "inspect_frequency_evidence");
+  await inspectCurriculumGates(page);
   await applySimulatedAction(page, "reseat_electrode", { site: "FC4" });
-  await applySimulatedAction(page, "collect_fresh_eeg_window");
   await applySimulatedAction(page, "complete_preflight");
   await page.getByTestId("verify-run").click();
 
   await expect(page.getByTestId("verifier-result")).toContainText(
     "Verifier did not pass",
   );
-  await expect(page.getByTestId("verifier-result")).toContainText(
-    "ineffective action",
-  );
-  await expect(page.getByTestId("verifier-result")).toContainText(
-    "fresh evidence remains blocking",
+  await expect(page.getByTestId("terminal-disposition")).toHaveText("Failed");
+  await page.getByTestId("verifier-explanation").locator("summary").click();
+  await expect(page.getByTestId("verifier-explanation")).toContainText(
+    "terminal decision was not supported",
   );
   await expect(page.getByTestId("trace-list")).toContainText("site=FC4");
 });
@@ -90,18 +84,18 @@ test("records an ineffective permitted action as a failed recovery", async ({ pa
 test("rejects stale evidence when remediation is not followed by a fresh window", async ({
   page,
 }) => {
-  await startSeededRun(page);
-  await applySimulatedAction(page, "inspect_eeg_signals");
-  await applySimulatedAction(page, "inspect_frequency_evidence");
-  await applySimulatedAction(page, "reseat_electrode", { site: "FC3" });
-  await expect(page.getByTestId("freshness-status")).toContainText("stale");
+  await startSeededRun(page, "Seeded example B");
+  await inspectCurriculumGates(page);
+  await applySimulatedAction(page, "correct_trigger_visibility");
+  await expect(page.getByTestId("domain-freshness-onset")).toHaveText("Stale");
+  await expect(page.getByTestId("domain-freshness-response")).toHaveText("Stale");
   await applySimulatedAction(page, "complete_preflight");
   await page.getByTestId("verify-run").click();
 
-  await expect(page.getByTestId("verifier-result")).toContainText("lucky terminal");
+  await expect(page.getByTestId("terminal-disposition")).toHaveText("Failed");
   await page.getByTestId("verifier-explanation").locator("summary").click();
   await expect(page.getByTestId("verifier-explanation")).toContainText(
-    "Fresh evidence is still required for the following simulated path(s): eeg",
+    "terminal decision was not supported",
   );
 });
 
@@ -130,7 +124,7 @@ test("keeps the run controls and evidence usable by keyboard at mobile width", a
   await expect(page.getByTestId("apply-run-action")).toBeFocused();
   await page.keyboard.press("Enter");
   await expect(page.getByTestId("action-result")).toContainText(
-    "inspected comparatively",
+    "Inspected current configuration evidence",
   );
 
   const overflow = await horizontalOverflowReport(page);

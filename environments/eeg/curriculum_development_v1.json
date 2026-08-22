@@ -1,0 +1,1531 @@
+{
+  "canonical_objective": "Safely validate the synthetic EEG procedure, recover evidence-supported faults, preserve invalid-data annotations, and close only with fresh evidence or make an evidence-eligible abort when a required path is unavailable.",
+  "contract_digest": "sha256:4c914bcb9774e967298048a00bb98e301578524495a5d8e54d56413f113c38ea",
+  "curriculum_revision": "1.0",
+  "package_digest": "sha256:1997bf9ff6f2c56a63928ef1392564f7c8cc6b29484b82b2baf43fb31e1d0197",
+  "package_revision": "eeg-curriculum-package-1",
+  "release_id": "eeg-curriculum-release-1",
+  "scenarios": [
+    {
+      "ambiguity_family": null,
+      "blueprint_id": "bp-1a48947b20f479c9",
+      "category": "pair",
+      "episode_scope": "full",
+      "faults": [
+        "participant_artifact",
+        "response_mismatch"
+      ],
+      "manifest_digest": "sha256:0c8ad9e568ead190be961ab95f010742817f7545f0e7edd172c293cdae3b7e35",
+      "negative_control_kind": "none",
+      "nuisance_family": "familiar",
+      "nuisance_id": "nz-c9403061545cb170",
+      "occurrences": [
+        {
+          "activation": "runtime",
+          "activation_trial": 2,
+          "domain": "eeg",
+          "family": "participant_artifact",
+          "inspection_actions": [
+            "inspect_eeg_signals",
+            "inspect_participant_state"
+          ],
+          "invalidates": [
+            "eeg"
+          ],
+          "occurrence_id": "oc-83b634ccc1688734",
+          "recovery_ladder": [
+            "ask_participant_to_relax"
+          ],
+          "retest_action": "collect_fresh_eeg_window",
+          "target": "participant",
+          "unavailable": false,
+          "visible_variant": "muscle_activity"
+        },
+        {
+          "activation": "preflight",
+          "activation_trial": null,
+          "domain": "response",
+          "family": "response_mismatch",
+          "inspection_actions": [
+            "inspect_response_timeline"
+          ],
+          "invalidates": [
+            "response"
+          ],
+          "occurrence_id": "oc-950ce3f2688ddc0e",
+          "recovery_ladder": [
+            "restart_response_handshake"
+          ],
+          "retest_action": "run_response_preflight",
+          "target": "identity_handshake",
+          "unavailable": false,
+          "visible_variant": "stale_identity_handshake"
+        }
+      ],
+      "optional_transient": false,
+      "role_requirement": "required",
+      "runtime_onset": true,
+      "scenario_id": "eeg-0553f1f24a3a64fa",
+      "seed": 2097555596939827660,
+      "stage": "runtime_recovery",
+      "unavailable": false,
+      "unavailable_fault": null,
+      "unavailable_path": null
+    },
+    {
+      "ambiguity_family": null,
+      "blueprint_id": "bp-55c71e3b3624b24e",
+      "category": "pair",
+      "episode_scope": "full",
+      "faults": [
+        "local_contact",
+        "duplicate_onset"
+      ],
+      "manifest_digest": "sha256:5e620794d77b0004d67822edf1ecf3464ecd38e2e7d3cde65d88dd66e0f2f2af",
+      "negative_control_kind": "none",
+      "nuisance_family": "familiar",
+      "nuisance_id": "nz-d442f283b007c663",
+      "occurrences": [
+        {
+          "activation": "preflight",
+          "activation_trial": null,
+          "domain": "eeg",
+          "family": "local_contact",
+          "inspection_actions": [
+            "inspect_eeg_signals",
+            "inspect_frequency_evidence"
+          ],
+          "invalidates": [
+            "eeg"
+          ],
+          "occurrence_id": "oc-c6dc008f7773a3f4",
+          "recovery_ladder": [
+            "reseat_electrode",
+            "replace_electrode"
+          ],
+          "retest_action": "collect_fresh_eeg_window",
+          "target": "FT8",
+          "unavailable": false,
+          "visible_variant": "implausible_neighbor_contrast"
+        },
+        {
+          "activation": "preflight",
+          "activation_trial": null,
+          "domain": "onset",
+          "family": "duplicate_onset",
+          "inspection_actions": [
+            "inspect_onset_route"
+          ],
+          "invalidates": [
+            "onset"
+          ],
+          "occurrence_id": "oc-0feccc4915c13a63",
+          "recovery_ladder": [
+            "repair_refractory_route"
+          ],
+          "retest_action": "present_test_flash",
+          "target": "refractory_route",
+          "unavailable": false,
+          "visible_variant": "duplicate_marker_burst"
+        }
+      ],
+      "optional_transient": false,
+      "role_requirement": "required",
+      "runtime_onset": false,
+      "scenario_id": "eeg-0ba779dfa73fc9db",
+      "seed": 9045806533173136075,
+      "stage": "compound_recovery",
+      "unavailable": false,
+      "unavailable_fault": null,
+      "unavailable_path": null
+    },
+    {
+      "ambiguity_family": null,
+      "blueprint_id": "bp-e1cc5f94514eeaa8",
+      "category": "individual",
+      "episode_scope": "preflight",
+      "faults": [
+        "visible_onset_cue"
+      ],
+      "manifest_digest": "sha256:f4b714e96e14ce8aec0b7e258e408e7636bd2ba41e5d7c2c2aa59e333a39f1b6",
+      "negative_control_kind": "none",
+      "nuisance_family": "familiar",
+      "nuisance_id": "nz-534bd92a7fcf06ea",
+      "occurrences": [
+        {
+          "activation": "preflight",
+          "activation_trial": null,
+          "domain": "onset",
+          "family": "visible_onset_cue",
+          "inspection_actions": [
+            "inspect_onset_route"
+          ],
+          "invalidates": [
+            "onset",
+            "response"
+          ],
+          "occurrence_id": "oc-a4dee0eaf1e796bc",
+          "recovery_ladder": [
+            "correct_trigger_visibility"
+          ],
+          "retest_action": "present_test_flash",
+          "target": "participant_view",
+          "unavailable": false,
+          "visible_variant": "participant_visible_flash"
+        }
+      ],
+      "optional_transient": false,
+      "role_requirement": "required",
+      "runtime_onset": false,
+      "scenario_id": "eeg-1aba7bd671940346",
+      "seed": 2563495557127209105,
+      "stage": "integration_preflight",
+      "unavailable": false,
+      "unavailable_fault": null,
+      "unavailable_path": null
+    },
+    {
+      "ambiguity_family": null,
+      "blueprint_id": "bp-e7edec0740d4139f",
+      "category": "individual",
+      "episode_scope": "full",
+      "faults": [
+        "participant_artifact"
+      ],
+      "manifest_digest": "sha256:866d9d12a15763a3a217e0fb80e52ad79dbe3a3725fca5521856baf6b28b6013",
+      "negative_control_kind": "none",
+      "nuisance_family": "familiar",
+      "nuisance_id": "nz-61358e1c8e9eca18",
+      "occurrences": [
+        {
+          "activation": "runtime",
+          "activation_trial": 1,
+          "domain": "eeg",
+          "family": "participant_artifact",
+          "inspection_actions": [
+            "inspect_eeg_signals",
+            "inspect_participant_state"
+          ],
+          "invalidates": [
+            "eeg"
+          ],
+          "occurrence_id": "oc-cf9e427bd5bb97c6",
+          "recovery_ladder": [
+            "ask_participant_to_relax"
+          ],
+          "retest_action": "collect_fresh_eeg_window",
+          "target": "participant",
+          "unavailable": false,
+          "visible_variant": "muscle_activity"
+        }
+      ],
+      "optional_transient": false,
+      "role_requirement": "required",
+      "runtime_onset": true,
+      "scenario_id": "eeg-237196377cc154f5",
+      "seed": 2683654269751507196,
+      "stage": "runtime_recovery",
+      "unavailable": false,
+      "unavailable_fault": null,
+      "unavailable_path": null
+    },
+    {
+      "ambiguity_family": null,
+      "blueprint_id": "bp-1e7887bae23c350a",
+      "category": "individual",
+      "episode_scope": "preflight",
+      "faults": [
+        "environmental_contamination"
+      ],
+      "manifest_digest": "sha256:32caf93de7bb25851e6a77d498cdbf3ace80a9a6eb141d314ab90130809e5c2b",
+      "negative_control_kind": "none",
+      "nuisance_family": "familiar",
+      "nuisance_id": "nz-da24507d9f57c041",
+      "occurrences": [
+        {
+          "activation": "preflight",
+          "activation_trial": null,
+          "domain": "eeg",
+          "family": "environmental_contamination",
+          "inspection_actions": [
+            "inspect_frequency_evidence",
+            "inspect_environment"
+          ],
+          "invalidates": [
+            "eeg"
+          ],
+          "occurrence_id": "oc-bfd22f1a725cd62e",
+          "recovery_ladder": [
+            "isolate_electrical_source"
+          ],
+          "retest_action": "collect_fresh_eeg_window",
+          "target": "electrical_source",
+          "unavailable": false,
+          "visible_variant": "broadband_shared_source"
+        }
+      ],
+      "optional_transient": false,
+      "role_requirement": "required",
+      "runtime_onset": false,
+      "scenario_id": "eeg-23cedab5498ae54f",
+      "seed": 2818749834787229068,
+      "stage": "eeg_preflight",
+      "unavailable": false,
+      "unavailable_fault": null,
+      "unavailable_path": null
+    },
+    {
+      "ambiguity_family": null,
+      "blueprint_id": "bp-febea67afe4b6cd9",
+      "category": "individual",
+      "episode_scope": "preflight",
+      "faults": [
+        "missing_onset"
+      ],
+      "manifest_digest": "sha256:b606880c826b32695e1de844e7e0e56ee190b52b92903a5fcca2eb9f7dcf9438",
+      "negative_control_kind": "none",
+      "nuisance_family": "familiar",
+      "nuisance_id": "nz-22676136c88aeed5",
+      "occurrences": [
+        {
+          "activation": "preflight",
+          "activation_trial": null,
+          "domain": "onset",
+          "family": "missing_onset",
+          "inspection_actions": [
+            "inspect_onset_route"
+          ],
+          "invalidates": [
+            "onset"
+          ],
+          "occurrence_id": "oc-8fdfd65a9d020f88",
+          "recovery_ladder": [
+            "repair_onset_route"
+          ],
+          "retest_action": "present_test_flash",
+          "target": "onset_route",
+          "unavailable": true,
+          "visible_variant": "missing_route_event"
+        }
+      ],
+      "optional_transient": false,
+      "role_requirement": "required",
+      "runtime_onset": false,
+      "scenario_id": "eeg-23eba370b8626a9a",
+      "seed": 5069200274873349639,
+      "stage": "marker_only",
+      "unavailable": true,
+      "unavailable_fault": "missing_onset",
+      "unavailable_path": "onset"
+    },
+    {
+      "ambiguity_family": null,
+      "blueprint_id": "bp-a44cafaf378f3ea7",
+      "category": "individual",
+      "episode_scope": "preflight",
+      "faults": [
+        "configuration_mismatch"
+      ],
+      "manifest_digest": "sha256:8a09ff2c72f5ca262451da3b49ac0148805dbf2d27a9d0cc9c5d6e771eac5a01",
+      "negative_control_kind": "none",
+      "nuisance_family": "familiar",
+      "nuisance_id": "nz-c8e1529e41bd6fbf",
+      "occurrences": [
+        {
+          "activation": "preflight",
+          "activation_trial": null,
+          "domain": "configuration",
+          "family": "configuration_mismatch",
+          "inspection_actions": [
+            "inspect_configuration"
+          ],
+          "invalidates": [
+            "configuration",
+            "eeg",
+            "onset",
+            "response",
+            "recording"
+          ],
+          "occurrence_id": "oc-b215a05541523561",
+          "recovery_ladder": [
+            "correct_acquisition_configuration"
+          ],
+          "retest_action": "inspect_configuration",
+          "target": "procedure_configuration",
+          "unavailable": false,
+          "visible_variant": "montage_role_mismatch"
+        }
+      ],
+      "optional_transient": false,
+      "role_requirement": "required",
+      "runtime_onset": false,
+      "scenario_id": "eeg-27e3baafffed78c6",
+      "seed": 3846194619107894131,
+      "stage": "integration_preflight",
+      "unavailable": false,
+      "unavailable_fault": null,
+      "unavailable_path": null
+    },
+    {
+      "ambiguity_family": null,
+      "blueprint_id": "bp-80857d70f6cc1c65",
+      "category": "nominal",
+      "episode_scope": "preflight",
+      "faults": [],
+      "manifest_digest": "sha256:d1bfd4409f6cb72cdcdc9856232a5cd142521931e5384d0e3e402e948dc88004",
+      "negative_control_kind": "optional_channel",
+      "nuisance_family": "familiar",
+      "nuisance_id": "nz-05bd2f1f0be3a983",
+      "occurrences": [],
+      "optional_transient": true,
+      "role_requirement": "optional",
+      "runtime_onset": false,
+      "scenario_id": "eeg-30ddbcb4ceb8016d",
+      "seed": 8023105704535304874,
+      "stage": "nominal_orientation",
+      "unavailable": false,
+      "unavailable_fault": null,
+      "unavailable_path": null
+    },
+    {
+      "ambiguity_family": null,
+      "blueprint_id": "bp-355e309fc1dcfee4",
+      "category": "nominal",
+      "episode_scope": "preflight",
+      "faults": [],
+      "manifest_digest": "sha256:e385b7dc18cfc5571d0848249f5af998f773aeb37658da6802551ac66595896a",
+      "negative_control_kind": "none",
+      "nuisance_family": "familiar",
+      "nuisance_id": "nz-6f5f38938d6ab10c",
+      "occurrences": [],
+      "optional_transient": false,
+      "role_requirement": "not_applicable",
+      "runtime_onset": false,
+      "scenario_id": "eeg-414eb6bd4efed5b8",
+      "seed": 5364987715247060291,
+      "stage": "nominal_orientation",
+      "unavailable": false,
+      "unavailable_fault": null,
+      "unavailable_path": null
+    },
+    {
+      "ambiguity_family": null,
+      "blueprint_id": "bp-cdef2d1294e0b8d5",
+      "category": "pair",
+      "episode_scope": "full",
+      "faults": [
+        "flatline_clipping",
+        "visible_onset_cue"
+      ],
+      "manifest_digest": "sha256:24d914b19d6263fcd70872a0731815ef9d3d5a267ced4bc74ba61cae5f291211",
+      "negative_control_kind": "none",
+      "nuisance_family": "familiar",
+      "nuisance_id": "nz-c1a41c996bdf7a43",
+      "occurrences": [
+        {
+          "activation": "preflight",
+          "activation_trial": null,
+          "domain": "eeg",
+          "family": "flatline_clipping",
+          "inspection_actions": [
+            "inspect_eeg_signals",
+            "inspect_frequency_evidence"
+          ],
+          "invalidates": [
+            "eeg"
+          ],
+          "occurrence_id": "oc-21ef9dd26ae4a388",
+          "recovery_ladder": [
+            "reconnect_electrode_path"
+          ],
+          "retest_action": "collect_fresh_eeg_window",
+          "target": "FC4",
+          "unavailable": false,
+          "visible_variant": "flatline"
+        },
+        {
+          "activation": "preflight",
+          "activation_trial": null,
+          "domain": "onset",
+          "family": "visible_onset_cue",
+          "inspection_actions": [
+            "inspect_onset_route"
+          ],
+          "invalidates": [
+            "onset",
+            "response"
+          ],
+          "occurrence_id": "oc-de19232aff63d6ad",
+          "recovery_ladder": [
+            "correct_trigger_visibility"
+          ],
+          "retest_action": "present_test_flash",
+          "target": "participant_view",
+          "unavailable": false,
+          "visible_variant": "participant_visible_flash"
+        }
+      ],
+      "optional_transient": false,
+      "role_requirement": "required",
+      "runtime_onset": false,
+      "scenario_id": "eeg-424afed05b51958d",
+      "seed": 7183404353399516165,
+      "stage": "compound_recovery",
+      "unavailable": false,
+      "unavailable_fault": null,
+      "unavailable_path": null
+    },
+    {
+      "ambiguity_family": null,
+      "blueprint_id": "bp-eb3664d33a4fb36b",
+      "category": "individual",
+      "episode_scope": "full",
+      "faults": [
+        "duplicate_onset"
+      ],
+      "manifest_digest": "sha256:d92b71cc7f40aff8ce83e558e8286bf016dd94c30e615b564b2a7df6282d7dcc",
+      "negative_control_kind": "none",
+      "nuisance_family": "familiar",
+      "nuisance_id": "nz-7dbf992470d774d7",
+      "occurrences": [
+        {
+          "activation": "runtime",
+          "activation_trial": 1,
+          "domain": "onset",
+          "family": "duplicate_onset",
+          "inspection_actions": [
+            "inspect_onset_route"
+          ],
+          "invalidates": [
+            "onset"
+          ],
+          "occurrence_id": "oc-6a902e7de484ff09",
+          "recovery_ladder": [
+            "repair_refractory_route"
+          ],
+          "retest_action": "present_test_flash",
+          "target": "refractory_route",
+          "unavailable": false,
+          "visible_variant": "duplicate_marker_burst"
+        }
+      ],
+      "optional_transient": false,
+      "role_requirement": "required",
+      "runtime_onset": true,
+      "scenario_id": "eeg-528b1b54859578fe",
+      "seed": 5864014553030431203,
+      "stage": "runtime_recovery",
+      "unavailable": false,
+      "unavailable_fault": null,
+      "unavailable_path": null
+    },
+    {
+      "ambiguity_family": null,
+      "blueprint_id": "bp-9fd54f355961ab55",
+      "category": "pair",
+      "episode_scope": "full",
+      "faults": [
+        "participant_artifact",
+        "response_mismatch"
+      ],
+      "manifest_digest": "sha256:01932021870f83b43df79f4ccf4109aadb53f1091605eb0ae8654e5fa61115e2",
+      "negative_control_kind": "none",
+      "nuisance_family": "familiar",
+      "nuisance_id": "nz-573095934b2b5047",
+      "occurrences": [
+        {
+          "activation": "preflight",
+          "activation_trial": null,
+          "domain": "eeg",
+          "family": "participant_artifact",
+          "inspection_actions": [
+            "inspect_eeg_signals",
+            "inspect_participant_state"
+          ],
+          "invalidates": [
+            "eeg"
+          ],
+          "occurrence_id": "oc-552b646c6193bb16",
+          "recovery_ladder": [
+            "ask_participant_to_relax"
+          ],
+          "retest_action": "collect_fresh_eeg_window",
+          "target": "participant",
+          "unavailable": false,
+          "visible_variant": "muscle_activity"
+        },
+        {
+          "activation": "preflight",
+          "activation_trial": null,
+          "domain": "response",
+          "family": "response_mismatch",
+          "inspection_actions": [
+            "inspect_response_timeline"
+          ],
+          "invalidates": [
+            "response"
+          ],
+          "occurrence_id": "oc-e78c72337583e1a9",
+          "recovery_ladder": [
+            "correct_response_mapping"
+          ],
+          "retest_action": "run_response_preflight",
+          "target": "response_mapping",
+          "unavailable": false,
+          "visible_variant": "incorrect_control_mapping"
+        }
+      ],
+      "optional_transient": false,
+      "role_requirement": "required",
+      "runtime_onset": false,
+      "scenario_id": "eeg-563a492fc8980f05",
+      "seed": 8004162261756115702,
+      "stage": "compound_recovery",
+      "unavailable": false,
+      "unavailable_fault": null,
+      "unavailable_path": null
+    },
+    {
+      "ambiguity_family": "unstable_channel",
+      "blueprint_id": "bp-339e69d6ff2f8131",
+      "category": "ambiguous",
+      "episode_scope": "preflight",
+      "faults": [
+        "local_contact"
+      ],
+      "manifest_digest": "sha256:d3153e86f224d6e10a186e2a3b122630085970adc00eddc07705f93144db70a1",
+      "negative_control_kind": "none",
+      "nuisance_family": "familiar",
+      "nuisance_id": "nz-f159b14ea8828c44",
+      "occurrences": [
+        {
+          "activation": "preflight",
+          "activation_trial": null,
+          "domain": "eeg",
+          "family": "local_contact",
+          "inspection_actions": [
+            "inspect_eeg_signals",
+            "inspect_frequency_evidence"
+          ],
+          "invalidates": [
+            "eeg"
+          ],
+          "occurrence_id": "oc-f5e55af60911035f",
+          "recovery_ladder": [
+            "reseat_electrode",
+            "replace_electrode"
+          ],
+          "retest_action": "collect_fresh_eeg_window",
+          "target": "FT8",
+          "unavailable": false,
+          "visible_variant": "implausible_neighbor_contrast"
+        }
+      ],
+      "optional_transient": false,
+      "role_requirement": "required",
+      "runtime_onset": false,
+      "scenario_id": "eeg-570562038d6e89d4",
+      "seed": 7250193016018685905,
+      "stage": "ambiguity",
+      "unavailable": false,
+      "unavailable_fault": null,
+      "unavailable_path": null
+    },
+    {
+      "ambiguity_family": "response_without_identity",
+      "blueprint_id": "bp-811d48f623d2bed3",
+      "category": "ambiguous",
+      "episode_scope": "preflight",
+      "faults": [
+        "response_mismatch"
+      ],
+      "manifest_digest": "sha256:d9dea5c965affd9c66c344c4b1a89d17cd546c56b4f5d116a9e3f2b9380cd05d",
+      "negative_control_kind": "none",
+      "nuisance_family": "familiar",
+      "nuisance_id": "nz-91aeb20812a3c302",
+      "occurrences": [
+        {
+          "activation": "preflight",
+          "activation_trial": null,
+          "domain": "response",
+          "family": "response_mismatch",
+          "inspection_actions": [
+            "inspect_response_timeline"
+          ],
+          "invalidates": [
+            "response"
+          ],
+          "occurrence_id": "oc-44727d703b0bde2c",
+          "recovery_ladder": [
+            "restart_response_handshake"
+          ],
+          "retest_action": "run_response_preflight",
+          "target": "identity_handshake",
+          "unavailable": false,
+          "visible_variant": "stale_identity_handshake"
+        }
+      ],
+      "optional_transient": false,
+      "role_requirement": "required",
+      "runtime_onset": false,
+      "scenario_id": "eeg-5f03f74c7b9cb0e1",
+      "seed": 3939121970682648855,
+      "stage": "ambiguity",
+      "unavailable": false,
+      "unavailable_fault": null,
+      "unavailable_path": null
+    },
+    {
+      "ambiguity_family": null,
+      "blueprint_id": "bp-af3de693230a90ef",
+      "category": "individual",
+      "episode_scope": "preflight",
+      "faults": [
+        "flatline_clipping"
+      ],
+      "manifest_digest": "sha256:c41af4823db6f3da26a2ad16294ad3cd703c2509b81380c7e1b40532a404396d",
+      "negative_control_kind": "none",
+      "nuisance_family": "familiar",
+      "nuisance_id": "nz-683e24b12dcc78b0",
+      "occurrences": [
+        {
+          "activation": "preflight",
+          "activation_trial": null,
+          "domain": "eeg",
+          "family": "flatline_clipping",
+          "inspection_actions": [
+            "inspect_eeg_signals",
+            "inspect_frequency_evidence"
+          ],
+          "invalidates": [
+            "eeg"
+          ],
+          "occurrence_id": "oc-8f40dea8382290c1",
+          "recovery_ladder": [
+            "reconnect_electrode_path"
+          ],
+          "retest_action": "collect_fresh_eeg_window",
+          "target": "FC4",
+          "unavailable": false,
+          "visible_variant": "flatline"
+        }
+      ],
+      "optional_transient": false,
+      "role_requirement": "required",
+      "runtime_onset": false,
+      "scenario_id": "eeg-5f9bbaea737603d7",
+      "seed": 1655943096638243558,
+      "stage": "eeg_preflight",
+      "unavailable": false,
+      "unavailable_fault": null,
+      "unavailable_path": null
+    },
+    {
+      "ambiguity_family": null,
+      "blueprint_id": "bp-88dc24ec97a25075",
+      "category": "nominal",
+      "episode_scope": "preflight",
+      "faults": [],
+      "manifest_digest": "sha256:9a45e059b45733483f7edae0dac54f6e2ceaf7d6cedaa575c28f2a7618fdac14",
+      "negative_control_kind": "none",
+      "nuisance_family": "familiar",
+      "nuisance_id": "nz-e0fc6d972cbe99e2",
+      "occurrences": [],
+      "optional_transient": false,
+      "role_requirement": "not_applicable",
+      "runtime_onset": false,
+      "scenario_id": "eeg-615d9f2b9413939b",
+      "seed": 9002576638329164229,
+      "stage": "nominal_orientation",
+      "unavailable": false,
+      "unavailable_fault": null,
+      "unavailable_path": null
+    },
+    {
+      "ambiguity_family": null,
+      "blueprint_id": "bp-e417c5609a9269ef",
+      "category": "pair",
+      "episode_scope": "full",
+      "faults": [
+        "flatline_clipping",
+        "visible_onset_cue"
+      ],
+      "manifest_digest": "sha256:383664d6a0a88030f44b39fd7805b9259c416b4e6d1b265ed478171eac0855f3",
+      "negative_control_kind": "none",
+      "nuisance_family": "familiar",
+      "nuisance_id": "nz-dfbed9d01a2221fc",
+      "occurrences": [
+        {
+          "activation": "runtime",
+          "activation_trial": 2,
+          "domain": "eeg",
+          "family": "flatline_clipping",
+          "inspection_actions": [
+            "inspect_eeg_signals",
+            "inspect_frequency_evidence"
+          ],
+          "invalidates": [
+            "eeg"
+          ],
+          "occurrence_id": "oc-0dcc86085f89906d",
+          "recovery_ladder": [
+            "reconnect_electrode_path"
+          ],
+          "retest_action": "collect_fresh_eeg_window",
+          "target": "FC4",
+          "unavailable": false,
+          "visible_variant": "flatline"
+        },
+        {
+          "activation": "preflight",
+          "activation_trial": null,
+          "domain": "onset",
+          "family": "visible_onset_cue",
+          "inspection_actions": [
+            "inspect_onset_route"
+          ],
+          "invalidates": [
+            "onset",
+            "response"
+          ],
+          "occurrence_id": "oc-7bbffaa13653d4f5",
+          "recovery_ladder": [
+            "correct_trigger_visibility"
+          ],
+          "retest_action": "present_test_flash",
+          "target": "participant_view",
+          "unavailable": false,
+          "visible_variant": "participant_visible_flash"
+        }
+      ],
+      "optional_transient": false,
+      "role_requirement": "required",
+      "runtime_onset": true,
+      "scenario_id": "eeg-68a31211618ced20",
+      "seed": 5305042863118744184,
+      "stage": "runtime_recovery",
+      "unavailable": false,
+      "unavailable_fault": null,
+      "unavailable_path": null
+    },
+    {
+      "ambiguity_family": "short_shared_transient",
+      "blueprint_id": "bp-98bc663cef31ad15",
+      "category": "ambiguous",
+      "episode_scope": "preflight",
+      "faults": [
+        "participant_artifact"
+      ],
+      "manifest_digest": "sha256:08febbc4a5e961465a0266fa4bcedc11999f078f8e70eafdb0bbdde1b1279407",
+      "negative_control_kind": "none",
+      "nuisance_family": "familiar",
+      "nuisance_id": "nz-605bf59d85621907",
+      "occurrences": [
+        {
+          "activation": "preflight",
+          "activation_trial": null,
+          "domain": "eeg",
+          "family": "participant_artifact",
+          "inspection_actions": [
+            "inspect_eeg_signals",
+            "inspect_participant_state"
+          ],
+          "invalidates": [
+            "eeg"
+          ],
+          "occurrence_id": "oc-3c1d21a4864110cf",
+          "recovery_ladder": [
+            "ask_participant_to_relax"
+          ],
+          "retest_action": "collect_fresh_eeg_window",
+          "target": "participant",
+          "unavailable": false,
+          "visible_variant": "movement_transient"
+        }
+      ],
+      "optional_transient": false,
+      "role_requirement": "required",
+      "runtime_onset": false,
+      "scenario_id": "eeg-6a4f42d8ea762566",
+      "seed": 171119752298450944,
+      "stage": "ambiguity",
+      "unavailable": false,
+      "unavailable_fault": null,
+      "unavailable_path": null
+    },
+    {
+      "ambiguity_family": "flash_without_marker",
+      "blueprint_id": "bp-eafca28b0157f4ec",
+      "category": "ambiguous",
+      "episode_scope": "preflight",
+      "faults": [
+        "missing_onset"
+      ],
+      "manifest_digest": "sha256:b97d45d41a323235487733a89c2e2f947747946a0870e4ccc4c5a6a78b87aca2",
+      "negative_control_kind": "none",
+      "nuisance_family": "familiar",
+      "nuisance_id": "nz-880132427cc91bfb",
+      "occurrences": [
+        {
+          "activation": "preflight",
+          "activation_trial": null,
+          "domain": "onset",
+          "family": "missing_onset",
+          "inspection_actions": [
+            "inspect_onset_route"
+          ],
+          "invalidates": [
+            "onset"
+          ],
+          "occurrence_id": "oc-b0c55066fce12694",
+          "recovery_ladder": [
+            "repair_onset_route"
+          ],
+          "retest_action": "present_test_flash",
+          "target": "onset_route",
+          "unavailable": false,
+          "visible_variant": "missing_route_event"
+        }
+      ],
+      "optional_transient": false,
+      "role_requirement": "required",
+      "runtime_onset": false,
+      "scenario_id": "eeg-77b74dc9f2411ebb",
+      "seed": 7270770186100795171,
+      "stage": "ambiguity",
+      "unavailable": false,
+      "unavailable_fault": null,
+      "unavailable_path": null
+    },
+    {
+      "ambiguity_family": "widespread_noise",
+      "blueprint_id": "bp-659c6d11eaa5176f",
+      "category": "ambiguous",
+      "episode_scope": "preflight",
+      "faults": [
+        "reference_ground"
+      ],
+      "manifest_digest": "sha256:b73081e7440f598ad89a5e5e942269b3e24d1d422ad1005cb61b9f8d8b9ae26c",
+      "negative_control_kind": "none",
+      "nuisance_family": "familiar",
+      "nuisance_id": "nz-4004ee8b2ef46d5e",
+      "occurrences": [
+        {
+          "activation": "preflight",
+          "activation_trial": null,
+          "domain": "eeg",
+          "family": "reference_ground",
+          "inspection_actions": [
+            "inspect_eeg_signals",
+            "inspect_frequency_evidence"
+          ],
+          "invalidates": [
+            "eeg"
+          ],
+          "occurrence_id": "oc-41a21106d2a471b5",
+          "recovery_ladder": [
+            "reconnect_ground"
+          ],
+          "retest_action": "collect_fresh_eeg_window",
+          "target": "ground",
+          "unavailable": false,
+          "visible_variant": "shared_ground_contamination"
+        }
+      ],
+      "optional_transient": false,
+      "role_requirement": "required",
+      "runtime_onset": false,
+      "scenario_id": "eeg-81142517787bc3c2",
+      "seed": 2805605111424028523,
+      "stage": "ambiguity",
+      "unavailable": false,
+      "unavailable_fault": null,
+      "unavailable_path": null
+    },
+    {
+      "ambiguity_family": null,
+      "blueprint_id": "bp-525eb65702248f76",
+      "category": "pair",
+      "episode_scope": "full",
+      "faults": [
+        "environmental_contamination",
+        "recording_mismatch"
+      ],
+      "manifest_digest": "sha256:839f240ec2e7fc43b8af272cd1cf8411aa1e5d4236b539a2dd6099f213512198",
+      "negative_control_kind": "none",
+      "nuisance_family": "familiar",
+      "nuisance_id": "nz-be1f03352913d096",
+      "occurrences": [
+        {
+          "activation": "runtime",
+          "activation_trial": 2,
+          "domain": "eeg",
+          "family": "environmental_contamination",
+          "inspection_actions": [
+            "inspect_frequency_evidence",
+            "inspect_environment"
+          ],
+          "invalidates": [
+            "eeg"
+          ],
+          "occurrence_id": "oc-72f45713a22c1550",
+          "recovery_ladder": [
+            "isolate_electrical_source"
+          ],
+          "retest_action": "collect_fresh_eeg_window",
+          "target": "electrical_source",
+          "unavailable": false,
+          "visible_variant": "broadband_shared_source"
+        },
+        {
+          "activation": "preflight",
+          "activation_trial": null,
+          "domain": "recording",
+          "family": "recording_mismatch",
+          "inspection_actions": [
+            "inspect_recording_timeline"
+          ],
+          "invalidates": [
+            "recording"
+          ],
+          "occurrence_id": "oc-b4c0759afb92a95d",
+          "recovery_ladder": [
+            "realign_timeline"
+          ],
+          "retest_action": "run_recording_preflight",
+          "target": "integration_timeline",
+          "unavailable": false,
+          "visible_variant": "timeline_misalignment"
+        }
+      ],
+      "optional_transient": false,
+      "role_requirement": "required",
+      "runtime_onset": true,
+      "scenario_id": "eeg-8c126c5966a5aed3",
+      "seed": 4547634089607120637,
+      "stage": "runtime_recovery",
+      "unavailable": false,
+      "unavailable_fault": null,
+      "unavailable_path": null
+    },
+    {
+      "ambiguity_family": "widespread_noise",
+      "blueprint_id": "bp-cbfe97a2e982b93c",
+      "category": "ambiguous",
+      "episode_scope": "preflight",
+      "faults": [
+        "participant_artifact"
+      ],
+      "manifest_digest": "sha256:0b9e023c8c708cd27a64d10f30c7424f48e1c9dcea4496e52668e7ea2756b63c",
+      "negative_control_kind": "none",
+      "nuisance_family": "familiar",
+      "nuisance_id": "nz-afb5cdb3c158ff0c",
+      "occurrences": [
+        {
+          "activation": "preflight",
+          "activation_trial": null,
+          "domain": "eeg",
+          "family": "participant_artifact",
+          "inspection_actions": [
+            "inspect_eeg_signals",
+            "inspect_participant_state"
+          ],
+          "invalidates": [
+            "eeg"
+          ],
+          "occurrence_id": "oc-dec14458bb08dd48",
+          "recovery_ladder": [
+            "ask_participant_to_relax"
+          ],
+          "retest_action": "collect_fresh_eeg_window",
+          "target": "participant",
+          "unavailable": false,
+          "visible_variant": "muscle_activity"
+        }
+      ],
+      "optional_transient": false,
+      "role_requirement": "required",
+      "runtime_onset": false,
+      "scenario_id": "eeg-91d6ac462b9ee74c",
+      "seed": 6493717333759316220,
+      "stage": "ambiguity",
+      "unavailable": false,
+      "unavailable_fault": null,
+      "unavailable_path": null
+    },
+    {
+      "ambiguity_family": null,
+      "blueprint_id": "bp-889d17425053c22e",
+      "category": "nominal",
+      "episode_scope": "preflight",
+      "faults": [],
+      "manifest_digest": "sha256:ca3204096b8ed7229621160c06a89c6bb4d86fdeed33d28ae004bc9ccbfdda58",
+      "negative_control_kind": "optional_channel",
+      "nuisance_family": "familiar",
+      "nuisance_id": "nz-544ea881d91f1c3f",
+      "occurrences": [],
+      "optional_transient": true,
+      "role_requirement": "optional",
+      "runtime_onset": false,
+      "scenario_id": "eeg-b1a9d4edd284cee1",
+      "seed": 8793654862357511978,
+      "stage": "nominal_orientation",
+      "unavailable": false,
+      "unavailable_fault": null,
+      "unavailable_path": null
+    },
+    {
+      "ambiguity_family": null,
+      "blueprint_id": "bp-bdacdcc99b0227fa",
+      "category": "individual",
+      "episode_scope": "full",
+      "faults": [
+        "response_mismatch"
+      ],
+      "manifest_digest": "sha256:af2ce5cecbe94e126f6b869273a4adf4ebb3de065f1d6b1846bf2457b2a5947f",
+      "negative_control_kind": "none",
+      "nuisance_family": "familiar",
+      "nuisance_id": "nz-d751349db2a8119a",
+      "occurrences": [
+        {
+          "activation": "runtime",
+          "activation_trial": 2,
+          "domain": "response",
+          "family": "response_mismatch",
+          "inspection_actions": [
+            "inspect_response_timeline"
+          ],
+          "invalidates": [
+            "response"
+          ],
+          "occurrence_id": "oc-695abd23151ce48c",
+          "recovery_ladder": [
+            "restart_response_handshake"
+          ],
+          "retest_action": "run_response_preflight",
+          "target": "identity_handshake",
+          "unavailable": false,
+          "visible_variant": "stale_identity_handshake"
+        }
+      ],
+      "optional_transient": false,
+      "role_requirement": "required",
+      "runtime_onset": true,
+      "scenario_id": "eeg-b410f4a26e370f67",
+      "seed": 2734996018005665803,
+      "stage": "runtime_recovery",
+      "unavailable": false,
+      "unavailable_fault": null,
+      "unavailable_path": null
+    },
+    {
+      "ambiguity_family": null,
+      "blueprint_id": "bp-3ac9ad7f8469a664",
+      "category": "individual",
+      "episode_scope": "preflight",
+      "faults": [
+        "reference_ground"
+      ],
+      "manifest_digest": "sha256:6ac29891a25dd1308ebf09477946c14b77a6aca7bbbc7986a287ee2ae9d8294c",
+      "negative_control_kind": "none",
+      "nuisance_family": "familiar",
+      "nuisance_id": "nz-607bb9d8e0eb79db",
+      "occurrences": [
+        {
+          "activation": "preflight",
+          "activation_trial": null,
+          "domain": "eeg",
+          "family": "reference_ground",
+          "inspection_actions": [
+            "inspect_eeg_signals",
+            "inspect_frequency_evidence"
+          ],
+          "invalidates": [
+            "eeg"
+          ],
+          "occurrence_id": "oc-950b713729d247c6",
+          "recovery_ladder": [
+            "reconnect_ground"
+          ],
+          "retest_action": "collect_fresh_eeg_window",
+          "target": "ground",
+          "unavailable": true,
+          "visible_variant": "shared_ground_contamination"
+        }
+      ],
+      "optional_transient": false,
+      "role_requirement": "required",
+      "runtime_onset": false,
+      "scenario_id": "eeg-bd27632fa4b6e341",
+      "seed": 3195944118797547571,
+      "stage": "eeg_preflight",
+      "unavailable": true,
+      "unavailable_fault": "reference_ground",
+      "unavailable_path": "eeg"
+    },
+    {
+      "ambiguity_family": null,
+      "blueprint_id": "bp-139b9a51b84c030c",
+      "category": "pair",
+      "episode_scope": "full",
+      "faults": [
+        "reference_ground",
+        "configuration_mismatch"
+      ],
+      "manifest_digest": "sha256:07fadc85cf4568392bd104a46d0e53781ee7cc913baf78451828cb50827f7e88",
+      "negative_control_kind": "none",
+      "nuisance_family": "familiar",
+      "nuisance_id": "nz-fd727d3088da6003",
+      "occurrences": [
+        {
+          "activation": "preflight",
+          "activation_trial": null,
+          "domain": "eeg",
+          "family": "reference_ground",
+          "inspection_actions": [
+            "inspect_eeg_signals",
+            "inspect_frequency_evidence"
+          ],
+          "invalidates": [
+            "eeg"
+          ],
+          "occurrence_id": "oc-ac9da548300413df",
+          "recovery_ladder": [
+            "reconnect_reference"
+          ],
+          "retest_action": "collect_fresh_eeg_window",
+          "target": "reference",
+          "unavailable": false,
+          "visible_variant": "shared_reference_contamination"
+        },
+        {
+          "activation": "preflight",
+          "activation_trial": null,
+          "domain": "configuration",
+          "family": "configuration_mismatch",
+          "inspection_actions": [
+            "inspect_configuration"
+          ],
+          "invalidates": [
+            "configuration",
+            "eeg",
+            "onset",
+            "response",
+            "recording"
+          ],
+          "occurrence_id": "oc-2272b42a23c10dc1",
+          "recovery_ladder": [
+            "correct_acquisition_configuration"
+          ],
+          "retest_action": "inspect_configuration",
+          "target": "procedure_configuration",
+          "unavailable": false,
+          "visible_variant": "sampling_profile_mismatch"
+        }
+      ],
+      "optional_transient": false,
+      "role_requirement": "required",
+      "runtime_onset": false,
+      "scenario_id": "eeg-be9f173c466bb2e0",
+      "seed": 6686070503371592737,
+      "stage": "compound_recovery",
+      "unavailable": false,
+      "unavailable_fault": null,
+      "unavailable_path": null
+    },
+    {
+      "ambiguity_family": "quiet_channel",
+      "blueprint_id": "bp-1ff6ca330622bf93",
+      "category": "ambiguous",
+      "episode_scope": "preflight",
+      "faults": [
+        "flatline_clipping"
+      ],
+      "manifest_digest": "sha256:5266532b8f0ce13dbd7910b937490e69ce72b7c1c406ac0bf7952de58a59eab2",
+      "negative_control_kind": "none",
+      "nuisance_family": "familiar",
+      "nuisance_id": "nz-d4e90187f2bc6cda",
+      "occurrences": [
+        {
+          "activation": "preflight",
+          "activation_trial": null,
+          "domain": "eeg",
+          "family": "flatline_clipping",
+          "inspection_actions": [
+            "inspect_eeg_signals",
+            "inspect_frequency_evidence"
+          ],
+          "invalidates": [
+            "eeg"
+          ],
+          "occurrence_id": "oc-43c039d7611eafd7",
+          "recovery_ladder": [
+            "reconnect_electrode_path"
+          ],
+          "retest_action": "collect_fresh_eeg_window",
+          "target": "FT8",
+          "unavailable": false,
+          "visible_variant": "rail_clipping"
+        }
+      ],
+      "optional_transient": false,
+      "role_requirement": "required",
+      "runtime_onset": false,
+      "scenario_id": "eeg-c803830488458808",
+      "seed": 5854781091803073034,
+      "stage": "ambiguity",
+      "unavailable": false,
+      "unavailable_fault": null,
+      "unavailable_path": null
+    },
+    {
+      "ambiguity_family": null,
+      "blueprint_id": "bp-459336a91fb09802",
+      "category": "pair",
+      "episode_scope": "full",
+      "faults": [
+        "local_contact",
+        "duplicate_onset"
+      ],
+      "manifest_digest": "sha256:6fd9e563804e6be7e63a68e81161c3c39159d1bd03fd24a57fef6f2675a7816a",
+      "negative_control_kind": "none",
+      "nuisance_family": "familiar",
+      "nuisance_id": "nz-87abaaae9b909b9e",
+      "occurrences": [
+        {
+          "activation": "preflight",
+          "activation_trial": null,
+          "domain": "eeg",
+          "family": "local_contact",
+          "inspection_actions": [
+            "inspect_eeg_signals",
+            "inspect_frequency_evidence"
+          ],
+          "invalidates": [
+            "eeg"
+          ],
+          "occurrence_id": "oc-56f97a65881b995b",
+          "recovery_ladder": [
+            "reseat_electrode",
+            "replace_electrode"
+          ],
+          "retest_action": "collect_fresh_eeg_window",
+          "target": "FT8",
+          "unavailable": false,
+          "visible_variant": "implausible_neighbor_contrast"
+        },
+        {
+          "activation": "runtime",
+          "activation_trial": 2,
+          "domain": "onset",
+          "family": "duplicate_onset",
+          "inspection_actions": [
+            "inspect_onset_route"
+          ],
+          "invalidates": [
+            "onset"
+          ],
+          "occurrence_id": "oc-a2d4cd5d93aa3013",
+          "recovery_ladder": [
+            "repair_refractory_route"
+          ],
+          "retest_action": "present_test_flash",
+          "target": "refractory_route",
+          "unavailable": false,
+          "visible_variant": "duplicate_marker_burst"
+        }
+      ],
+      "optional_transient": false,
+      "role_requirement": "required",
+      "runtime_onset": true,
+      "scenario_id": "eeg-dcc12004e6d63e88",
+      "seed": 3562688412751002442,
+      "stage": "runtime_recovery",
+      "unavailable": false,
+      "unavailable_fault": null,
+      "unavailable_path": null
+    },
+    {
+      "ambiguity_family": null,
+      "blueprint_id": "bp-100bf70679124836",
+      "category": "individual",
+      "episode_scope": "full",
+      "faults": [
+        "recording_mismatch"
+      ],
+      "manifest_digest": "sha256:440c8eafbc13c272b554a3761e5c8ffe650a66c1883aa430b4e1c7eed1d49165",
+      "negative_control_kind": "none",
+      "nuisance_family": "familiar",
+      "nuisance_id": "nz-b45f8bd505a91650",
+      "occurrences": [
+        {
+          "activation": "runtime",
+          "activation_trial": 2,
+          "domain": "recording",
+          "family": "recording_mismatch",
+          "inspection_actions": [
+            "inspect_recording_timeline"
+          ],
+          "invalidates": [
+            "recording"
+          ],
+          "occurrence_id": "oc-e35d8ab17dd57673",
+          "recovery_ladder": [
+            "restore_recording_state"
+          ],
+          "retest_action": "run_recording_preflight",
+          "target": "recording_state",
+          "unavailable": true,
+          "visible_variant": "inactive_recording"
+        }
+      ],
+      "optional_transient": false,
+      "role_requirement": "required",
+      "runtime_onset": true,
+      "scenario_id": "eeg-e0332e68e7708d25",
+      "seed": 1143126037348272032,
+      "stage": "runtime_recovery",
+      "unavailable": true,
+      "unavailable_fault": "recording_mismatch",
+      "unavailable_path": "recording"
+    },
+    {
+      "ambiguity_family": null,
+      "blueprint_id": "bp-7183f0005d30d41e",
+      "category": "individual",
+      "episode_scope": "preflight",
+      "faults": [
+        "local_contact"
+      ],
+      "manifest_digest": "sha256:91e81b233ed674795114e6da6ca6129fe05b0481b519c97f508a35d2ebb8d986",
+      "negative_control_kind": "none",
+      "nuisance_family": "familiar",
+      "nuisance_id": "nz-a439d1896e007b77",
+      "occurrences": [
+        {
+          "activation": "preflight",
+          "activation_trial": null,
+          "domain": "eeg",
+          "family": "local_contact",
+          "inspection_actions": [
+            "inspect_eeg_signals",
+            "inspect_frequency_evidence"
+          ],
+          "invalidates": [
+            "eeg"
+          ],
+          "occurrence_id": "oc-e9d838508745bf46",
+          "recovery_ladder": [
+            "reseat_electrode",
+            "replace_electrode"
+          ],
+          "retest_action": "collect_fresh_eeg_window",
+          "target": "FC4",
+          "unavailable": false,
+          "visible_variant": "persistent_local_noise"
+        }
+      ],
+      "optional_transient": false,
+      "role_requirement": "required",
+      "runtime_onset": false,
+      "scenario_id": "eeg-e9e8d7d83aafd8af",
+      "seed": 6632139098130966506,
+      "stage": "eeg_preflight",
+      "unavailable": false,
+      "unavailable_fault": null,
+      "unavailable_path": null
+    },
+    {
+      "ambiguity_family": "noisy_cap_site",
+      "blueprint_id": "bp-10390c441fe2625e",
+      "category": "ambiguous",
+      "episode_scope": "preflight",
+      "faults": [
+        "local_contact"
+      ],
+      "manifest_digest": "sha256:9aa46326c4d099c387ead0365269424fb1a1c536768b6dd9b9abff1bccacf568",
+      "negative_control_kind": "none",
+      "nuisance_family": "familiar",
+      "nuisance_id": "nz-176b969d8c134086",
+      "occurrences": [
+        {
+          "activation": "preflight",
+          "activation_trial": null,
+          "domain": "eeg",
+          "family": "local_contact",
+          "inspection_actions": [
+            "inspect_eeg_signals",
+            "inspect_frequency_evidence"
+          ],
+          "invalidates": [
+            "eeg"
+          ],
+          "occurrence_id": "oc-66d41b75ef78397d",
+          "recovery_ladder": [
+            "reseat_electrode",
+            "replace_electrode"
+          ],
+          "retest_action": "collect_fresh_eeg_window",
+          "target": "FC4",
+          "unavailable": false,
+          "visible_variant": "persistent_local_noise"
+        }
+      ],
+      "optional_transient": false,
+      "role_requirement": "required",
+      "runtime_onset": false,
+      "scenario_id": "eeg-f860269f1e39f889",
+      "seed": 4345744313212461046,
+      "stage": "ambiguity",
+      "unavailable": false,
+      "unavailable_fault": null,
+      "unavailable_path": null
+    },
+    {
+      "ambiguity_family": null,
+      "blueprint_id": "bp-cc980c59c0d589d3",
+      "category": "individual",
+      "episode_scope": "preflight",
+      "faults": [
+        "response_mismatch"
+      ],
+      "manifest_digest": "sha256:0d38d3045f96c87acf179630cde7098a901d2b8355f5950ee891f18ed1d0bb01",
+      "negative_control_kind": "none",
+      "nuisance_family": "familiar",
+      "nuisance_id": "nz-4bc474c108ce00f2",
+      "occurrences": [
+        {
+          "activation": "preflight",
+          "activation_trial": null,
+          "domain": "response",
+          "family": "response_mismatch",
+          "inspection_actions": [
+            "inspect_response_timeline"
+          ],
+          "invalidates": [
+            "response"
+          ],
+          "occurrence_id": "oc-732a93f9f764458a",
+          "recovery_ladder": [
+            "correct_response_mapping"
+          ],
+          "retest_action": "run_response_preflight",
+          "target": "response_mapping",
+          "unavailable": true,
+          "visible_variant": "incorrect_control_mapping"
+        }
+      ],
+      "optional_transient": false,
+      "role_requirement": "required",
+      "runtime_onset": false,
+      "scenario_id": "eeg-ff7336413346235d",
+      "seed": 4886783630581996851,
+      "stage": "integration_preflight",
+      "unavailable": true,
+      "unavailable_fault": "response_mismatch",
+      "unavailable_path": "response"
+    }
+  ],
+  "seeded_examples": [],
+  "split": "development"
+}

@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import Literal
 
 from environments.eeg import load_legacy_bundle, load_seeded_bundle
+from environments.eeg._curriculum_runtime import EegCurriculumRuntime
 from environments.eeg._preflight import EegPreflightRuntime
 from environments.eeg.presentation import (
     EegOnsetRouteVisualization,
@@ -241,11 +242,15 @@ class EegEnvironmentModule:
         visualization = validate_eeg_visualization(self._bundle.visualization)
         self._visualization = visualization.model_copy(deep=True)
         if bundle.generator_revision == "eeg-marker-generator-1":
-            self._implementation: _LegacyMarkerRecoveryRuntime | EegPreflightRuntime = (
+            self._implementation: (
+                _LegacyMarkerRecoveryRuntime | EegPreflightRuntime | EegCurriculumRuntime
+            ) = (
                 _LegacyMarkerRecoveryRuntime(self._bundle)
             )
         elif bundle.generator_revision == "eeg-preflight-generator-1":
             self._implementation = EegPreflightRuntime(self._bundle)
+        elif bundle.generator_revision == "eeg-curriculum-generator-1":
+            self._implementation = EegCurriculumRuntime(self._bundle)
         else:
             raise BundleValidationError("unsupported EEG generator revision")
 

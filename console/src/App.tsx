@@ -24,6 +24,21 @@ function digestTail(digest: string): string {
   return digest.length > 24 ? `${digest.slice(0, 12)}…${digest.slice(-8)}` : digest;
 }
 
+function displayName(value: string): string {
+  return value
+    .split("_")
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
+}
+
+const EVIDENCE_DOMAINS = [
+  ["configuration", "Configuration"],
+  ["eeg", "EEG"],
+  ["onset", "Onset"],
+  ["response", "Response"],
+  ["recording", "Recording"],
+] as const;
+
 function ValidationPanel({ environment }: { environment: EnvironmentSummary }) {
   return (
     <section
@@ -238,10 +253,19 @@ function ResultPanel({
           <p className="eyebrow">Verifier result</p>
           <h2>{result.passed ? "Verifier passed" : "Verifier did not pass"}</h2>
           <p className="result-classification">
-            {result.outcome_category
-              ? result.outcome_category.replaceAll("_", " ")
-              : result.terminal_disposition}
+            Terminal disposition: {" "}
+            <strong data-testid="terminal-disposition">
+              {displayName(result.terminal_disposition)}
+            </strong>
           </p>
+          {result.outcome_category && (
+            <p className="result-classification">
+              Outcome category: {" "}
+              <strong data-testid="outcome-category">
+                {displayName(result.outcome_category)}
+              </strong>
+            </p>
+          )}
           <p>{result.summary}</p>
           <details data-testid="verifier-explanation">
             <summary>Why the verifier reached this result</summary>
@@ -278,6 +302,14 @@ function RunIdentity({ run }: { run: RunSnapshot }) {
     awaiting_verification: "Awaiting verification",
     completed: "Completed run",
   };
+  const freshness = run.observation.evidence_freshness;
+  const freshnessRecord =
+    freshness !== null && typeof freshness === "object" && !Array.isArray(freshness)
+      ? freshness
+      : {};
+  const stage = typeof run.observation.stage === "string"
+    ? displayName(run.observation.stage)
+    : "Unavailable";
   return (
     <section className="identity-panel" aria-label="Frozen run identity">
       <div className="section-heading-row">
@@ -288,6 +320,10 @@ function RunIdentity({ run }: { run: RunSnapshot }) {
         <span className="frozen-badge">Frozen</span>
       </div>
       <dl className="identity-list">
+        <div>
+          <dt>Curriculum stage</dt>
+          <dd data-testid="curriculum-stage">{stage}</dd>
+        </div>
         <div>
           <dt>Environment revision</dt>
           <dd data-testid="frozen-revision" title={run.revision_digest}>
@@ -303,6 +339,23 @@ function RunIdentity({ run }: { run: RunSnapshot }) {
           <dd data-testid="policy-agent-identity">{run.policy_agent.name}</dd>
         </div>
       </dl>
+      <p className="eyebrow">Evidence freshness</p>
+      <dl className="identity-list" data-testid="domain-freshness">
+        {EVIDENCE_DOMAINS.map(([domain, label]) => {
+          const entry = freshnessRecord[domain];
+          const status =
+            entry !== null && typeof entry === "object" && !Array.isArray(entry)
+              && typeof entry.status === "string"
+              ? displayName(entry.status)
+              : "Unavailable";
+          return (
+            <div key={domain}>
+              <dt>{label}</dt>
+              <dd data-testid={`domain-freshness-${domain}`}>{status}</dd>
+            </div>
+          );
+        })}
+      </dl>
       <p className="identity-note">
         This immutable revision remains fixed across reset and deterministic replay.
       </p>
@@ -314,15 +367,22 @@ function EmptyRunPanel({
   environment,
   selectedAgent,
   setSelectedAgent,
+  selectedScenario,
+  setSelectedScenario,
   onStart,
   busy,
 }: {
   environment: EnvironmentSummary;
   selectedAgent: string;
   setSelectedAgent: (agent: string) => void;
+  selectedScenario: string;
+  setSelectedScenario: (scenario: string) => void;
   onStart: () => void;
   busy: boolean;
 }) {
+  const selectedExample = environment.seeded_examples.find(
+    (example) => example.scenario_id === selectedScenario,
+  );
   return (
     <section className="start-panel" aria-labelledby="start-title">
       <p className="eyebrow">Run setup</p>
@@ -331,6 +391,27 @@ function EmptyRunPanel({
         Launching records an immutable bundle revision, scenario identity, and active
         Policy agent before any scored action.
       </p>
+      <label htmlFor="seeded-example">Seeded curriculum example</label>
+      <select
+        data-testid="seeded-example-selector"
+        id="seeded-example"
+        value={selectedScenario}
+        onChange={(event) => setSelectedScenario(event.target.value)}
+      >
+        {environment.seeded_examples.map((example) => (
+          <option key={example.scenario_id} value={example.scenario_id}>
+            {example.label}
+          </option>
+        ))}
+      </select>
+      {selectedExample && (
+        <p className="boundary-note">
+          Entry scope: {" "}
+          <span data-testid="seeded-example-stage">
+            {displayName(selectedExample.stage)}
+          </span>
+        </p>
+      )}
       <label htmlFor="policy-agent">Policy agent</label>
       <select
         id="policy-agent"
@@ -348,7 +429,7 @@ function EmptyRunPanel({
         type="button"
         data-testid="start-run"
         onClick={onStart}
-        disabled={busy || !selectedAgent}
+        disabled={busy || !selectedAgent || !selectedScenario}
       >
         {busy ? "Freezing and starting…" : "Freeze draft and start run"}
       </button>
@@ -365,6 +446,7 @@ export function App() {
   const [frozen, setFrozen] = useState<FrozenEnvironment | null>(null);
   const [run, setRun] = useState<RunSnapshot | null>(null);
   const [selectedAgent, setSelectedAgent] = useState("");
+  const [selectedScenario, setSelectedScenario] = useState("");
   const [busy, setBusy] = useState(false);
   const [draftBusy, setDraftBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -378,6 +460,9 @@ export function App() {
         setEnvironment(loadedEnvironment);
         setDraft(loadedDraft);
         setSelectedAgent(loadedEnvironment.policy_agents[0]?.id ?? "");
+        setSelectedScenario(
+          loadedEnvironment.seeded_examples[0]?.scenario_id ?? "",
+        );
       })
       .catch((reason: unknown) => {
         if (!cancelled) {
@@ -451,20 +536,20 @@ export function App() {
   }
 
   async function startRun() {
-    if (!draft || !selectedAgent) return;
+    if (!draft || !selectedAgent || !selectedScenario) return;
     setBusy(true);
     setError(null);
     setReplay(null);
     try {
       const frozenEnvironment = await draftApi.freeze(draft.revision);
       const started = await environmentApi.start(
-        frozenEnvironment.scenario_id,
+        selectedScenario,
         selectedAgent,
         frozenEnvironment.frozen_environment_id,
       );
       if (
         started.revision_digest !== frozenEnvironment.revision_digest ||
-        started.scenario_id !== frozenEnvironment.scenario_id
+        started.scenario_id !== selectedScenario
       ) {
         throw new Error(
           "The started run did not match the frozen Environment identity.",
@@ -642,7 +727,19 @@ export function App() {
         ) : environment ? (
           <>
             <ValidationPanel environment={environment} />
-            {run ? <RunIdentity run={run} /> : <EmptyRunPanel environment={environment} selectedAgent={selectedAgent} setSelectedAgent={setSelectedAgent} onStart={() => void startRun()} busy={busy} />}
+            {run ? (
+              <RunIdentity run={run} />
+            ) : (
+              <EmptyRunPanel
+                busy={busy}
+                environment={environment}
+                onStart={() => void startRun()}
+                selectedAgent={selectedAgent}
+                selectedScenario={selectedScenario}
+                setSelectedAgent={setSelectedAgent}
+                setSelectedScenario={setSelectedScenario}
+              />
+            )}
             {frozen && <FrozenConfigurationPanel frozen={frozen} />}
           </>
         ) : <div className="loading-panel" aria-live="polite">Loading validation…</div>}

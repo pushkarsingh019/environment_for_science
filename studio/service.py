@@ -12,7 +12,6 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-from environments.eeg import load_seeded_bundle
 from environments.eeg.authoring import (
     EegAuthoringState,
     EegCommandResult,
@@ -21,6 +20,10 @@ from environments.eeg.authoring import (
     compile_frozen_bundle,
     seed_authoring_state,
     stage_descriptive_note,
+)
+from environments.eeg.curriculum import (
+    SeededScenarioChoice,
+    load_training_scenario_set,
 )
 from environments.eeg.runtime import EegEnvironmentModule
 from studio.authoring import (
@@ -136,7 +139,9 @@ class ScienceStudio:
 
     def __init__(self, artifact_root: Path) -> None:
         self._artifact_root = artifact_root.resolve()
-        self._source_bundle = validate_environment_bundle(load_seeded_bundle())
+        training = load_training_scenario_set()
+        self._source_bundle = training.environment_bundle
+        self._seeded_scenarios = training.seeded_examples
         seed_state = seed_authoring_state(self._source_bundle)
         self._drafts = DraftRepository(
             artifact_root=self._artifact_root,
@@ -170,6 +175,11 @@ class ScienceStudio:
     @property
     def source_environment(self) -> EegEnvironmentModule:
         return EegEnvironmentModule(self._source_bundle)
+
+    @property
+    def seeded_scenarios(self) -> tuple[SeededScenarioChoice, ...]:
+        """Return the reviewed neutral examples exposed by the local console."""
+        return tuple(choice.model_copy(deep=True) for choice in self._seeded_scenarios)
 
     @property
     def authoring_assistant(self) -> AuthoringAssistantIdentity:

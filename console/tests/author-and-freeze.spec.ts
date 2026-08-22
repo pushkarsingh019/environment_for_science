@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 
-import { recoverDefaultEegScenario } from "./eeg-test-helpers";
+import { completeNominalPreflight } from "./eeg-test-helpers";
 
 const ADD_CZ = "Add Cz to the Montage";
 const REMOVE_FT8 = "Remove FT8 from the Montage";
@@ -304,10 +304,10 @@ test("freezes and starts one revision while later Edit changes leave its configu
     .getAttribute("title");
   const frozenConfiguration = await page.getByTestId("frozen-configuration").innerText();
 
-  await recoverDefaultEegScenario(page);
+  await completeNominalPreflight(page);
   await page.getByTestId("verify-run").click();
   await expect(page.getByTestId("verifier-result")).toContainText("Verifier passed");
-  await expect(page.getByTestId("verifier-result")).toContainText("targeted recovery");
+  await expect(page.getByTestId("terminal-disposition")).toHaveText("Closed");
   const sourceTrace = await page.getByTestId("trace-list").innerText();
 
   await page.getByTestId("mode-edit").click();

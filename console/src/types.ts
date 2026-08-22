@@ -69,14 +69,19 @@ export type EegVisualization =
   | EegOnsetRouteVisualization
   | EegPreflightVisualization;
 
+export interface SeededScenarioSummary {
+  scenario_id: string;
+  label: string;
+  stage: "preflight" | "short_acquisition";
+}
+
 /** Exact JSON DTO returned by GET /api/environment. */
 export interface EnvironmentSummary {
   environment_id: string;
-  scenario_id: string;
-  scenario_ids: string[];
   name: string;
   description: string;
   simulation_label: string;
+  seeded_examples: SeededScenarioSummary[];
   actions: ActionPresentation[];
   visualization: EegVisualization;
   validation: EnvironmentValidationSummary;
@@ -178,8 +183,6 @@ export interface FrozenEnvironment {
   frozen_environment_id: string;
   bundle_revision: string;
   revision_digest: string;
-  scenario_id: string;
-  scenario_ids: string[];
   draft_revision: number;
   procedure: DraftProcedure;
 }
@@ -200,7 +203,7 @@ export interface VerifierResult {
   verifier_id: string;
   result_version: string;
   passed: boolean;
-  terminal_disposition: "recovered" | "aborted" | "failed";
+  terminal_disposition: "recovered" | "closed" | "aborted" | "failed";
   outcome_category: string | null;
   summary: string;
   metrics: Record<string, number>;

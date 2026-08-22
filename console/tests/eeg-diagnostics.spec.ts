@@ -9,10 +9,10 @@ import {
 
 const RECORDING_SITES = ["FC3", "FC4", "FT7", "FT8"];
 
-test("supports an evidence-led targeted EEG recovery without revealing privileged causes", async ({
+test("supports an evidence-led targeted curriculum recovery without revealing privileged causes", async ({
   page,
 }) => {
-  await startSeededRun(page);
+  await startSeededRun(page, "Seeded example B");
 
   const diagnostic = page.getByTestId("eeg-diagnostic-visualization");
   await expect(diagnostic).toContainText("EEG diagnostic preflight");
@@ -65,12 +65,15 @@ test("supports an evidence-led targeted EEG recovery without revealing privilege
     "signal_profile",
     "effective_actions",
     "fault_family",
+    "blueprint_id",
+    "nuisance_id",
+    "manifest_digest",
     "eeg-demo-001",
   ]) {
     expect(initialVisibleText).not.toContain(privilegedName);
   }
 
-  await page.getByTestId("action-picker").selectOption("abort_preflight");
+  await page.getByTestId("action-picker").selectOption("abort_episode");
   const abortPath = page.getByTestId("action-target");
   const abortEvidence = page.getByTestId("action-evidence-reference");
   await expect(abortPath).toHaveJSProperty("tagName", "SELECT");
@@ -78,11 +81,15 @@ test("supports an evidence-led targeted EEG recovery without revealing privilege
   expect(await abortPath.locator("option").evaluateAll(
     (options) => options.map((option) => (option as HTMLOptionElement).value),
   )).toEqual(["", "eeg", "onset", "response", "recording"]);
-  expect(await abortEvidence.locator("option").evaluateAll(
+  const evidenceOptions = await abortEvidence.locator("option").evaluateAll(
     (options) => options.map((option) => (option as HTMLOptionElement).value),
-  )).toContain(initialWindowId);
+  );
+  const currentEegEvidenceId = evidenceOptions.find((value) =>
+    /^eeg-[0-9a-f]+-s\d+-r\d+$/.test(value),
+  );
+  expect(currentEegEvidenceId).toBeDefined();
   await abortPath.selectOption("eeg");
-  await abortEvidence.selectOption(initialWindowId ?? "");
+  await abortEvidence.selectOption(currentEegEvidenceId ?? "");
   await expect(page.getByTestId("apply-run-action")).toBeEnabled();
   await expect(page.getByTestId("run-status")).toContainText("Active run");
 
@@ -125,29 +132,37 @@ test("supports an evidence-led targeted EEG recovery without revealing privilege
   );
   await page.getByRole("tab", { name: "Signals" }).click();
 
-  await applySimulatedAction(page, "reseat_electrode", { site: "FC3" });
+  await applySimulatedAction(page, "inspect_onset_route");
+  await applySimulatedAction(page, "correct_trigger_visibility");
+  await expect(page.getByTestId("domain-freshness-onset")).toHaveText("Stale");
+  await expect(page.getByTestId("domain-freshness-response")).toHaveText("Stale");
   await expect(page.getByTestId("freshness-status")).toContainText("state r1");
-  await expect(page.getByTestId("freshness-status")).toContainText("stale");
-  await expect(traceWindow).toHaveAttribute("data-state-revision", "1");
-  await expect(traceWindow).toHaveAttribute("data-evidence-revision", "0");
-  await expect(traceWindow).toHaveAttribute("data-window-id", initialWindowId ?? "");
-
-  await applySimulatedAction(page, "collect_fresh_eeg_window");
   await expect(page.getByTestId("freshness-status")).toContainText("current");
   await expect(traceWindow).toHaveAttribute("data-state-revision", "1");
-  await expect(traceWindow).toHaveAttribute("data-evidence-revision", "1");
-  expect(await traceWindow.getAttribute("data-window-id")).not.toBe(initialWindowId);
+  await expect(traceWindow).toHaveAttribute("data-evidence-revision", "0");
+
+  await applySimulatedAction(page, "present_test_flash");
+  await expect(page.getByTestId("domain-freshness-onset")).toHaveText("Current");
+  await expect(page.getByTestId("domain-freshness-response")).toHaveText("Stale");
+  await applySimulatedAction(page, "run_response_preflight");
+  await expect(page.getByTestId("domain-freshness-response")).toHaveText("Current");
+  await expect(traceWindow).toHaveAttribute("data-state-revision", "1");
+  await expect(traceWindow).toHaveAttribute("data-evidence-revision", "0");
   await expect(page.getByTestId("frequency-disclosure")).toContainText(
-    "Choose “View frequency evidence”",
+    "Bins: 2 Hz · 6 Hz · 10 Hz · 18 Hz · 26 Hz",
   );
 
+  await applySimulatedAction(page, "inspect_configuration");
+  await applySimulatedAction(page, "inspect_response_timeline");
+  await applySimulatedAction(page, "inspect_recording_timeline");
   await applySimulatedAction(page, "complete_preflight");
   await page.getByTestId("verify-run").click();
   const result = page.getByTestId("verifier-result");
   await expect(result).toContainText("Verifier passed");
-  await expect(result).toContainText("targeted recovery");
+  await expect(page.getByTestId("terminal-disposition")).toHaveText("Closed");
+  await expect(page.getByTestId("outcome-category")).toHaveText("Individual");
   await expect(result).toContainText(
-    "Preflight verified after targeted simulated recovery and fresh evidence",
+    "Episode closed with current supported evidence and preserved annotations",
   );
   await page.getByTestId("verifier-explanation").locator("summary").click();
   await expect(page.getByTestId("verifier-explanation")).toContainText(
@@ -193,7 +208,7 @@ test("keeps diagnostic evidence and schema-driven actions keyboard-usable on mob
   await expect(page.getByTestId("apply-run-action")).toBeFocused();
   await page.keyboard.press("Enter");
   await expect(page.getByTestId("action-result")).toContainText(
-    "inspected comparatively",
+    "Inspected current configuration evidence",
   );
 
   await tabToTestId(page, "action-picker");

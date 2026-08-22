@@ -15,7 +15,10 @@ export async function tabToTestId(
   throw new Error(`Keyboard focus did not reach ${expected}`);
 }
 
-export async function startSeededRun(page: Page): Promise<void> {
+export async function startSeededRun(
+  page: Page,
+  exampleLabel = "Seeded example A",
+): Promise<void> {
   await page.goto("/");
   await expect(page.getByTestId("draft-revision")).toHaveAttribute(
     "data-revision",
@@ -33,6 +36,9 @@ export async function startSeededRun(page: Page): Promise<void> {
   await expect(page.getByTestId("environment-validation")).toContainText(
     "Environment Bundle v1 validated",
   );
+  await page.getByTestId("seeded-example-selector").selectOption({
+    label: exampleLabel,
+  });
   await page.getByTestId("start-run").click();
   await expect(page.getByTestId("run-status")).toContainText("Active run");
   await expect(page.getByTestId("eeg-diagnostic-visualization")).toBeVisible();
@@ -74,7 +80,7 @@ export async function applySimulatedAction(
     type: actionType,
     input: arguments_,
   });
-  if (!["complete_preflight", "abort_preflight"].includes(actionType)) {
+  if (!["complete_preflight", "close_acquisition", "abort_episode"].includes(actionType)) {
     await expect(picker).toBeEnabled();
   } else {
     await expect(page.getByTestId("run-status")).toContainText(
@@ -141,10 +147,27 @@ export async function horizontalOverflowReport(page: Page) {
   });
 }
 
-export async function recoverDefaultEegScenario(page: Page): Promise<void> {
-  await applySimulatedAction(page, "inspect_eeg_signals");
-  await applySimulatedAction(page, "inspect_frequency_evidence");
-  await applySimulatedAction(page, "reseat_electrode", { site: "FC3" });
-  await applySimulatedAction(page, "collect_fresh_eeg_window");
+export async function inspectCurriculumGates(page: Page): Promise<void> {
+  for (const action of [
+    "inspect_configuration",
+    "inspect_eeg_signals",
+    "inspect_onset_route",
+    "inspect_response_timeline",
+    "inspect_recording_timeline",
+  ]) {
+    await applySimulatedAction(page, action);
+  }
+}
+
+export async function completeNominalPreflight(page: Page): Promise<void> {
+  await inspectCurriculumGates(page);
+  await applySimulatedAction(page, "complete_preflight");
+}
+
+export async function recoverVisibleOnsetCue(page: Page): Promise<void> {
+  await inspectCurriculumGates(page);
+  await applySimulatedAction(page, "correct_trigger_visibility");
+  await applySimulatedAction(page, "present_test_flash");
+  await applySimulatedAction(page, "run_response_preflight");
   await applySimulatedAction(page, "complete_preflight");
 }

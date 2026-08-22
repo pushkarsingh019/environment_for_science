@@ -1,8 +1,7 @@
-"""HTTP acceptance tests for the synthetic EEG diagnostic preflight."""
+"""HTTP acceptance tests for EEG diagnostics inside the staged curriculum."""
 
 from __future__ import annotations
 
-import re
 from pathlib import Path
 
 from fastapi.testclient import TestClient
@@ -45,11 +44,15 @@ def test_http_exposes_an_opaque_fixed_demo_catalog_and_constant_typed_actions(
     environment = client.get("/api/environment").json()
     frozen = _freeze(client)
 
-    assert environment["scenario_ids"] == frozen["scenario_ids"]
-    assert len(environment["scenario_ids"]) == 20
+    assert "scenario_ids" not in environment
+    assert "scenario_ids" not in frozen
+    assert len(environment["seeded_examples"]) == 6
     assert all(
-        re.fullmatch(r"eeg-demo-[0-9]{3}", scenario_id)
-        for scenario_id in environment["scenario_ids"]
+        example["label"] == f"Seeded example {label}"
+        for example, label in zip(
+            environment["seeded_examples"],
+            "ABCDEF",
+        )
     )
     assert environment["hidden_state_exposed"] is False
     assert environment["visualization"]["kind"] == "eeg_preflight_v1"
@@ -67,17 +70,16 @@ def test_http_exposes_an_opaque_fixed_demo_catalog_and_constant_typed_actions(
         "run_response_preflight",
         "inspect_recording_timeline",
         "complete_preflight",
-        "abort_preflight",
+        "abort_episode",
     }.issubset(actions)
     assert actions["reseat_electrode"]["group"] == "remediate"
     assert actions["reseat_electrode"]["changes_state"] is True
     assert actions["reseat_electrode"]["input_schema"]["properties"]["site"][
         "enum"
     ] == ["FC3", "FC4", "FT7", "FT8"]
-    assert len({tuple(sorted(actions)) for _ in environment["scenario_ids"]}) == 1
-
-    non_default = _start(client, frozen, "eeg-demo-012")
-    assert non_default["scenario_id"] == "eeg-demo-012"
+    selected_id = environment["seeded_examples"][4]["scenario_id"]
+    non_default = _start(client, frozen, selected_id)
+    assert non_default["scenario_id"] == selected_id
     assert set(non_default["permitted_actions"]) == set(actions)
     serialized = str(non_default).casefold()
     assert "fault_family" not in serialized
@@ -89,8 +91,13 @@ def test_http_rejects_an_invalid_target_without_mutating_the_run_trace(
     tmp_path: Path,
 ) -> None:
     client = TestClient(create_app(artifact_root=tmp_path))
+    environment = client.get("/api/environment").json()
     frozen = _freeze(client)
-    started = _start(client, frozen, "eeg-demo-001")
+    started = _start(
+        client,
+        frozen,
+        environment["seeded_examples"][0]["scenario_id"],
+    )
 
     rejected = client.post(
         f"/api/runs/{started['run_id']}/actions",
@@ -122,7 +129,10 @@ def test_frozen_authored_montage_drives_the_diagnostic_channels(
     assert frozen_response.status_code == 201
     frozen = frozen_response.json()
 
-    started = _start(client, frozen, "eeg-demo-001")
+    selected_id = client.get("/api/environment").json()["seeded_examples"][1][
+        "scenario_id"
+    ]
+    started = _start(client, frozen, selected_id)
 
     assert [
         channel["site"] for channel in started["observation"]["eeg_window"]["channels"]

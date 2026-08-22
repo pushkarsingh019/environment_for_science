@@ -35,12 +35,17 @@ def _freeze_current_draft(client: TestClient) -> dict[str, object]:
     return response.json()
 
 
+def _seeded_scenario_id(client: TestClient, index: int = 1) -> str:
+    environment = client.get("/api/environment").json()
+    return str(environment["seeded_examples"][index]["scenario_id"])
+
+
 def _start_frozen_run(client: TestClient) -> dict[str, object]:
     frozen = _freeze_current_draft(client)
     response = client.post(
         "/api/runs",
         json={
-            "scenario_id": frozen["scenario_id"],
+            "scenario_id": _seeded_scenario_id(client),
             "policy_agent": "seeded-policy-agent",
             "frozen_environment_id": frozen["frozen_environment_id"],
         },
@@ -54,10 +59,14 @@ def _complete_default_eeg_recovery(
     run_id: str,
 ) -> dict[str, object]:
     actions = (
+        ("inspect_configuration", {}),
         ("inspect_eeg_signals", {}),
-        ("inspect_frequency_evidence", {}),
-        ("reseat_electrode", {"site": "FC3"}),
-        ("collect_fresh_eeg_window", {}),
+        ("inspect_onset_route", {}),
+        ("inspect_response_timeline", {}),
+        ("inspect_recording_timeline", {}),
+        ("correct_trigger_visibility", {}),
+        ("present_test_flash", {}),
+        ("run_response_preflight", {}),
         ("complete_preflight", {}),
     )
     for action_type, action_input in actions:
@@ -77,12 +86,12 @@ def test_http_environment_and_start_run_use_the_real_runtime_contract(tmp_path: 
     environment_response = client.get("/api/environment")
     assert environment_response.status_code == 200
     environment = environment_response.json()
-    assert environment["environment_id"] == "eeg-onset-marker-recovery"
-    assert environment["scenario_id"] == "eeg-demo-001"
-    assert environment["scenario_ids"] == [
-        f"eeg-demo-{index:03d}" for index in range(1, 21)
-    ]
-    assert environment["name"] == "EEG diagnostic preflight"
+    assert environment["environment_id"] == "eeg-curriculum"
+    assert len(environment["seeded_examples"]) == 6
+    assert environment["seeded_examples"][1]["label"] == "Seeded example B"
+    assert "scenario_id" not in environment
+    assert "scenario_ids" not in environment
+    assert environment["name"] == "Synthetic EEG staged curriculum"
     assert environment["simulation_label"] == "Synthetic EEG apparatus simulation"
     assert environment["visualization"]["kind"] == "eeg_preflight_v1"
     assert len(environment["visualization"]["scalp_sites"]) == 33
@@ -103,14 +112,14 @@ def test_http_environment_and_start_run_use_the_real_runtime_contract(tmp_path: 
     start_response = client.post(
         "/api/runs",
         json={
-            "scenario_id": environment["scenario_id"],
+            "scenario_id": environment["seeded_examples"][1]["scenario_id"],
             "policy_agent": "seeded-policy-agent",
             "frozen_environment_id": frozen["frozen_environment_id"],
         },
     )
     assert start_response.status_code == 201
     snapshot = start_response.json()
-    assert snapshot["scenario_id"] == "eeg-demo-001"
+    assert snapshot["scenario_id"] == environment["seeded_examples"][1]["scenario_id"]
     assert snapshot["policy_agent"] == environment["policy_agents"][0]
     assert snapshot["observation"]["eeg_window"]["display_sample_count"] == 96
     assert snapshot["observation"]["frequency_evidence"] is None
@@ -128,7 +137,7 @@ def test_http_runs_actions_verification_reset_and_true_replay(tmp_path: Path) ->
 
     completed = _complete_default_eeg_recovery(client, run_id)
     assert completed["verifier_result"]["passed"] is True
-    assert completed["verifier_result"]["outcome_category"] == "targeted_recovery"
+    assert completed["verifier_result"]["outcome_category"] == "individual"
     serialized_completed = json.dumps(completed, sort_keys=True)
     for hidden_key in _HIDDEN_STATE_KEYS:
         assert hidden_key not in serialized_completed
@@ -239,19 +248,8 @@ def test_application_rejects_a_completed_journal_truncated_to_its_initial_trace(
 ) -> None:
     first = TestClient(create_app(artifact_root=tmp_path))
     started = _start_frozen_run(first)
-    for action_type in (
-        "inspect_onset_route",
-        "repair_refractory_route",
-        "present_test_flash",
-    ):
-        response = first.post(
-            f"/api/runs/{started['run_id']}/actions",
-            json={"type": action_type, "input": {}},
-        )
-        assert response.status_code == 200
-    completed = first.post(f"/api/runs/{started['run_id']}/verify")
-    assert completed.status_code == 200
-    assert completed.json()["status"] == "completed"
+    completed = _complete_default_eeg_recovery(first, started["run_id"])
+    assert completed["status"] == "completed"
     artifact = tmp_path / "traces" / f"{started['run_id']}.jsonl"
     records = artifact.read_text(encoding="utf-8").splitlines(keepends=True)
     assert len(records) > 2
@@ -327,7 +325,7 @@ def test_http_rejects_unknown_identity_scenario_run_action_and_extra_input(tmp_p
         client.post(
             "/api/runs",
             json={
-                "scenario_id": frozen["scenario_id"],
+                "scenario_id": _seeded_scenario_id(client),
                 "policy_agent": "unknown-policy-agent",
                 "frozen_environment_id": frozen["frozen_environment_id"],
             },
@@ -338,7 +336,7 @@ def test_http_rejects_unknown_identity_scenario_run_action_and_extra_input(tmp_p
         client.post(
             "/api/runs",
             json={
-                "scenario_id": frozen["scenario_id"],
+                "scenario_id": _seeded_scenario_id(client),
                 "policy_agent": "seeded-policy-agent",
             },
         ).status_code
@@ -348,7 +346,7 @@ def test_http_rejects_unknown_identity_scenario_run_action_and_extra_input(tmp_p
         client.post(
             "/api/runs",
             json={
-                "scenario_id": frozen["scenario_id"],
+                "scenario_id": _seeded_scenario_id(client),
                 "policy_agent": "seeded-policy-agent",
                 "frozen_environment_id": "unknown-frozen-environment",
             },
@@ -358,7 +356,7 @@ def test_http_rejects_unknown_identity_scenario_run_action_and_extra_input(tmp_p
     started = client.post(
         "/api/runs",
         json={
-            "scenario_id": frozen["scenario_id"],
+            "scenario_id": _seeded_scenario_id(client),
             "policy_agent": "seeded-policy-agent",
             "frozen_environment_id": frozen["frozen_environment_id"],
         },
@@ -416,7 +414,7 @@ def test_http_requires_an_explicit_freeze_before_running_an_edited_draft(
     started = client.post(
         "/api/runs",
         json={
-            "scenario_id": frozen["scenario_id"],
+            "scenario_id": _seeded_scenario_id(client),
             "policy_agent": "seeded-policy-agent",
             "frozen_environment_id": frozen["frozen_environment_id"],
         },
@@ -466,7 +464,7 @@ def test_http_role_boundaries_are_explicit_disjoint_and_enforced(
         "reseat_electrode",
         "collect_fresh_eeg_window",
         "complete_preflight",
-        "abort_preflight",
+        "abort_episode",
     }.issubset(environment_actions)
     assert set(authoring["tool_catalog"]).isdisjoint(policy["tool_catalog"])
     assert "no live model prompt" in authoring["prompt_contract"].lower()
@@ -489,7 +487,7 @@ def test_http_role_boundaries_are_explicit_disjoint_and_enforced(
     started = client.post(
         "/api/runs",
         json={
-            "scenario_id": frozen["scenario_id"],
+            "scenario_id": _seeded_scenario_id(client),
             "policy_agent": policy["identity_id"],
             "frozen_environment_id": frozen["frozen_environment_id"],
         },
@@ -745,13 +743,13 @@ def test_http_frozen_run_isolated_from_later_draft_edits_and_authoring_context(
     assert frozen_response.status_code == 201
     frozen = frozen_response.json()
     assert frozen["draft_revision"] == noted["revision"]
-    assert frozen["bundle_revision"].startswith("1.3.")
+    assert frozen["bundle_revision"].startswith("1.4.")
     assert "Cz" in frozen["procedure"]["montage"]["recording_sites"]
 
     start_response = client.post(
         "/api/runs",
         json={
-            "scenario_id": frozen["scenario_id"],
+            "scenario_id": _seeded_scenario_id(client),
             "policy_agent": "seeded-policy-agent",
             "frozen_environment_id": frozen["frozen_environment_id"],
         },
@@ -836,7 +834,7 @@ def test_http_frozen_environment_and_run_survive_application_restart(
     started = first.post(
         "/api/runs",
         json={
-            "scenario_id": frozen["scenario_id"],
+            "scenario_id": _seeded_scenario_id(first),
             "policy_agent": "seeded-policy-agent",
             "frozen_environment_id": frozen["frozen_environment_id"],
         },
@@ -853,7 +851,7 @@ def test_http_frozen_environment_and_run_survive_application_restart(
     restarted_from_frozen = second.post(
         "/api/runs",
         json={
-            "scenario_id": frozen["scenario_id"],
+            "scenario_id": _seeded_scenario_id(second),
             "policy_agent": "seeded-policy-agent",
             "frozen_environment_id": frozen["frozen_environment_id"],
         },
