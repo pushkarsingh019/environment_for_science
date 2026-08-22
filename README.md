@@ -10,8 +10,8 @@ handoff. The project doesn't connect to or control physical apparatus.
 ## Project status
 
 The product, domain, interface, runtime, evaluation, and training decisions are complete.
-Implementation has started on the first of 13 dependency-ordered tickets. No ticket is
-complete, and the product isn't runnable end to end.
+Ticket 01 of 13 is complete and runnable end to end; twelve tickets remain. Ticket 02 is the
+next dependency-order target, and ticket 05 is also unblocked.
 
 Read these documents before you implement a ticket:
 
@@ -25,22 +25,22 @@ Read these documents before you implement a ticket:
 5. [`DESIGN.md`](DESIGN.md) supplies visual tokens. It doesn't define the page layout.
 
 The next implementation target is
-[ticket 01: Run and replay one EEG marker-recovery episode](docs/implementation/issues/01-run-and-replay-one-eeg-marker-recovery-episode.md).
+[ticket 02: Author and freeze a configurable EEG Montage](docs/implementation/issues/02-author-and-freeze-a-configurable-eeg-montage.md).
 
 ## Implementation checkpoint
 
-The repository contains the following partial ticket 01 work:
+Ticket 01 provides:
 
-- An extensible Environment Bundle v1 validator in `studio/bundle.py`.
-- A seeded synthetic EEG marker-recovery bundle in `environments/eeg/bundle.json`.
-- Runtime-level bundle validation tests in `tests/runtime/`.
-- A React and TypeScript Scientist Console shell in `console/`.
-- A browser test that mocks the planned public HTTP boundary.
-- A disposable Gemma training-path probe in `probes/gemma-training-path/`.
+- An extensible Environment Bundle v1 validator with nested JSON Schema checks.
+- A seeded synthetic EEG marker-recovery bundle and apparatus module.
+- A deterministic Environment Runtime with immutable revisions, verification, reset, and
+  true replay.
+- A strict local HTTP adapter and append-only caller-visible JSONL trace journal.
+- A quiet React and TypeScript Scientist Console with a visualization-first EEG workflow.
+- Runtime, HTTP, and real-backend browser coverage for positive and negative paths.
 
-The Python runtime, HTTP endpoints, deterministic episode state machine, verifier,
-canonical trace, reset, and replay behavior still need implementation. The browser test
-doesn't prove those behaviors because it uses mocked HTTP responses.
+The repository also retains the disposable Gemma training-path probe under
+`probes/gemma-training-path/`; it is not product runtime code.
 
 ## Set up a development checkout
 
@@ -69,6 +69,19 @@ The Python package requires Python 3.9 or later. The console requires Node.js an
    cd ..
    ```
 
+## Run the ticket 01 product
+
+From the repository root, one command builds the Scientist Console and starts both it and
+the deterministic Runtime:
+
+```bash
+.venv/bin/python -m studio
+```
+
+Open `http://127.0.0.1:8000`. The application binds only to loopback and exposes synthetic
+actions only. Each run writes an append-only caller-visible trace under `artifacts/traces/`;
+generated artifacts are ignored by Git.
+
 ## Run the available checks
 
 Run the Python checks from the repository root:
@@ -86,8 +99,8 @@ npm run build
 npm run test:browser
 ```
 
-The browser test starts Vite and mocks the runtime API. A clean checkout doesn't provide
-a complete product start command until ticket 01 implements the local runtime.
+The browser suite starts the same loopback-only product command and exercises the real
+Runtime API; it does not mock HTTP responses.
 
 ## Repository layout
 

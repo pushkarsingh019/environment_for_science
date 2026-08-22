@@ -349,6 +349,9 @@ button.environment-row {
 
 .visualization-card,
 .placeholder-panel,
+.action-panel,
+.trace-panel,
+.result-panel,
 .validation-panel,
 .identity-panel,
 .start-panel,
@@ -613,6 +616,153 @@ button.environment-row {
   margin: 14px auto 0;
 }
 
+.action-panel,
+.trace-panel {
+  min-width: 0;
+  padding: 18px;
+  border-radius: var(--radius-md);
+}
+
+.panel-copy {
+  margin: 10px 0 0;
+  color: var(--muted);
+  font-size: 0.875rem;
+  line-height: 1.43;
+}
+
+.action-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.action-button,
+.secondary-button {
+  min-height: 44px;
+  padding: 9px 11px;
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  background: #fcfbfa;
+  color: #45423f;
+  font-size: 1rem;
+  font-weight: 500;
+  line-height: 1.5;
+  cursor: pointer;
+}
+
+.action-button {
+  text-align: left;
+}
+
+.action-button:not(:disabled):hover,
+.secondary-button:not(:disabled):hover {
+  border-color: #c8c4bf;
+  background: #f2f0ed;
+}
+
+.action-button:not(:disabled):active,
+.secondary-button:not(:disabled):active {
+  background: #ebe8e4;
+}
+
+.run-control-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+}
+
+.run-control-row > button {
+  flex: 1 1 150px;
+}
+
+.trace-list {
+  max-height: 356px;
+  margin: 14px 0 0;
+  padding: 0;
+  overflow: auto;
+  border-top: 1px solid var(--line);
+  list-style: none;
+  scrollbar-gutter: stable;
+}
+
+.trace-list li {
+  display: grid;
+  grid-template-columns: 27px minmax(0, 1fr);
+  gap: 9px;
+  padding: 10px 2px;
+  border-bottom: 1px solid var(--line);
+}
+
+.trace-list li > span {
+  display: grid;
+  width: 24px;
+  height: 24px;
+  place-items: center;
+  border-radius: 6px;
+  background: #f0efed;
+  color: var(--muted);
+  font-family: ui-monospace, "SFMono-Regular", Consolas, monospace;
+  font-size: 0.75rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.trace-list p {
+  min-width: 0;
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.875rem;
+  line-height: 1.43;
+  overflow-wrap: anywhere;
+}
+
+.trace-list strong {
+  display: block;
+  margin-bottom: 2px;
+  color: #45423f;
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: capitalize;
+}
+
+.trace-evidence {
+  display: block;
+  margin-top: 4px;
+  color: #6d6965;
+  font-family: ui-monospace, "SFMono-Regular", Consolas, monospace;
+  font-size: 0.75rem;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.45;
+}
+
+.result-panel {
+  max-width: 900px;
+  margin: 14px auto 0;
+  padding: 16px 18px;
+  border-radius: var(--radius-md);
+}
+
+.result-panel h2 {
+  margin-bottom: 5px;
+}
+
+.result-panel div > p:last-child,
+.result-panel > p {
+  margin-bottom: 0;
+  color: var(--muted);
+  font-size: 0.875rem;
+  line-height: 1.43;
+}
+
+.result-panel div + p {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+
 .placeholder-panel {
   min-height: 132px;
   padding: 18px;
@@ -664,8 +814,36 @@ button.environment-row {
 .start-panel > p,
 .loading-panel {
   color: var(--muted);
-  font-size: 0.75rem;
-  line-height: 1.5;
+  font-size: 0.875rem;
+  line-height: 1.43;
+}
+
+.validation-details {
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 0.875rem;
+}
+
+.validation-details summary {
+  display: list-item;
+  min-height: 30px;
+  width: fit-content;
+  padding: 6px 4px;
+  border-radius: 4px;
+  color: #53504c;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.validation-details summary:focus-visible {
+  outline: 3px solid rgb(0 117 222 / 24%);
+  outline-offset: 2px;
+}
+
+.validation-details[open] summary {
+  color: var(--ink);
 }
 
 .quiet-list {
@@ -681,8 +859,8 @@ button.environment-row {
   position: relative;
   padding-left: 16px;
   color: #53504c;
-  font-size: 0.7rem;
-  line-height: 1.4;
+  font-size: 0.875rem;
+  line-height: 1.43;
 }
 
 .quiet-list li::before {
@@ -727,7 +905,7 @@ button.environment-row {
   overflow: hidden;
   color: #4a4743;
   font-family: ui-monospace, "SFMono-Regular", Consolas, monospace;
-  font-size: 0.68rem;
+  font-size: 0.875rem;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -736,32 +914,32 @@ button.environment-row {
   display: block;
   margin: 14px 0 6px;
   color: #55514d;
-  font-size: 0.72rem;
+  font-size: 0.875rem;
   font-weight: 650;
 }
 
 .start-panel select {
   width: 100%;
-  min-height: 38px;
+  min-height: 44px;
   padding: 0 10px;
   border: 1px solid var(--line-strong);
   border-radius: var(--radius-sm);
   background: white;
   color: var(--ink);
-  font-size: 0.75rem;
+  font-size: 0.9375rem;
 }
 
 .primary-button {
   width: 100%;
-  min-height: 40px;
+  min-height: 44px;
   margin-top: 10px;
   padding: 9px 13px;
   border: 0;
   border-radius: 8px;
   background: var(--blue);
   color: white;
-  font-size: 0.76rem;
-  font-weight: 650;
+  font-size: 1rem;
+  font-weight: 500;
   cursor: pointer;
 }
 
@@ -769,12 +947,18 @@ button.environment-row {
   background: var(--blue-deep);
 }
 
+.run-control-row .compact-button {
+  width: auto;
+  min-height: 44px;
+  margin-top: 0;
+}
+
 .boundary-note {
   margin: 12px 0 0;
   padding-top: 10px;
   border-top: 1px solid var(--line);
   color: var(--faint) !important;
-  font-size: 0.66rem !important;
+  font-size: 0.75rem !important;
 }
 
 @media (max-width: 1120px) {
@@ -880,6 +1064,31 @@ button.environment-row {
 
   .details-rail {
     padding: 0 16px 36px;
+  }
+}
+
+@media (max-width: 600px) {
+  .action-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .action-button,
+  .secondary-button,
+  .compact-button {
+    min-height: 44px;
+  }
+
+  .run-control-row {
+    flex-direction: column;
+  }
+
+  .run-control-row > button {
+    flex-basis: auto;
+    width: 100%;
+  }
+
+  .trace-list {
+    max-height: none;
   }
 }
 

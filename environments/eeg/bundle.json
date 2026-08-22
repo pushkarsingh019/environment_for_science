@@ -1,9 +1,10 @@
 {
   "contract_version": "1.0",
   "bundle_id": "eeg-onset-marker-recovery",
-  "bundle_revision": "1.0.0",
+  "bundle_revision": "1.1.0",
   "generator_revision": "eeg-marker-generator-1",
   "title": "EEG onset-marker preflight",
+  "description": "A deterministic synthetic preflight for the onset-marker route.",
   "simulation_label": "Synthetic EEG apparatus simulation",
   "apparatus": {
     "kind": "eeg",
@@ -20,12 +21,53 @@
   "observation_schema": {
     "type": "object",
     "properties": {
-      "simulation_label": {"type": "string"},
-      "stage": {"type": "string"},
-      "summary": {"type": "string"},
-      "onset_timeline": {"type": "object"},
-      "route_inspection": {"type": ["object", "null"]},
-      "freshness": {"type": "object"}
+      "simulation_label": {
+        "type": "string",
+        "const": "Synthetic EEG apparatus simulation"
+      },
+      "stage": {"type": "string", "const": "onset_marker_recovery"},
+      "summary": {"type": "string", "minLength": 1},
+      "onset_timeline": {
+        "type": "object",
+        "properties": {
+          "flash_sequence": {"type": "integer", "minimum": 1},
+          "location": {"type": "string", "const": "lower-right"},
+          "marker_count": {"type": "integer", "minimum": 1, "maximum": 2},
+          "evidence_id": {"type": "string", "pattern": "^flash-[0-9]{3}$"}
+        },
+        "required": ["flash_sequence", "location", "marker_count", "evidence_id"],
+        "additionalProperties": false
+      },
+      "route_inspection": {
+        "type": ["object", "null"],
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": ["inspected", "repair_applied"]
+          },
+          "finding": {"type": "string", "minLength": 1}
+        },
+        "required": ["status", "finding"],
+        "additionalProperties": false
+      },
+      "freshness": {
+        "type": "object",
+        "properties": {
+          "evidence_id": {"type": "string", "pattern": "^flash-[0-9]{3}$"},
+          "evidence_state_revision": {"type": "integer", "minimum": 0},
+          "state_revision": {"type": "integer", "minimum": 0},
+          "status": {"type": "string", "enum": ["current", "stale"]},
+          "reason": {"type": "string", "minLength": 1}
+        },
+        "required": ["evidence_id", "state_revision", "status"],
+        "additionalProperties": false,
+        "allOf": [
+          {
+            "if": {"properties": {"status": {"const": "stale"}}},
+            "then": {"required": ["evidence_state_revision", "reason"]}
+          }
+        ]
+      }
     },
     "required": ["simulation_label", "stage", "summary", "onset_timeline", "freshness"],
     "additionalProperties": false
@@ -36,10 +78,13 @@
       "refractory_route_repaired": {"type": "boolean"},
       "route_inspected": {"type": "boolean"},
       "inspected_before_repair": {"type": "boolean"},
-      "repair_transition": {"type": ["integer", "null"]},
-      "flash_sequence": {"type": "integer"}
+      "repair_transition": {
+        "type": ["integer", "null"],
+        "minimum": 1
+      },
+      "flash_sequence": {"type": "integer", "minimum": 1}
     },
-    "required": ["refractory_route_repaired", "route_inspected", "inspected_before_repair", "flash_sequence"],
+    "required": ["refractory_route_repaired", "route_inspected", "inspected_before_repair", "repair_transition", "flash_sequence"],
     "additionalProperties": false
   },
   "actions": [
@@ -51,13 +96,13 @@
     },
     {
       "type": "repair_refractory_route",
-      "title": "Repair simulated refractory route",
+      "title": "Apply targeted simulated repair",
       "description": "Apply the targeted repair to the simulated refractory route.",
       "input_schema": {"type": "object", "properties": {}, "additionalProperties": false}
     },
     {
       "type": "present_test_flash",
-      "title": "Present one synthetic test flash",
+      "title": "Present fresh synthetic test flash",
       "description": "Present a fresh synthetic lower-right test flash and observe onset markers.",
       "input_schema": {"type": "object", "properties": {}, "additionalProperties": false}
     },
@@ -89,7 +134,21 @@
       "seed": 104729,
       "initial_state": {
         "policy_visible": {
-          "stage": "onset_marker_recovery"
+          "simulation_label": "Synthetic EEG apparatus simulation",
+          "stage": "onset_marker_recovery",
+          "summary": "One lower-right test flash produced two onset markers.",
+          "onset_timeline": {
+            "flash_sequence": 1,
+            "location": "lower-right",
+            "marker_count": 2,
+            "evidence_id": "flash-001"
+          },
+          "route_inspection": null,
+          "freshness": {
+            "evidence_id": "flash-001",
+            "state_revision": 0,
+            "status": "current"
+          }
         },
         "hidden": {
           "refractory_route_repaired": false,
@@ -108,7 +167,25 @@
   },
   "metrics": ["terminal_correctness", "fresh_validation", "targeted_intervention"],
   "visualization": {
-    "primary_view": "onset_timeline",
-    "labels": ["Synthetic data", "Simulated apparatus only"]
+    "kind": "eeg_onset_route",
+    "title": "Onset-marker preflight",
+    "display_label": "Presentation display",
+    "flash_label": "Lower-right test flash",
+    "route_nodes": [
+      {
+        "id": "light_detector",
+        "name": "Light detector",
+        "detail": "simulated signal",
+        "emphasis": false
+      },
+      {
+        "id": "refractory_route",
+        "name": "Refractory route",
+        "detail": "not inspected",
+        "emphasis": true
+      }
+    ],
+    "marker_lane_label": "Marker event lane",
+    "freshness_label": "Evidence freshness"
   }
 }

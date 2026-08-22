@@ -4,16 +4,16 @@
 
 **Blocked by:** None (can start immediately)
 
-**Status:** ready-for-agent
+**Status:** complete
 
-- [ ] One documented local command starts the console and product runtime from a clean checkout.
-- [ ] The console uses the accepted quiet, visualization-first shell rather than the rejected marketing-style prototype.
-- [ ] The seeded Environment Bundle validates before the run and exposes Policy-visible state separately from hidden scenario truth.
-- [ ] Starting the run freezes an immutable Environment revision and identifies the active Policy agent.
-- [ ] One simulated lower-right display flash produces two onset markers in the seeded failing scenario.
-- [ ] The permitted actions allow inspection of the onset route, the targeted simulated refractory-route repair, and a fresh test flash.
-- [ ] The verifier fails stale or pre-repair evidence and passes only when the fresh post-repair flash produces exactly one marker.
-- [ ] The console shows the ordered observations, actions, transitions, freshness evidence, and scientist-readable verifier result.
-- [ ] Reset restores the identical initial scenario; replay reproduces the same trace and result digest.
-- [ ] Runtime-level and browser-level tests cover the successful recovery, an incorrect action, stale evidence, reset, and replay.
-- [ ] No physical connector, credential, code editor, RL terminology, or operational control is exposed.
+- [x] One documented local command starts the console and product runtime from a clean checkout.
+- [x] The console uses the accepted quiet, visualization-first shell rather than the rejected marketing-style prototype.
+- [x] The seeded Environment Bundle validates before the run and exposes Policy-visible state separately from hidden scenario truth.
+- [x] Starting the run freezes an immutable Environment revision and identifies the active Policy agent.
+- [x] One simulated lower-right display flash produces two onset markers in the seeded failing scenario.
+- [x] The permitted actions allow inspection of the onset route, the targeted simulated refractory-route repair, and a fresh test flash.
+- [x] The verifier fails stale or pre-repair evidence and passes only when the fresh post-repair flash produces exactly one marker.
+- [x] The console shows the ordered observations, actions, transitions, freshness evidence, and scientist-readable verifier result.
+- [x] Reset restores the identical initial scenario; replay reproduces the same trace and result digest.
+- [x] Runtime-level and browser-level tests cover the successful recovery, an incorrect action, stale evidence, reset, and replay.
+- [x] No physical connector, credential, code editor, RL terminology, or operational control is exposed.

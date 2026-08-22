@@ -8,9 +8,13 @@ version = "0.1.0"
 description = "Local deterministic runtime for simulated science Environments"
 requires-python = ">=3.9"
 dependencies = [
-  "fastapi>=0.115,<1",
+  "anyio>=3.6.2,<4.12",
+  "click>=8.1,<8.2",
+  "eval-type-backport>=0.2,<1; python_version < '3.10'",
+  "fastapi>=0.115,<0.116",
+  "jsonschema>=4.23,<4.26",
   "pydantic>=2.10,<3",
-  "uvicorn>=0.34,<1",
+  "uvicorn>=0.34,<0.35",
 ]
 
 [project.optional-dependencies]
@@ -19,6 +23,7 @@ dev = [
   "mypy>=1.14,<2",
   "pytest>=8.3,<9",
   "ruff>=0.9,<1",
+  "types-jsonschema>=4.23,<5",
 ]
 
 [tool.hatch.build.targets.wheel]
