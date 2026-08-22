@@ -1,22 +1,52 @@
 {
   "contract_version": "1.0",
   "bundle_id": "eeg-onset-marker-recovery",
-  "bundle_revision": "1.1.0",
+  "bundle_revision": "1.2.0",
   "generator_revision": "eeg-marker-generator-1",
   "title": "EEG onset-marker preflight",
   "description": "A deterministic synthetic preflight for the onset-marker route.",
   "simulation_label": "Synthetic EEG apparatus simulation",
   "apparatus": {
     "kind": "eeg",
-    "presentation": {
-      "montage": ["FC3", "FC4", "FT7", "FT8"],
-      "reference": "FCz",
-      "ground": "A1",
-      "sampling_hz": 1017,
-      "online_bandpass_hz": [0.1, 30.0],
-      "notch_hz": 50,
-      "onset_route": "lower-right simulated optical onset route"
-    }
+    "label": "Configurable whole-cap scalp EEG chain",
+    "recording_input_capacity": 32,
+    "coordinate_system": "Schematic whole-cap site catalog",
+    "scientific_claim": "The site positions are schematic interface coordinates, not exact cap geometry.",
+    "sites": [
+      {"id": "Fp1", "label": "Fp1", "x": 35, "y": 9, "kind": "scalp"},
+      {"id": "Fpz", "label": "Fpz", "x": 50, "y": 7, "kind": "scalp"},
+      {"id": "Fp2", "label": "Fp2", "x": 65, "y": 9, "kind": "scalp"},
+      {"id": "F7", "label": "F7", "x": 18, "y": 25, "kind": "scalp"},
+      {"id": "F3", "label": "F3", "x": 36, "y": 24, "kind": "scalp"},
+      {"id": "Fz", "label": "Fz", "x": 50, "y": 22, "kind": "scalp"},
+      {"id": "F4", "label": "F4", "x": 64, "y": 24, "kind": "scalp"},
+      {"id": "F8", "label": "F8", "x": 82, "y": 25, "kind": "scalp"},
+      {"id": "FT7", "label": "FT7", "x": 13, "y": 36, "kind": "scalp"},
+      {"id": "FC3", "label": "FC3", "x": 35, "y": 35, "kind": "scalp"},
+      {"id": "FCz", "label": "FCz", "x": 50, "y": 34, "kind": "scalp"},
+      {"id": "FC4", "label": "FC4", "x": 65, "y": 35, "kind": "scalp"},
+      {"id": "FT8", "label": "FT8", "x": 87, "y": 36, "kind": "scalp"},
+      {"id": "T7", "label": "T7", "x": 10, "y": 50, "kind": "scalp"},
+      {"id": "C3", "label": "C3", "x": 34, "y": 50, "kind": "scalp"},
+      {"id": "Cz", "label": "Cz", "x": 50, "y": 50, "kind": "scalp"},
+      {"id": "C4", "label": "C4", "x": 66, "y": 50, "kind": "scalp"},
+      {"id": "T8", "label": "T8", "x": 90, "y": 50, "kind": "scalp"},
+      {"id": "TP7", "label": "TP7", "x": 13, "y": 64, "kind": "scalp"},
+      {"id": "CP3", "label": "CP3", "x": 35, "y": 65, "kind": "scalp"},
+      {"id": "CPz", "label": "CPz", "x": 50, "y": 66, "kind": "scalp"},
+      {"id": "CP4", "label": "CP4", "x": 65, "y": 65, "kind": "scalp"},
+      {"id": "TP8", "label": "TP8", "x": 87, "y": 64, "kind": "scalp"},
+      {"id": "P7", "label": "P7", "x": 18, "y": 75, "kind": "scalp"},
+      {"id": "P3", "label": "P3", "x": 36, "y": 76, "kind": "scalp"},
+      {"id": "Pz", "label": "Pz", "x": 50, "y": 78, "kind": "scalp"},
+      {"id": "P4", "label": "P4", "x": 64, "y": 76, "kind": "scalp"},
+      {"id": "P8", "label": "P8", "x": 82, "y": 75, "kind": "scalp"},
+      {"id": "O1", "label": "O1", "x": 36, "y": 91, "kind": "scalp"},
+      {"id": "Oz", "label": "Oz", "x": 50, "y": 93, "kind": "scalp"},
+      {"id": "O2", "label": "O2", "x": 64, "y": 91, "kind": "scalp"},
+      {"id": "A1", "label": "A1", "x": 3, "y": 53, "kind": "auxiliary"},
+      {"id": "A2", "label": "A2", "x": 97, "y": 53, "kind": "auxiliary"}
+    ]
   },
   "observation_schema": {
     "type": "object",
@@ -67,9 +97,47 @@
             "then": {"required": ["evidence_state_revision", "reason"]}
           }
         ]
+      },
+      "procedure_configuration": {
+        "type": "object",
+        "properties": {
+          "name": {"type": "string", "minLength": 1},
+          "montage": {
+            "type": "object",
+            "properties": {
+              "recording_sites": {
+                "type": "array",
+                "items": {"type": "string", "minLength": 1},
+                "minItems": 1,
+                "uniqueItems": true
+              },
+              "reference": {"type": "string", "minLength": 1},
+              "ground": {"type": "string", "minLength": 1}
+            },
+            "required": ["recording_sites", "reference", "ground"],
+            "additionalProperties": true
+          },
+          "acquisition_profile": {
+            "type": "object",
+            "properties": {
+              "sampling_hz": {"type": "integer", "minimum": 128, "maximum": 4096},
+              "online_bandpass_hz": {
+                "type": "array",
+                "prefixItems": [{"type": "number"}, {"type": "number"}],
+                "minItems": 2,
+                "maxItems": 2
+              },
+              "notch_hz": {"type": "integer", "enum": [50, 60]}
+            },
+            "required": ["sampling_hz", "online_bandpass_hz", "notch_hz"],
+            "additionalProperties": true
+          }
+        },
+        "required": ["name", "montage", "acquisition_profile"],
+        "additionalProperties": true
       }
     },
-    "required": ["simulation_label", "stage", "summary", "onset_timeline", "freshness"],
+    "required": ["simulation_label", "stage", "summary", "onset_timeline", "freshness", "procedure_configuration"],
     "additionalProperties": false
   },
   "hidden_state_schema": {
@@ -114,6 +182,19 @@
     }
   ],
   "procedure": {
+    "configuration": {
+      "name": "EEG onset-marker preflight",
+      "montage": {
+        "recording_sites": ["FC3", "FC4", "FT7", "FT8"],
+        "reference": "FCz",
+        "ground": "A1"
+      },
+      "acquisition_profile": {
+        "sampling_hz": 1017,
+        "online_bandpass_hz": [0.1, 30.0],
+        "notch_hz": 50
+      }
+    },
     "initial_state": "onset_recovery",
     "states": [
       {"id": "onset_recovery", "terminal": false},
@@ -148,6 +229,19 @@
             "evidence_id": "flash-001",
             "state_revision": 0,
             "status": "current"
+          },
+          "procedure_configuration": {
+            "name": "EEG onset-marker preflight",
+            "montage": {
+              "recording_sites": ["FC3", "FC4", "FT7", "FT8"],
+              "reference": "FCz",
+              "ground": "A1"
+            },
+            "acquisition_profile": {
+              "sampling_hz": 1017,
+              "online_bandpass_hz": [0.1, 30.0],
+              "notch_hz": 50
+            }
           }
         },
         "hidden": {

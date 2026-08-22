@@ -1,4 +1,4 @@
-"""Thin local HTTP adapter for the product-owned Environment Runtime."""
+"""Thin local HTTP adapter for the Science Environment Studio services."""
 
 from __future__ import annotations
 
@@ -9,18 +9,33 @@ from typing import Literal
 from fastapi import FastAPI, HTTPException, Request, status
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+from environments.eeg.authoring import (
+    EegApparatusCapability,
+    EegAuthoringState,
+    EegAuthoringValidationError,
+    EegDescriptiveNote,
+    EegProcedureConfiguration,
+)
 from environments.eeg.presentation import EegOnsetRouteVisualization
-from environments.eeg.runtime import EegMarkerRecoveryModule
+from studio.authoring import DraftRepositoryError, DraftSnapshot
 from studio.runtime import (
     EnvironmentAction,
-    EnvironmentRuntime,
     PolicyAgentIdentity,
     ReplayReport,
     RunSnapshot,
     RuntimeContractError,
 )
+from studio.service import (
+    SEEDED_POLICY_AGENT,
+    AuthoringAssistantIdentity,
+    FrozenEnvironment,
+    RoleBoundaryDescriptor,
+    ScienceStudio,
+)
+
+PublicDraftOperation = Literal["seed", "edit", "undo", "redo", "restore_seed"]
 
 
 class _StrictModel(BaseModel):
@@ -52,9 +67,41 @@ class EnvironmentSummary(_StrictModel):
     policy_agents: tuple[PolicyAgentIdentity, ...]
 
 
+class DraftHistorySummary(_StrictModel):
+    can_undo: bool
+    can_redo: bool
+
+
+class DraftActorSummary(_StrictModel):
+    id: str
+    name: str
+    role: Literal["authoring_assistant", "environment_author", "system"]
+
+
+class DraftChangeSummary(_StrictModel):
+    operation: PublicDraftOperation
+    summary: str
+    actor: DraftActorSummary
+
+
+class DraftSummary(_StrictModel):
+    draft_id: str
+    revision: int = Field(ge=1)
+    revision_digest: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
+    environment_id: str
+    title: str
+    apparatus: EegApparatusCapability
+    procedure: EegProcedureConfiguration
+    notes: tuple[EegDescriptiveNote, ...]
+    history: DraftHistorySummary
+    last_change: DraftChangeSummary
+    authoring_assistant: AuthoringAssistantIdentity
+
+
 class StartRunRequest(_StrictModel):
     scenario_id: str
     policy_agent: str
+    frozen_environment_id: str = Field(min_length=1)
 
 
 class ActionRequest(_StrictModel):
@@ -62,32 +109,72 @@ class ActionRequest(_StrictModel):
     input: dict[str, object]
 
 
+class ExpectedRevisionRequest(_StrictModel):
+    expected_revision: int = Field(ge=1)
+
+
+class CommandRequest(ExpectedRevisionRequest):
+    command: str = Field(min_length=1, max_length=240)
+
+    @field_validator("command")
+    @classmethod
+    def validate_command(cls, command: str) -> str:
+        if not command.strip():
+            raise ValueError("command must contain visible text")
+        return command
+
+
+class StageNoteRequest(ExpectedRevisionRequest):
+    filename: str = Field(min_length=1, max_length=255)
+    content: str = Field(min_length=1, max_length=100_000)
+
+    @field_validator("filename")
+    @classmethod
+    def validate_filename(cls, filename: str) -> str:
+        if (
+            filename != filename.strip()
+            or "/" in filename
+            or "\\" in filename
+            or not filename.casefold().endswith(".txt")
+        ):
+            raise ValueError("filename must be one local .txt filename")
+        return filename
+
+    @field_validator("content")
+    @classmethod
+    def validate_content(cls, content: str) -> str:
+        if not content.strip() or "\x00" in content:
+            raise ValueError("note must contain plain text")
+        return content
+
+
+class CommandResultSummary(_StrictModel):
+    status: Literal["applied", "unsupported"]
+    summary: str
+
+
+class CommandResponse(_StrictModel):
+    draft: DraftSummary
+    result: CommandResultSummary
+
+
 class ReplayResponse(_StrictModel):
     snapshot: RunSnapshot
     replay: ReplayReport
-
-
-_SEEDED_POLICY_AGENT = PolicyAgentIdentity(
-    id="seeded-policy-agent",
-    name="Seeded recovery Policy agent",
-)
 
 
 def create_app(
     console_dist: Path | None = None,
     artifact_root: Path | None = None,
 ) -> FastAPI:
-    """Create an isolated local application with a fresh seeded Runtime."""
-    environment_module = EegMarkerRecoveryModule.from_seed()
+    """Create a local application with persistent drafts and isolated runtimes."""
     resolved_artifact_root = artifact_root or (
         Path(__file__).resolve().parent.parent / "artifacts"
     )
-    runtime = EnvironmentRuntime(
-        environment_module,
-        trace_directory=resolved_artifact_root / "traces",
-    )
-    runtime_lock = RLock()
-    bundle = environment_module.bundle
+    studio = ScienceStudio(resolved_artifact_root)
+    studio_lock = RLock()
+    bundle = studio.source_bundle
+    environment_module = studio.source_environment
     scenario_id = bundle.scenarios[0].id
 
     app = FastAPI(
@@ -114,6 +201,36 @@ def create_app(
             else str(error)
         )
         return JSONResponse(status_code=status_code, content={"detail": detail})
+
+    @app.exception_handler(DraftRepositoryError)
+    async def draft_repository_error(
+        _request: Request,
+        error: DraftRepositoryError,
+    ) -> JSONResponse:
+        error_code = str(error.code)
+        detail = (
+            "The Environment draft could not be persisted."
+            if error_code == "storage"
+            else str(error)
+        )
+        status_codes: dict[str, int] = {
+            "invalid": status.HTTP_422_UNPROCESSABLE_ENTITY,
+            "conflict": status.HTTP_409_CONFLICT,
+            "forbidden": status.HTTP_403_FORBIDDEN,
+            "storage": status.HTTP_500_INTERNAL_SERVER_ERROR,
+        }
+        status_code = status_codes[error_code]
+        return JSONResponse(status_code=status_code, content={"detail": detail})
+
+    @app.exception_handler(EegAuthoringValidationError)
+    async def eeg_authoring_validation_error(
+        _request: Request,
+        error: EegAuthoringValidationError,
+    ) -> JSONResponse:
+        return JSONResponse(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            content={"detail": str(error)},
+        )
 
     @app.get("/api/environment", response_model=EnvironmentSummary)
     def get_environment() -> EnvironmentSummary:
@@ -142,8 +259,78 @@ def create_app(
                 ),
             ),
             hidden_state_exposed=False,
-            policy_agents=(_SEEDED_POLICY_AGENT,),
+            policy_agents=(SEEDED_POLICY_AGENT,),
         )
+
+    @app.get("/api/draft", response_model=DraftSummary)
+    def get_draft() -> DraftSummary:
+        with studio_lock:
+            return _draft_summary(studio.current_draft(), studio)
+
+    @app.get(
+        "/api/role-boundaries",
+        response_model=tuple[RoleBoundaryDescriptor, RoleBoundaryDescriptor],
+    )
+    def get_role_boundaries() -> tuple[RoleBoundaryDescriptor, RoleBoundaryDescriptor]:
+        return studio.role_boundaries
+
+    @app.post("/api/draft/commands", response_model=CommandResponse)
+    def apply_draft_command(request: CommandRequest) -> CommandResponse:
+        with studio_lock:
+            outcome = studio.apply_authoring_command(
+                command=request.command,
+                expected_revision=request.expected_revision,
+            )
+            return CommandResponse(
+                draft=_draft_summary(outcome.draft, studio),
+                result=CommandResultSummary(
+                    status=outcome.result.status,
+                    summary=outcome.result.summary,
+                ),
+            )
+
+    @app.post("/api/draft/notes", response_model=DraftSummary)
+    def stage_draft_note(request: StageNoteRequest) -> DraftSummary:
+        with studio_lock:
+            snapshot = studio.stage_note(
+                filename=request.filename,
+                content=request.content,
+                expected_revision=request.expected_revision,
+            )
+            return _draft_summary(snapshot, studio)
+
+    @app.post("/api/draft/undo", response_model=DraftSummary)
+    def undo_draft(request: ExpectedRevisionRequest) -> DraftSummary:
+        with studio_lock:
+            return _draft_summary(
+                studio.undo(expected_revision=request.expected_revision),
+                studio,
+            )
+
+    @app.post("/api/draft/redo", response_model=DraftSummary)
+    def redo_draft(request: ExpectedRevisionRequest) -> DraftSummary:
+        with studio_lock:
+            return _draft_summary(
+                studio.redo(expected_revision=request.expected_revision),
+                studio,
+            )
+
+    @app.post("/api/draft/restore", response_model=DraftSummary)
+    def restore_draft(request: ExpectedRevisionRequest) -> DraftSummary:
+        with studio_lock:
+            return _draft_summary(
+                studio.restore_seed(expected_revision=request.expected_revision),
+                studio,
+            )
+
+    @app.post(
+        "/api/draft/freeze",
+        response_model=FrozenEnvironment,
+        status_code=status.HTTP_201_CREATED,
+    )
+    def freeze_draft(request: ExpectedRevisionRequest) -> FrozenEnvironment:
+        with studio_lock:
+            return studio.freeze(expected_revision=request.expected_revision)
 
     @app.post(
         "/api/runs",
@@ -151,48 +338,46 @@ def create_app(
         status_code=status.HTTP_201_CREATED,
     )
     def start_run(request: StartRunRequest) -> RunSnapshot:
-        if request.policy_agent != _SEEDED_POLICY_AGENT.id:
+        if request.policy_agent != SEEDED_POLICY_AGENT.id:
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                 detail="Unknown Policy agent identity.",
             )
-        with runtime_lock:
-            return runtime.start(
+        with studio_lock:
+            return studio.start_run(
                 scenario_id=request.scenario_id,
-                policy_agent=_SEEDED_POLICY_AGENT,
+                policy_agent=SEEDED_POLICY_AGENT,
+                frozen_environment_id=request.frozen_environment_id,
             )
 
     @app.get("/api/runs/{run_id}", response_model=RunSnapshot)
     def get_run(run_id: str) -> RunSnapshot:
-        with runtime_lock:
-            return runtime.current(run_id)
+        with studio_lock:
+            return studio.current_run(run_id)
 
     @app.post("/api/runs/{run_id}/actions", response_model=RunSnapshot)
     def apply_action(run_id: str, request: ActionRequest) -> RunSnapshot:
-        with runtime_lock:
-            return runtime.apply_action(
+        with studio_lock:
+            return studio.apply_run_action(
                 run_id,
                 EnvironmentAction(type=request.type, arguments=request.input),
             )
 
     @app.post("/api/runs/{run_id}/verify", response_model=RunSnapshot)
     def verify_run(run_id: str) -> RunSnapshot:
-        with runtime_lock:
-            return runtime.verify(run_id)
+        with studio_lock:
+            return studio.verify_run(run_id)
 
     @app.post("/api/runs/{run_id}/reset", response_model=RunSnapshot)
     def reset_run(run_id: str) -> RunSnapshot:
-        with runtime_lock:
-            return runtime.reset(run_id)
+        with studio_lock:
+            return studio.reset_run(run_id)
 
     @app.post("/api/runs/{run_id}/replay", response_model=ReplayResponse)
     def replay_run(run_id: str) -> ReplayResponse:
-        with runtime_lock:
-            report = runtime.replay(run_id)
-            return ReplayResponse(
-                snapshot=runtime.current(report.replay_run_id),
-                replay=report,
-            )
+        with studio_lock:
+            snapshot, report = studio.replay_run(run_id)
+            return ReplayResponse(snapshot=snapshot, replay=report)
 
     if console_dist is not None:
         app.mount(
@@ -202,6 +387,60 @@ def create_app(
         )
 
     return app
+
+
+def _draft_summary(snapshot: DraftSnapshot, studio: ScienceStudio) -> DraftSummary:
+    state = EegAuthoringState.model_validate(snapshot.state)
+    source = studio.source_bundle
+    actor = snapshot.last_change.actor
+    public_role: Literal["authoring_assistant", "environment_author", "system"]
+    if actor.role == "studio":
+        public_role = "system"
+    elif actor.role == "authoring_assistant":
+        public_role = "authoring_assistant"
+    elif actor.role == "environment_author":
+        public_role = "environment_author"
+    else:
+        raise RuntimeError("a Policy agent was recorded in authoring activity")
+    operation = _public_draft_operation(snapshot.last_change.operation)
+    return DraftSummary(
+        draft_id=snapshot.workspace_id,
+        revision=snapshot.revision,
+        revision_digest=snapshot.content_digest,
+        environment_id=source.bundle_id,
+        title=source.title,
+        apparatus=state.apparatus,
+        procedure=state.procedure,
+        notes=state.notes,
+        history=DraftHistorySummary(
+            can_undo=snapshot.can_undo,
+            can_redo=snapshot.can_redo,
+        ),
+        last_change=DraftChangeSummary(
+            operation=operation,
+            summary=snapshot.last_change.description,
+            actor=DraftActorSummary(
+                id=actor.id,
+                name=actor.name,
+                role=public_role,
+            ),
+        ),
+        authoring_assistant=studio.authoring_assistant,
+    )
+
+
+def _public_draft_operation(operation: str) -> PublicDraftOperation:
+    if operation == "initialize":
+        return "seed"
+    if operation == "edit":
+        return "edit"
+    if operation == "undo":
+        return "undo"
+    if operation == "redo":
+        return "redo"
+    if operation == "restore_seed":
+        return "restore_seed"
+    raise RuntimeError("draft activity used an unknown operation")
 
 
 app = create_app()

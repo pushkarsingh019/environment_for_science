@@ -15,6 +15,12 @@ from studio.application import create_app
 def main(argv: Sequence[str] | None = None) -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--port", type=int, default=8000)
+    parser.add_argument(
+        "--artifact-root",
+        type=Path,
+        default=None,
+        help="directory for local draft and trace artifacts",
+    )
     arguments = parser.parse_args(argv)
 
     repository_root = Path(__file__).resolve().parent.parent
@@ -26,7 +32,10 @@ def main(argv: Sequence[str] | None = None) -> None:
     )
     console_dist = console_directory / "dist"
     uvicorn.run(
-        create_app(console_dist=console_dist),
+        create_app(
+            console_dist=console_dist,
+            artifact_root=arguments.artifact_root,
+        ),
         host="127.0.0.1",
         port=arguments.port,
         log_level="info",

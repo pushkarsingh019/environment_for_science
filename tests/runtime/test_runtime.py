@@ -1,5 +1,8 @@
 import json
+from concurrent.futures import ThreadPoolExecutor
 from copy import deepcopy
+from pathlib import Path
+from threading import Event, Lock
 
 import pytest
 
@@ -12,7 +15,10 @@ from studio.runtime import (
     EpisodeState,
     EpisodeUpdate,
     PolicyAgentIdentity,
+    RunLineage,
+    RunSnapshot,
     RuntimeContractError,
+    canonical_trace_header_digest,
 )
 
 
@@ -26,6 +32,14 @@ def _start_seeded_run() -> tuple[EnvironmentRuntime, str]:
         ),
     )
     return runtime, snapshot.run_id
+
+
+def _trace_header_digest(snapshot: RunSnapshot) -> str:
+    return canonical_trace_header_digest(
+        run_id=snapshot.run_id,
+        lineage=snapshot.lineage,
+        header=snapshot.trace_header,
+    )
 
 
 def test_start_freezes_seeded_episode_and_exposes_only_policy_visible_state() -> None:
@@ -63,7 +77,7 @@ def test_canonical_trace_header_binds_frozen_scenario_and_policy_identity() -> N
     assert snapshot.trace_header.trace_version == "1.0"
     assert snapshot.trace_header.runtime_revision == "science-environment-runtime/1"
     assert snapshot.trace_header.bundle_id == "eeg-onset-marker-recovery"
-    assert snapshot.trace_header.bundle_revision == "1.1.0"
+    assert snapshot.trace_header.bundle_revision == "1.2.0"
     assert snapshot.trace_header.revision_digest == snapshot.revision_digest
     assert snapshot.trace_header.scenario_id == snapshot.scenario_id
     assert snapshot.trace_header.split == "demonstration"
@@ -404,6 +418,51 @@ def test_replay_reexecutes_actions_and_reproduces_trace_and_result_digests() -> 
     assert runtime.current(run_id) == source
 
 
+def test_reset_and_replay_release_the_source_lock_before_starting_a_child(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    runtime, run_id = _start_seeded_run()
+    for action_type in (
+        "inspect_onset_route",
+        "repair_refractory_route",
+        "present_test_flash",
+    ):
+        runtime.apply_action(
+            run_id,
+            EnvironmentAction(type=action_type, arguments={}),
+        )
+    runtime.verify(run_id)
+    checked_operations: list[str] = []
+    start_scenario = runtime._start_scenario
+
+    def source_unlocked_start_scenario(*args: object, **kwargs: object) -> object:
+        lineage = args[2]
+        assert isinstance(lineage, RunLineage)
+        assert lineage.source_run_id is not None
+        source_lock = runtime._run_lock(lineage.source_run_id)
+
+        def acquire_source_lock_from_another_thread() -> bool:
+            acquired = source_lock.acquire(blocking=False)
+            if acquired:
+                source_lock.release()
+            return acquired
+
+        with ThreadPoolExecutor(max_workers=1) as executor:
+            source_is_unlocked = executor.submit(
+                acquire_source_lock_from_another_thread
+            ).result(timeout=2)
+        assert source_is_unlocked is True
+        checked_operations.append(lineage.operation)
+        return start_scenario(*args, **kwargs)
+
+    monkeypatch.setattr(runtime, "_start_scenario", source_unlocked_start_scenario)
+
+    runtime.reset(run_id)
+    runtime.replay(run_id)
+
+    assert checked_operations == ["reset", "replay"]
+
+
 def test_completed_snapshot_cannot_mutate_runtime_result_or_replay_evidence() -> None:
     runtime, run_id = _start_seeded_run()
     for action_type in (
@@ -491,6 +550,260 @@ def test_completed_trace_is_persisted_as_append_only_policy_visible_jsonl(
         "repair_transition",
     ):
         assert hidden_key not in visible_artifact
+
+
+def test_runtime_restores_active_and_completed_runs_from_the_canonical_journal(
+    tmp_path: Path,
+) -> None:
+    policy_agent = PolicyAgentIdentity(
+        id="seeded-policy-agent",
+        name="Seeded recovery Policy agent",
+    )
+    original = EnvironmentRuntime(
+        EegMarkerRecoveryModule.from_seed(),
+        trace_directory=tmp_path,
+    )
+    started = original.start("eeg-marker-recovery-001", policy_agent)
+    active = original.apply_action(
+        started.run_id,
+        EnvironmentAction(type="inspect_onset_route", arguments={}),
+    )
+
+    resumed = EnvironmentRuntime(
+        EegMarkerRecoveryModule.from_seed(),
+        trace_directory=tmp_path,
+    )
+    assert resumed.restore(
+        started.run_id,
+        expected_trace_header_digest=_trace_header_digest(active),
+        expected_trace_digest=active.trace_digest,
+    ) == active
+    for action_type in ("repair_refractory_route", "present_test_flash"):
+        resumed.apply_action(
+            started.run_id,
+            EnvironmentAction(type=action_type, arguments={}),
+        )
+    completed = resumed.verify(started.run_id)
+
+    reopened = EnvironmentRuntime(
+        EegMarkerRecoveryModule.from_seed(),
+        trace_directory=tmp_path,
+    )
+    assert reopened.restore(
+        started.run_id,
+        expected_trace_header_digest=_trace_header_digest(completed),
+        expected_trace_digest=completed.trace_digest,
+    ) == completed
+    replay = reopened.replay(started.run_id)
+    assert replay.trace_matches is True
+    assert replay.result_matches is True
+
+
+def test_concurrent_first_restore_is_single_flight_and_keeps_the_restored_run(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    policy_agent = PolicyAgentIdentity(
+        id="seeded-policy-agent",
+        name="Seeded recovery Policy agent",
+    )
+    original = EnvironmentRuntime(
+        EegMarkerRecoveryModule.from_seed(),
+        trace_directory=tmp_path,
+    )
+    started = original.start("eeg-marker-recovery-001", policy_agent)
+    active = original.apply_action(
+        started.run_id,
+        EnvironmentAction(type="inspect_onset_route", arguments={}),
+    )
+    reopened = EnvironmentRuntime(
+        EegMarkerRecoveryModule.from_seed(),
+        trace_directory=tmp_path,
+    )
+
+    instrumentation_lock = Lock()
+    first_reconstruction_entered = Event()
+    release_first_reconstruction = Event()
+    second_lock_requested = Event()
+    lock_requests = 0
+    journal_loads = 0
+    reconstruction_attempts = 0
+    run_lock = reopened._run_lock
+    trace_journal = reopened._trace_journal
+    assert trace_journal is not None
+    load_journal = trace_journal.load
+    start_scenario = reopened._start_scenario
+
+    def counted_run_lock(run_id: str) -> object:
+        nonlocal lock_requests
+        with instrumentation_lock:
+            lock_requests += 1
+            if lock_requests == 2:
+                second_lock_requested.set()
+        return run_lock(run_id)
+
+    def counted_load(run_id: str) -> object:
+        nonlocal journal_loads
+        with instrumentation_lock:
+            journal_loads += 1
+        return load_journal(run_id)
+
+    def held_start_scenario(*args: object, **kwargs: object) -> object:
+        nonlocal reconstruction_attempts
+        with instrumentation_lock:
+            reconstruction_attempts += 1
+        first_reconstruction_entered.set()
+        release_first_reconstruction.wait()
+        return start_scenario(*args, **kwargs)
+
+    monkeypatch.setattr(reopened, "_run_lock", counted_run_lock)
+    monkeypatch.setattr(trace_journal, "load", counted_load)
+    monkeypatch.setattr(reopened, "_start_scenario", held_start_scenario)
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        restores = [
+            executor.submit(
+                reopened.restore,
+                started.run_id,
+                expected_trace_header_digest=_trace_header_digest(active),
+                expected_trace_digest=active.trace_digest,
+            )
+        ]
+        try:
+            assert first_reconstruction_entered.wait(timeout=2)
+            restores.append(
+                executor.submit(
+                    reopened.restore,
+                    started.run_id,
+                    expected_trace_header_digest=_trace_header_digest(active),
+                    expected_trace_digest=active.trace_digest,
+                )
+            )
+            assert second_lock_requested.wait(timeout=2)
+        finally:
+            release_first_reconstruction.set()
+        restored = [future.result(timeout=2) for future in restores]
+
+    assert restored == [active, active]
+    assert journal_loads == 1
+    assert reconstruction_attempts == 1
+    assert reopened.current(started.run_id) == active
+
+
+def test_runtime_rejects_a_tampered_canonical_journal_during_restore(
+    tmp_path: Path,
+) -> None:
+    runtime = EnvironmentRuntime(
+        EegMarkerRecoveryModule.from_seed(),
+        trace_directory=tmp_path,
+    )
+    started = runtime.start(
+        "eeg-marker-recovery-001",
+        PolicyAgentIdentity(id="policy-agent", name="Policy agent"),
+    )
+    artifact = tmp_path / f"{started.run_id}.jsonl"
+    records = [json.loads(line) for line in artifact.read_text(encoding="utf-8").splitlines()]
+    records[1]["payload"]["summary"] = "Tampered observation"
+    artifact.write_text(
+        "".join(json.dumps(record, sort_keys=True) + "\n" for record in records),
+        encoding="utf-8",
+    )
+
+    reopened = EnvironmentRuntime(
+        EegMarkerRecoveryModule.from_seed(),
+        trace_directory=tmp_path,
+    )
+    with pytest.raises(RuntimeContractError) as raised:
+        reopened.restore(
+            started.run_id,
+            expected_trace_header_digest=_trace_header_digest(started),
+            expected_trace_digest=started.trace_digest,
+        )
+
+    assert raised.value.code == "internal"
+    assert "restore" in str(raised.value).lower()
+
+
+def test_failed_refresh_preserves_the_previously_valid_cached_run(
+    tmp_path: Path,
+) -> None:
+    runtime = EnvironmentRuntime(
+        EegMarkerRecoveryModule.from_seed(),
+        trace_directory=tmp_path,
+    )
+    started = runtime.start(
+        "eeg-marker-recovery-001",
+        PolicyAgentIdentity(id="policy-agent", name="Policy agent"),
+    )
+    artifact = tmp_path / f"{started.run_id}.jsonl"
+    records = [
+        json.loads(line)
+        for line in artifact.read_text(encoding="utf-8").splitlines()
+    ]
+    records[1]["payload"]["summary"] = "Tampered observation"
+    artifact.write_text(
+        "".join(json.dumps(record, sort_keys=True) + "\n" for record in records),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(RuntimeContractError, match="could not be restored"):
+        runtime.restore(
+            started.run_id,
+            expected_trace_header_digest=_trace_header_digest(started),
+            expected_trace_digest=started.trace_digest,
+            refresh=True,
+        )
+
+    assert runtime.current(started.run_id) == started
+
+
+def test_failed_action_reconstruction_removes_only_its_partial_run(
+    tmp_path: Path,
+) -> None:
+    original = EnvironmentRuntime(
+        EegMarkerRecoveryModule.from_seed(),
+        trace_directory=tmp_path,
+    )
+    started = original.start(
+        "eeg-marker-recovery-001",
+        PolicyAgentIdentity(id="policy-agent", name="Policy agent"),
+    )
+    active = original.apply_action(
+        started.run_id,
+        EnvironmentAction(type="inspect_onset_route", arguments={}),
+    )
+    artifact = tmp_path / f"{started.run_id}.jsonl"
+    valid_journal = artifact.read_text(encoding="utf-8")
+    records = [json.loads(line) for line in valid_journal.splitlines()]
+    action_record = next(
+        record
+        for record in records
+        if record["record_type"] == "event"
+        and record["payload"]["type"] == "action"
+    )
+    action_record["payload"]["action"] = {"type": "inspect_onset_route"}
+    artifact.write_text(
+        "".join(json.dumps(record, sort_keys=True) + "\n" for record in records),
+        encoding="utf-8",
+    )
+    reopened = EnvironmentRuntime(
+        EegMarkerRecoveryModule.from_seed(),
+        trace_directory=tmp_path,
+    )
+
+    with pytest.raises(RuntimeContractError, match="could not be restored"):
+        reopened.restore(
+            started.run_id,
+            expected_trace_header_digest=_trace_header_digest(active),
+            expected_trace_digest=active.trace_digest,
+        )
+
+    artifact.write_text(valid_journal, encoding="utf-8")
+    assert reopened.restore(
+        started.run_id,
+        expected_trace_header_digest=_trace_header_digest(active),
+        expected_trace_digest=active.trace_digest,
+    ) == active
 
 
 def test_action_arguments_are_json_schema_validated_before_state_changes() -> None:

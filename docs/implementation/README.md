@@ -4,34 +4,40 @@ Source specification: [Science Environment Studio executable prototype specifica
 
 ## Progress
 
-- Completed: **1 / 13**
+- Completed: **2 / 13**
 - In progress: **None**
-- Ready now: **02, 05**
+- Ready now: **03, 05**
 - A ticket counts as complete only after its acceptance criteria, tests, review, and commit pass.
 
 ## Current checkpoint
 
-Ticket 01 is complete. One local command builds and serves the Scientist Console with the
-loopback-only deterministic Environment Runtime. The seeded EEG bundle validates before a
-run; Policy-visible observations remain separate from hidden scenario truth. The console
-freezes the Environment revision and Policy-agent identity, runs the targeted marker-recovery
-sequence, displays ordered canonical evidence, persists caller-visible traces as append-only
-JSONL, verifies fresh post-repair evidence, resets to the identical initial scenario, and
-replays a completed run with matching trace and result digests.
+Tickets 01 and 02 are complete. One local command builds and serves the Scientist Console
+with the loopback-only deterministic Environment Runtime. The console runs and replays the
+targeted EEG marker-recovery episode and now provides a configurable schematic whole-cap
+Apparatus with a distinct Procedure-selected Montage.
 
-Runtime, HTTP, and real-backend browser tests cover successful recovery, a
-wrong-but-permitted action, stale evidence, reset, and replay.
+An Environment author can make bounded conversational edits, inspect changes immediately,
+undo, redo, restore the seed, and stage explicitly unverified descriptive notes. The draft is
+transactional and persistent; freezing creates a content-addressed Environment revision that
+later draft edits cannot change. Authoring-assistant and Policy-agent prompts, tools, context,
+state, and logs remain explicitly isolated.
+
+Frozen Environment and run indexes persist in SQLite. Canonical JSONL traces are bound to
+their immutable headers and latest full-trace digests, serialized across Studio processes,
+and protected by a recoverable prepared-intent protocol for action and verifier writes.
+Runtime, HTTP, persistence, concurrency, and real-backend browser tests cover positive,
+negative, restart, tamper, partial-write, reset, and replay paths.
 
 ## Frontier
 
-- [02: Author and freeze a configurable EEG Montage](issues/02-author-and-freeze-a-configurable-eeg-montage.md) — can start immediately
+- [03: Diagnose EEG signal and response failures visually](issues/03-diagnose-eeg-signal-and-response-failures-visually.md) — can start immediately
 - [05: Run the sealed mesoscope four-region handoff](issues/05-run-the-sealed-mesoscope-four-region-handoff.md) — can start immediately
 
 ## Dependency order
 
 1. [Run and replay one EEG marker-recovery episode](issues/01-run-and-replay-one-eeg-marker-recovery-episode.md) — complete
-2. [Author and freeze a configurable EEG Montage](issues/02-author-and-freeze-a-configurable-eeg-montage.md) — ready
-3. [Diagnose EEG signal and response failures visually](issues/03-diagnose-eeg-signal-and-response-failures-visually.md) — blocked by 02
+2. [Author and freeze a configurable EEG Montage](issues/02-author-and-freeze-a-configurable-eeg-montage.md) — complete
+3. [Diagnose EEG signal and response failures visually](issues/03-diagnose-eeg-signal-and-response-failures-visually.md) — ready
 4. [Run the complete EEG curriculum and fixed splits](issues/04-run-the-complete-eeg-curriculum-and-fixed-splits.md) — blocked by 03
 5. [Run the sealed mesoscope four-region handoff](issues/05-run-the-sealed-mesoscope-four-region-handoff.md) — ready
 6. [Evaluate EEG through Verifiers and local base Gemma](issues/06-evaluate-eeg-through-verifiers-and-local-base-gemma.md) — blocked by 04

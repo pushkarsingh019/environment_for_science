@@ -1,8 +1,21 @@
 import type {
   ActionPresentation,
+  AuthoringAssistantIdentity,
   CanonicalTraceHeader,
+  DraftAcquisitionProfile,
+  DraftActor,
+  DraftApparatus,
+  DraftCommandResponse,
+  DraftHistory,
+  DraftLastChange,
+  DraftMontage,
+  DraftNote,
+  DraftProcedure,
+  DraftSite,
+  EnvironmentDraft,
   EnvironmentSummary,
   EnvironmentValidationSummary,
+  FrozenEnvironment,
   JsonObject,
   JsonValue,
   PolicyAgentIdentity,
@@ -117,6 +130,22 @@ function exactRecord(
       .filter(Boolean)
       .join("; ");
     malformed(path, `contain exactly the declared fields (${details})`);
+  }
+  return value;
+}
+
+function extensibleRecord(
+  value: unknown,
+  requiredKeys: readonly string[],
+  path: string,
+): UncheckedRecord {
+  if (!isRecord(value)) malformed(path, "be an object");
+
+  const missing = requiredKeys.filter(
+    (key) => !Object.prototype.hasOwnProperty.call(value, key),
+  );
+  if (missing.length > 0) {
+    malformed(path, `contain the required fields (missing ${missing.join(", ")})`);
   }
   return value;
 }
@@ -294,6 +323,281 @@ function parseEnvironmentSummary(value: unknown): EnvironmentSummary {
     policy_agents: record.policy_agents.map((agent, index) =>
       parsePolicyAgent(agent, `${path}.policy_agents[${index}]`),
     ),
+  };
+}
+
+function parseDraftSite(value: unknown, path: string): DraftSite {
+  const record = extensibleRecord(
+    value,
+    ["id", "label", "x", "y", "kind"],
+    path,
+  );
+  return {
+    id: nonEmptyString(record.id, `${path}.id`),
+    label: nonEmptyString(record.label, `${path}.label`),
+    x: finiteNumber(record.x, `${path}.x`),
+    y: finiteNumber(record.y, `${path}.y`),
+    kind: oneOf(record.kind, ["scalp", "auxiliary"] as const, `${path}.kind`),
+  };
+}
+
+function parseDraftApparatus(value: unknown, path: string): DraftApparatus {
+  const record = extensibleRecord(
+    value,
+    [
+      "kind",
+      "label",
+      "recording_input_capacity",
+      "coordinate_system",
+      "scientific_claim",
+      "sites",
+    ],
+    path,
+  );
+  if (!Array.isArray(record.sites)) malformed(`${path}.sites`, "be an array");
+  return {
+    kind: oneOf(record.kind, ["eeg"] as const, `${path}.kind`),
+    label: nonEmptyString(record.label, `${path}.label`),
+    recording_input_capacity: integerValue(
+      record.recording_input_capacity,
+      `${path}.recording_input_capacity`,
+      1,
+    ),
+    coordinate_system: nonEmptyString(
+      record.coordinate_system,
+      `${path}.coordinate_system`,
+    ),
+    scientific_claim: nonEmptyString(
+      record.scientific_claim,
+      `${path}.scientific_claim`,
+    ),
+    sites: record.sites.map((site, index) =>
+      parseDraftSite(site, `${path}.sites[${index}]`),
+    ),
+  };
+}
+
+function parseDraftMontage(value: unknown, path: string): DraftMontage {
+  const record = extensibleRecord(
+    value,
+    ["recording_sites", "reference", "ground"],
+    path,
+  );
+  return {
+    recording_sites: stringArray(
+      record.recording_sites,
+      `${path}.recording_sites`,
+    ),
+    reference: nonEmptyString(record.reference, `${path}.reference`),
+    ground: nonEmptyString(record.ground, `${path}.ground`),
+  };
+}
+
+function parseDraftAcquisitionProfile(
+  value: unknown,
+  path: string,
+): DraftAcquisitionProfile {
+  const record = extensibleRecord(
+    value,
+    ["sampling_hz", "online_bandpass_hz", "notch_hz"],
+    path,
+  );
+  if (
+    !Array.isArray(record.online_bandpass_hz) ||
+    record.online_bandpass_hz.length !== 2
+  ) {
+    malformed(`${path}.online_bandpass_hz`, "be a two-number array");
+  }
+  return {
+    sampling_hz: finiteNumber(record.sampling_hz, `${path}.sampling_hz`),
+    online_bandpass_hz: [
+      finiteNumber(
+        record.online_bandpass_hz[0],
+        `${path}.online_bandpass_hz[0]`,
+      ),
+      finiteNumber(
+        record.online_bandpass_hz[1],
+        `${path}.online_bandpass_hz[1]`,
+      ),
+    ],
+    notch_hz: finiteNumber(record.notch_hz, `${path}.notch_hz`),
+  };
+}
+
+function parseDraftProcedure(value: unknown, path: string): DraftProcedure {
+  const record = extensibleRecord(
+    value,
+    ["name", "montage", "acquisition_profile"],
+    path,
+  );
+  return {
+    name: nonEmptyString(record.name, `${path}.name`),
+    montage: parseDraftMontage(record.montage, `${path}.montage`),
+    acquisition_profile: parseDraftAcquisitionProfile(
+      record.acquisition_profile,
+      `${path}.acquisition_profile`,
+    ),
+  };
+}
+
+function parseDraftNote(value: unknown, path: string): DraftNote {
+  const record = extensibleRecord(
+    value,
+    ["id", "filename", "content", "verification_status", "run_control"],
+    path,
+  );
+  if (record.run_control !== false) {
+    malformed(`${path}.run_control`, "be the literal false");
+  }
+  return {
+    id: nonEmptyString(record.id, `${path}.id`),
+    filename: nonEmptyString(record.filename, `${path}.filename`),
+    content: stringValue(record.content, `${path}.content`),
+    verification_status: oneOf(
+      record.verification_status,
+      ["unverified_descriptive_input"] as const,
+      `${path}.verification_status`,
+    ),
+    run_control: false,
+  };
+}
+
+function parseDraftHistory(value: unknown, path: string): DraftHistory {
+  const record = exactRecord(value, ["can_undo", "can_redo"], path);
+  return {
+    can_undo: booleanValue(record.can_undo, `${path}.can_undo`),
+    can_redo: booleanValue(record.can_redo, `${path}.can_redo`),
+  };
+}
+
+function parseDraftActor(value: unknown, path: string): DraftActor {
+  const record = exactRecord(value, ["id", "name", "role"], path);
+  return {
+    id: nonEmptyString(record.id, `${path}.id`),
+    name: nonEmptyString(record.name, `${path}.name`),
+    role: oneOf(
+      record.role,
+      ["authoring_assistant", "environment_author", "system"] as const,
+      `${path}.role`,
+    ),
+  };
+}
+
+function parseDraftLastChange(value: unknown, path: string): DraftLastChange {
+  const record = exactRecord(value, ["operation", "summary", "actor"], path);
+  return {
+    operation: nonEmptyString(record.operation, `${path}.operation`),
+    summary: nonEmptyString(record.summary, `${path}.summary`),
+    actor: parseDraftActor(record.actor, `${path}.actor`),
+  };
+}
+
+function parseAuthoringAssistant(
+  value: unknown,
+  path: string,
+): AuthoringAssistantIdentity {
+  const record = exactRecord(value, ["id", "name"], path);
+  return {
+    id: nonEmptyString(record.id, `${path}.id`),
+    name: nonEmptyString(record.name, `${path}.name`),
+  };
+}
+
+function parseEnvironmentDraft(value: unknown): EnvironmentDraft {
+  const path = "EnvironmentDraft";
+  const record = exactRecord(
+    value,
+    [
+      "draft_id",
+      "revision",
+      "revision_digest",
+      "environment_id",
+      "title",
+      "apparatus",
+      "procedure",
+      "notes",
+      "history",
+      "last_change",
+      "authoring_assistant",
+    ],
+    path,
+  );
+  if (!Array.isArray(record.notes)) malformed(`${path}.notes`, "be an array");
+  return {
+    draft_id: nonEmptyString(record.draft_id, `${path}.draft_id`),
+    revision: integerValue(record.revision, `${path}.revision`, 1),
+    revision_digest: digest(record.revision_digest, `${path}.revision_digest`),
+    environment_id: nonEmptyString(
+      record.environment_id,
+      `${path}.environment_id`,
+    ),
+    title: nonEmptyString(record.title, `${path}.title`),
+    apparatus: parseDraftApparatus(record.apparatus, `${path}.apparatus`),
+    procedure: parseDraftProcedure(record.procedure, `${path}.procedure`),
+    notes: record.notes.map((note, index) =>
+      parseDraftNote(note, `${path}.notes[${index}]`),
+    ),
+    history: parseDraftHistory(record.history, `${path}.history`),
+    last_change: parseDraftLastChange(record.last_change, `${path}.last_change`),
+    authoring_assistant: parseAuthoringAssistant(
+      record.authoring_assistant,
+      `${path}.authoring_assistant`,
+    ),
+  };
+}
+
+function parseDraftCommandResponse(value: unknown): DraftCommandResponse {
+  const path = "DraftCommandResponse";
+  const record = exactRecord(value, ["draft", "result"], path);
+  const result = exactRecord(
+    record.result,
+    ["status", "summary"],
+    `${path}.result`,
+  );
+  return {
+    draft: parseEnvironmentDraft(record.draft),
+    result: {
+      status: oneOf(
+        result.status,
+        ["applied", "unsupported"] as const,
+        `${path}.result.status`,
+      ),
+      summary: nonEmptyString(result.summary, `${path}.result.summary`),
+    },
+  };
+}
+
+function parseFrozenEnvironment(value: unknown): FrozenEnvironment {
+  const path = "FrozenEnvironment";
+  const record = exactRecord(
+    value,
+    [
+      "frozen_environment_id",
+      "bundle_revision",
+      "revision_digest",
+      "scenario_id",
+      "draft_revision",
+      "procedure",
+    ],
+    path,
+  );
+  return {
+    frozen_environment_id: nonEmptyString(
+      record.frozen_environment_id,
+      `${path}.frozen_environment_id`,
+    ),
+    bundle_revision: nonEmptyString(
+      record.bundle_revision,
+      `${path}.bundle_revision`,
+    ),
+    revision_digest: digest(record.revision_digest, `${path}.revision_digest`),
+    scenario_id: nonEmptyString(record.scenario_id, `${path}.scenario_id`),
+    draft_revision: integerValue(
+      record.draft_revision,
+      `${path}.draft_revision`,
+      1,
+    ),
+    procedure: parseDraftProcedure(record.procedure, `${path}.procedure`),
   };
 }
 
@@ -645,12 +949,17 @@ export const environmentApi = {
     return request("/api/environment", parseEnvironmentSummary);
   },
 
-  async start(scenarioId: string, policyAgent: string): Promise<RunSnapshot> {
+  async start(
+    scenarioId: string,
+    policyAgent: string,
+    frozenEnvironmentId: string,
+  ): Promise<RunSnapshot> {
     return request("/api/runs", parseRunSnapshot, {
       method: "POST",
       body: JSON.stringify({
         scenario_id: scenarioId,
         policy_agent: policyAgent,
+        frozen_environment_id: frozenEnvironmentId,
       }),
     });
   },
@@ -681,6 +990,68 @@ export const environmentApi = {
   async replay(runId: string): Promise<ReplayResponse> {
     return request(`/api/runs/${runId}/replay`, parseReplayResponse, {
       method: "POST",
+    });
+  },
+};
+
+export const draftApi = {
+  async get(): Promise<EnvironmentDraft> {
+    return request("/api/draft", parseEnvironmentDraft);
+  },
+
+  async command(
+    command: string,
+    expectedRevision: number,
+  ): Promise<DraftCommandResponse> {
+    return request("/api/draft/commands", parseDraftCommandResponse, {
+      method: "POST",
+      body: JSON.stringify({
+        command,
+        expected_revision: expectedRevision,
+      }),
+    });
+  },
+
+  async undo(expectedRevision: number): Promise<EnvironmentDraft> {
+    return request("/api/draft/undo", parseEnvironmentDraft, {
+      method: "POST",
+      body: JSON.stringify({ expected_revision: expectedRevision }),
+    });
+  },
+
+  async redo(expectedRevision: number): Promise<EnvironmentDraft> {
+    return request("/api/draft/redo", parseEnvironmentDraft, {
+      method: "POST",
+      body: JSON.stringify({ expected_revision: expectedRevision }),
+    });
+  },
+
+  async restore(expectedRevision: number): Promise<EnvironmentDraft> {
+    return request("/api/draft/restore", parseEnvironmentDraft, {
+      method: "POST",
+      body: JSON.stringify({ expected_revision: expectedRevision }),
+    });
+  },
+
+  async stageNote(
+    filename: string,
+    content: string,
+    expectedRevision: number,
+  ): Promise<EnvironmentDraft> {
+    return request("/api/draft/notes", parseEnvironmentDraft, {
+      method: "POST",
+      body: JSON.stringify({
+        filename,
+        content,
+        expected_revision: expectedRevision,
+      }),
+    });
+  },
+
+  async freeze(expectedRevision: number): Promise<FrozenEnvironment> {
+    return request("/api/draft/freeze", parseFrozenEnvironment, {
+      method: "POST",
+      body: JSON.stringify({ expected_revision: expectedRevision }),
     });
   },
 };

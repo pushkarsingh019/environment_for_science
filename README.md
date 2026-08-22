@@ -10,8 +10,8 @@ handoff. The project doesn't connect to or control physical apparatus.
 ## Project status
 
 The product, domain, interface, runtime, evaluation, and training decisions are complete.
-Ticket 01 of 13 is complete and runnable end to end; twelve tickets remain. Ticket 02 is the
-next dependency-order target, and ticket 05 is also unblocked.
+Tickets 01 and 02 of 13 are complete and runnable end to end; eleven tickets remain. Ticket
+03 is the next dependency-order target, and ticket 05 is also unblocked.
 
 Read these documents before you implement a ticket:
 
@@ -25,11 +25,11 @@ Read these documents before you implement a ticket:
 5. [`DESIGN.md`](DESIGN.md) supplies visual tokens. It doesn't define the page layout.
 
 The next implementation target is
-[ticket 02: Author and freeze a configurable EEG Montage](docs/implementation/issues/02-author-and-freeze-a-configurable-eeg-montage.md).
+[ticket 03: Diagnose EEG signal and response failures visually](docs/implementation/issues/03-diagnose-eeg-signal-and-response-failures-visually.md).
 
 ## Implementation checkpoint
 
-Ticket 01 provides:
+Tickets 01 and 02 provide:
 
 - An extensible Environment Bundle v1 validator with nested JSON Schema checks.
 - A seeded synthetic EEG marker-recovery bundle and apparatus module.
@@ -37,6 +37,11 @@ Ticket 01 provides:
   true replay.
 - A strict local HTTP adapter and append-only caller-visible JSONL trace journal.
 - A quiet React and TypeScript Scientist Console with a visualization-first EEG workflow.
+- A configurable schematic whole-cap Apparatus and a distinct Procedure-selected Montage.
+- Bounded conversational authoring, reversible persistent drafts, and unverified note staging.
+- Content-addressed frozen revisions with explicit Authoring-assistant/Policy-agent isolation.
+- Durable frozen/run indexes, full-trace bindings, cross-process serialization, and
+  crash-consistent prepared-intent recovery.
 - Runtime, HTTP, and real-backend browser coverage for positive and negative paths.
 
 The repository also retains the disposable Gemma training-path probe under
@@ -69,7 +74,7 @@ The Python package requires Python 3.9 or later. The console requires Node.js an
    cd ..
    ```
 
-## Run the ticket 01 product
+## Run the current product
 
 From the repository root, one command builds the Scientist Console and starts both it and
 the deterministic Runtime:
@@ -79,8 +84,10 @@ the deterministic Runtime:
 ```
 
 Open `http://127.0.0.1:8000`. The application binds only to loopback and exposes synthetic
-actions only. Each run writes an append-only caller-visible trace under `artifacts/traces/`;
-generated artifacts are ignored by Git.
+actions only. The persistent draft and frozen/run indexes are stored in
+`artifacts/draft-workspace.sqlite3` and `artifacts/studio-index.sqlite3`. Each run writes an
+append-only caller-visible trace under `artifacts/traces/`; generated artifacts are ignored
+by Git.
 
 ## Run the available checks
 

@@ -30,7 +30,7 @@ dev = [
 packages = ["studio", "environments"]
 
 [tool.pytest.ini_options]
-testpaths = ["tests/runtime"]
+testpaths = ["tests"]
 addopts = "-q"
 
 [tool.ruff]

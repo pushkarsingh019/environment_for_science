@@ -1,11 +1,18 @@
 import { useEffect, useState } from "react";
-import { environmentApi } from "./api";
+import { draftApi, environmentApi } from "./api";
+import {
+  DraftWorkspace,
+  FrozenConfigurationPanel,
+} from "./authoring/DraftWorkspace";
 import {
   EnvironmentVisualization,
   environmentTraceEvidence,
 } from "./environments";
 import type {
+  DraftCommandResult,
+  EnvironmentDraft,
   EnvironmentSummary,
+  FrozenEnvironment,
   ReplayReport,
   RunSnapshot,
   TraceEvent,
@@ -38,6 +45,42 @@ function ValidationPanel({ environment }: { environment: EnvironmentSummary }) {
           ))}
         </ul>
       </details>
+    </section>
+  );
+}
+
+function DraftIdentity({ draft }: { draft: EnvironmentDraft }) {
+  return (
+    <section
+      className="identity-panel draft-identity-panel"
+      aria-label="Reversible draft identity"
+    >
+      <div className="section-heading-row">
+        <div>
+          <p className="eyebrow">Edit state</p>
+          <h2>Reversible Environment draft</h2>
+        </div>
+        <span className="draft-badge">Editable</span>
+      </div>
+      <dl className="identity-list">
+        <div>
+          <dt>Draft revision</dt>
+          <dd data-testid="draft-identity-revision" title={draft.revision_digest}>
+            r{draft.revision} · {digestTail(draft.revision_digest)}
+          </dd>
+        </div>
+        <div>
+          <dt>Whole-cap inputs</dt>
+          <dd>{draft.apparatus.recording_input_capacity}</dd>
+        </div>
+        <div>
+          <dt>Authoring assistant</dt>
+          <dd>{draft.authoring_assistant.name}</dd>
+        </div>
+      </dl>
+      <p className="identity-note">
+        Draft history is isolated from every frozen Policy-agent run.
+      </p>
     </section>
   );
 }
@@ -258,8 +301,11 @@ function EmptyRunPanel({
   return (
     <section className="start-panel" aria-labelledby="start-title">
       <p className="eyebrow">Run setup</p>
-      <h2 id="start-title">Freeze this seeded Environment</h2>
-      <p>Starting records an immutable revision and the active Policy agent.</p>
+      <h2 id="start-title">Freeze the current draft and start</h2>
+      <p>
+        Launching records an immutable bundle revision, scenario identity, and active
+        Policy agent before any scored action.
+      </p>
       <label htmlFor="policy-agent">Policy agent</label>
       <select
         id="policy-agent"
@@ -279,7 +325,7 @@ function EmptyRunPanel({
         onClick={onStart}
         disabled={busy || !selectedAgent}
       >
-        {busy ? "Freezing revision…" : "Start frozen run"}
+        {busy ? "Freezing and starting…" : "Freeze draft and start run"}
       </button>
       <p className="boundary-note">{environment.simulation_label}. No hardware connection.</p>
     </section>
@@ -287,24 +333,31 @@ function EmptyRunPanel({
 }
 
 export function App() {
+  const [mode, setMode] = useState<"edit" | "run">("edit");
   const [environment, setEnvironment] = useState<EnvironmentSummary | null>(null);
+  const [draft, setDraft] = useState<EnvironmentDraft | null>(null);
+  const [draftResult, setDraftResult] = useState<DraftCommandResult | null>(null);
+  const [frozen, setFrozen] = useState<FrozenEnvironment | null>(null);
   const [run, setRun] = useState<RunSnapshot | null>(null);
   const [selectedAgent, setSelectedAgent] = useState("");
   const [busy, setBusy] = useState(false);
+  const [draftBusy, setDraftBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [replay, setReplay] = useState<ReplayReport | null>(null);
 
   useEffect(() => {
     let cancelled = false;
-    environmentApi
-      .getEnvironment()
-      .then((loaded) => {
+    Promise.all([environmentApi.getEnvironment(), draftApi.get()])
+      .then(([loadedEnvironment, loadedDraft]) => {
         if (cancelled) return;
-        setEnvironment(loaded);
-        setSelectedAgent(loaded.policy_agents[0]?.id ?? "");
+        setEnvironment(loadedEnvironment);
+        setDraft(loadedDraft);
+        setSelectedAgent(loadedEnvironment.policy_agents[0]?.id ?? "");
       })
       .catch((reason: unknown) => {
-        if (!cancelled) setError(errorMessage(reason, "Unable to load Environment"));
+        if (!cancelled) {
+          setError(errorMessage(reason, "Unable to load the Environment draft"));
+        }
       });
     return () => {
       cancelled = true;
@@ -324,9 +377,81 @@ export function App() {
     }
   }
 
-  function startRun() {
-    if (!environment || !selectedAgent) return;
-    void perform(() => environmentApi.start(environment.scenario_id, selectedAgent));
+  async function performDraft(operation: () => Promise<EnvironmentDraft>) {
+    setDraftBusy(true);
+    setError(null);
+    setDraftResult(null);
+    try {
+      setDraft(await operation());
+    } catch (reason) {
+      setError(errorMessage(reason, "The draft operation failed"));
+    } finally {
+      setDraftBusy(false);
+    }
+  }
+
+  async function applyDraftCommand(command: string) {
+    if (!draft) return;
+    setDraftBusy(true);
+    setError(null);
+    try {
+      const response = await draftApi.command(command, draft.revision);
+      setDraft(response.draft);
+      setDraftResult(response.result);
+    } catch (reason) {
+      setError(errorMessage(reason, "The Authoring assistant could not revise the draft"));
+    } finally {
+      setDraftBusy(false);
+    }
+  }
+
+  function undoDraft() {
+    if (!draft) return;
+    void performDraft(() => draftApi.undo(draft.revision));
+  }
+
+  function redoDraft() {
+    if (!draft) return;
+    void performDraft(() => draftApi.redo(draft.revision));
+  }
+
+  function restoreDraft() {
+    if (!draft) return;
+    void performDraft(() => draftApi.restore(draft.revision));
+  }
+
+  function stageNote(filename: string, content: string) {
+    if (!draft) return;
+    void performDraft(() => draftApi.stageNote(filename, content, draft.revision));
+  }
+
+  async function startRun() {
+    if (!draft || !selectedAgent) return;
+    setBusy(true);
+    setError(null);
+    setReplay(null);
+    try {
+      const frozenEnvironment = await draftApi.freeze(draft.revision);
+      const started = await environmentApi.start(
+        frozenEnvironment.scenario_id,
+        selectedAgent,
+        frozenEnvironment.frozen_environment_id,
+      );
+      if (
+        started.revision_digest !== frozenEnvironment.revision_digest ||
+        started.scenario_id !== frozenEnvironment.scenario_id
+      ) {
+        throw new Error(
+          "The started run did not match the frozen Environment identity.",
+        );
+      }
+      setFrozen(frozenEnvironment);
+      setRun(started);
+    } catch (reason) {
+      setError(errorMessage(reason, "Unable to freeze and start the run"));
+    } finally {
+      setBusy(false);
+    }
   }
 
   function applyAction(type: string) {
@@ -370,7 +495,7 @@ export function App() {
         <div className="topbar-context">
           <span className="mode-badge">Scientist Console</span>
           <span className="topbar-divider" />
-          <span>{run ? "Run" : "Review"}</span>
+          <span>{mode === "edit" ? "Edit" : "Run"}</span>
         </div>
       </header>
 
@@ -378,7 +503,7 @@ export function App() {
         <div className="nav-heading"><p className="eyebrow">Environments</p></div>
         <button className="environment-row is-active" type="button">
           <span className="environment-icon" aria-hidden="true">EEG</span>
-          <span><strong>EEG</strong><small>Marker recovery</small></span>
+          <span><strong>EEG</strong><small>Authoring and marker recovery</small></span>
         </button>
         <div className="nav-rule" />
         <p className="nav-caption">Available in later slices</p>
@@ -392,33 +517,102 @@ export function App() {
       </aside>
 
       <main className="workspace">
-        <div className="workspace-heading">
-          <div>
-            <p className="breadcrumb">Environment / Seeded scenario</p>
-            <h1>{environment?.name ?? "Loading Environment…"}</h1>
-            <p>{environment?.description ?? "Loading Environment details…"}</p>
-          </div>
-          <span className="scenario-tag">Seeded scenario</span>
+        <div className="workspace-mode-tabs" role="tablist" aria-label="Environment workspace">
+          <button
+            aria-controls="edit-workspace"
+            aria-selected={mode === "edit"}
+            className={mode === "edit" ? "is-active" : ""}
+            data-testid="mode-edit"
+            onClick={() => setMode("edit")}
+            role="tab"
+            type="button"
+          >
+            Edit
+          </button>
+          <button
+            aria-controls="run-workspace"
+            aria-selected={mode === "run"}
+            className={mode === "run" ? "is-active" : ""}
+            data-testid="mode-run"
+            onClick={() => setMode("run")}
+            role="tab"
+            type="button"
+          >
+            Run
+          </button>
         </div>
 
         {error && <div className="error-banner" role="alert"><strong>Console request failed.</strong> {error}</div>}
-        {environment && <EnvironmentVisualization environment={environment} run={run} />}
-        {run && <ResultPanel run={run} replay={replay} />}
-        <section className="lower-workspace" aria-label="Run actions and canonical trace">
-          {environment && (
-            <>
-              <ActionPanel environment={environment} run={run} busy={busy} onAction={applyAction} onVerify={verifyRun} onReset={resetRun} onReplay={() => void replayRun()} />
-              <TracePanel environment={environment} run={run} />
-            </>
-          )}
-        </section>
+
+        {mode === "edit" ? (
+          <section
+            aria-labelledby="edit-heading"
+            className="workspace-mode-panel"
+            data-testid="edit-workspace"
+            id="edit-workspace"
+            role="tabpanel"
+          >
+            <div className="workspace-heading">
+              <div>
+                <p className="breadcrumb">EEG Environment / Reversible draft</p>
+                <h1 id="edit-heading">{draft?.title ?? "Loading EEG draft…"}</h1>
+                <p>Configure the whole-cap Apparatus and this Procedure's selected Montage.</p>
+              </div>
+              <span className="scenario-tag">Editable draft</span>
+            </div>
+            {draft ? (
+              <DraftWorkspace
+                busy={draftBusy}
+                draft={draft}
+                onCommand={(command) => void applyDraftCommand(command)}
+                onRedo={redoDraft}
+                onRestore={restoreDraft}
+                onStageNote={stageNote}
+                onUndo={undoDraft}
+                result={draftResult}
+              />
+            ) : (
+              <div className="loading-panel">Loading reversible authoring state…</div>
+            )}
+          </section>
+        ) : (
+          <section
+            aria-labelledby="run-heading"
+            className="workspace-mode-panel"
+            data-testid="run-workspace"
+            id="run-workspace"
+            role="tabpanel"
+          >
+            <div className="workspace-heading">
+              <div>
+                <p className="breadcrumb">Frozen Environment / Seeded scenario</p>
+                <h1 id="run-heading">{environment?.name ?? "Loading Environment…"}</h1>
+                <p>{environment?.description ?? "Loading Environment details…"}</p>
+              </div>
+              <span className="scenario-tag">Frozen run</span>
+            </div>
+            {environment && <EnvironmentVisualization environment={environment} run={run} />}
+            {run && <ResultPanel run={run} replay={replay} />}
+            <section className="lower-workspace" aria-label="Run actions and canonical trace">
+              {environment && (
+                <>
+                  <ActionPanel environment={environment} run={run} busy={busy} onAction={applyAction} onVerify={verifyRun} onReset={resetRun} onReplay={() => void replayRun()} />
+                  <TracePanel environment={environment} run={run} />
+                </>
+              )}
+            </section>
+          </section>
+        )}
       </main>
 
       <aside className="details-rail" aria-label="Environment and run details">
-        {environment ? (
+        {mode === "edit" ? (
+          draft ? <DraftIdentity draft={draft} /> : <div className="loading-panel">Loading draft identity…</div>
+        ) : environment ? (
           <>
             <ValidationPanel environment={environment} />
-            {run ? <RunIdentity run={run} /> : <EmptyRunPanel environment={environment} selectedAgent={selectedAgent} setSelectedAgent={setSelectedAgent} onStart={startRun} busy={busy} />}
+            {run ? <RunIdentity run={run} /> : <EmptyRunPanel environment={environment} selectedAgent={selectedAgent} setSelectedAgent={setSelectedAgent} onStart={() => void startRun()} busy={busy} />}
+            {frozen && <FrozenConfigurationPanel frozen={frozen} />}
           </>
         ) : <div className="loading-panel" aria-live="polite">Loading validation…</div>}
       </aside>

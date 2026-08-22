@@ -57,6 +57,105 @@ export interface EnvironmentSummary {
   policy_agents: PolicyAgentIdentity[];
 }
 
+export interface DraftSite {
+  id: string;
+  label: string;
+  x: number;
+  y: number;
+  kind: "scalp" | "auxiliary";
+}
+
+export interface DraftApparatus {
+  kind: "eeg";
+  label: string;
+  recording_input_capacity: number;
+  coordinate_system: string;
+  scientific_claim: string;
+  sites: DraftSite[];
+}
+
+export interface DraftMontage {
+  recording_sites: string[];
+  reference: string;
+  ground: string;
+}
+
+export interface DraftAcquisitionProfile {
+  sampling_hz: number;
+  online_bandpass_hz: [number, number];
+  notch_hz: number;
+}
+
+export interface DraftProcedure {
+  name: string;
+  montage: DraftMontage;
+  acquisition_profile: DraftAcquisitionProfile;
+}
+
+export interface DraftNote {
+  id: string;
+  filename: string;
+  content: string;
+  verification_status: "unverified_descriptive_input";
+  run_control: false;
+}
+
+export interface DraftHistory {
+  can_undo: boolean;
+  can_redo: boolean;
+}
+
+export interface DraftActor {
+  id: string;
+  name: string;
+  role: "authoring_assistant" | "environment_author" | "system";
+}
+
+export interface DraftLastChange {
+  operation: string;
+  summary: string;
+  actor: DraftActor;
+}
+
+export interface AuthoringAssistantIdentity {
+  id: string;
+  name: string;
+}
+
+/** Exact JSON DTO returned by the reversible authoring endpoints. */
+export interface EnvironmentDraft {
+  draft_id: string;
+  revision: number;
+  revision_digest: string;
+  environment_id: string;
+  title: string;
+  apparatus: DraftApparatus;
+  procedure: DraftProcedure;
+  notes: DraftNote[];
+  history: DraftHistory;
+  last_change: DraftLastChange;
+  authoring_assistant: AuthoringAssistantIdentity;
+}
+
+export interface DraftCommandResult {
+  status: "applied" | "unsupported";
+  summary: string;
+}
+
+export interface DraftCommandResponse {
+  draft: EnvironmentDraft;
+  result: DraftCommandResult;
+}
+
+export interface FrozenEnvironment {
+  frozen_environment_id: string;
+  bundle_revision: string;
+  revision_digest: string;
+  scenario_id: string;
+  draft_revision: number;
+  procedure: DraftProcedure;
+}
+
 export interface TraceAction {
   type: string;
   arguments: JsonObject;

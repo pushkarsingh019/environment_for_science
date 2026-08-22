@@ -16,6 +16,7 @@ async function tabToTestId(
 
 async function startSeededRun(page: import("@playwright/test").Page) {
   await page.goto("/");
+  await page.getByTestId("mode-run").click();
   await expect(page.getByTestId("environment-validation")).toContainText(
     "Environment Bundle v1 validated",
   );
@@ -142,6 +143,7 @@ test("keeps the run controls and evidence usable by keyboard at mobile width", a
 }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/");
+  await page.getByTestId("mode-run").click();
   await tabToTestId(page, "start-run");
   expect(
     await page.getByTestId("start-run").evaluate((element) =>
@@ -182,6 +184,8 @@ test("matches the approved primary desktop and mobile console layouts", async ({
     animations: "disabled",
     caret: "hide",
     fullPage: true,
+    mask: [page.getByTestId("frozen-draft-revision")],
+    maskColor: "#efeeec",
     maxDiffPixelRatio: 0.005,
   });
 
@@ -190,6 +194,8 @@ test("matches the approved primary desktop and mobile console layouts", async ({
     animations: "disabled",
     caret: "hide",
     fullPage: true,
+    mask: [page.getByTestId("frozen-draft-revision")],
+    maskColor: "#efeeec",
     maxDiffPixelRatio: 0.005,
   });
 });
