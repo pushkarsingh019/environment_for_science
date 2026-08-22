@@ -12,12 +12,14 @@ import type {
   DraftNote,
   DraftProcedure,
   DraftSite,
+  EnvironmentCatalogEntry,
   EnvironmentDraft,
   EnvironmentSummary,
   EnvironmentValidationSummary,
   FrozenEnvironment,
   JsonObject,
   JsonValue,
+  MesoscopeProvenance,
   PolicyAgentIdentity,
   ReplayReport,
   ReplayResponse,
@@ -25,6 +27,7 @@ import type {
   ScalpSitePresentation,
   RunLineage,
   RunSnapshot,
+  SealedEnvironment,
   SeededScenarioSummary,
   TraceAction,
   TraceEvent,
@@ -35,6 +38,7 @@ import type {
 type UncheckedRecord = Record<string, unknown>;
 
 const SHA256_DIGEST = /^sha256:[0-9a-f]{64}$/;
+const COMPATIBLE_EXTENSION_KEY = /^(?:future|x)_[a-z0-9]+(?:_[a-z0-9]+)*$/;
 
 function malformed(path: string, expectation: string): never {
   throw new Error(`${path} must ${expectation}.`);
@@ -44,7 +48,7 @@ function parseActionPresentation(
   value: unknown,
   path: string,
 ): ActionPresentation {
-  const record = exactRecord(
+  const record = compatibleRecord(
     value,
     [
       "type",
@@ -74,7 +78,7 @@ function parseRouteNode(
   value: unknown,
   path: string,
 ): RouteNodePresentation {
-  const record = exactRecord(
+  const record = extensibleRecord(
     value,
     ["id", "name", "detail", "emphasis"],
     path,
@@ -87,12 +91,105 @@ function parseRouteNode(
   };
 }
 
+function parseMesoscopeProvenance(
+  value: unknown,
+  path: string,
+): MesoscopeProvenance {
+  const record = compatibleRecord(
+    value,
+    ["classification", "citation_ids", "note"],
+    path,
+  );
+  const citationIds = stringArray(record.citation_ids, `${path}.citation_ids`);
+  if (citationIds.length === 0 || citationIds.some((citation) => citation.length === 0)) {
+    malformed(`${path}.citation_ids`, "contain at least one citation identity");
+  }
+  return {
+    classification: oneOf(
+      record.classification,
+      ["INSTRUMENT FACT", "SOFTWARE FACT", "SIMULATION CHOICE"] as const,
+      `${path}.classification`,
+    ),
+    citation_ids: citationIds,
+    note: nonEmptyString(record.note, `${path}.note`),
+  };
+}
+
 function parseVisualization(
   value: unknown,
   path: string,
 ): EnvironmentSummary["visualization"] {
+  if (isRecord(value) && value.kind === "mesoscope_handoff_v1") {
+    const record = compatibleRecord(
+      value,
+      [
+        "kind",
+        "title",
+        "synthetic_label",
+        "sealed_label",
+        "survey_label",
+        "raw_view_label",
+        "spatial_view_label",
+        "details_toggle_label",
+        "profile_provenance",
+        "plan_provenance",
+        "package_provenance",
+        "region_ids",
+        "depth_labels",
+      ],
+      path,
+    );
+    const regionIds = stringArray(record.region_ids, `${path}.region_ids`);
+    const depthLabels = stringArray(record.depth_labels, `${path}.depth_labels`);
+    if (!Array.isArray(record.package_provenance) || record.package_provenance.length < 2) {
+      malformed(`${path}.package_provenance`, "contain fact and proposal provenance");
+    }
+    if (regionIds.join("|") !== "R1|R2|R3|R4") {
+      malformed(`${path}.region_ids`, "contain R1 through R4 in order");
+    }
+    if (depthLabels.join("|") !== "Z-A|Z-B") {
+      malformed(`${path}.depth_labels`, "contain Z-A and Z-B in order");
+    }
+    return {
+      kind: "mesoscope_handoff_v1",
+      title: nonEmptyString(record.title, `${path}.title`),
+      synthetic_label: oneOf(
+        record.synthetic_label,
+        ["SYNTHETIC"] as const,
+        `${path}.synthetic_label`,
+      ),
+      sealed_label: oneOf(
+        record.sealed_label,
+        ["SEALED — DISCONNECTED FROM HARDWARE"] as const,
+        `${path}.sealed_label`,
+      ),
+      survey_label: nonEmptyString(record.survey_label, `${path}.survey_label`),
+      raw_view_label: nonEmptyString(record.raw_view_label, `${path}.raw_view_label`),
+      spatial_view_label: nonEmptyString(
+        record.spatial_view_label,
+        `${path}.spatial_view_label`,
+      ),
+      details_toggle_label: nonEmptyString(
+        record.details_toggle_label,
+        `${path}.details_toggle_label`,
+      ),
+      profile_provenance: parseMesoscopeProvenance(
+        record.profile_provenance,
+        `${path}.profile_provenance`,
+      ),
+      plan_provenance: parseMesoscopeProvenance(
+        record.plan_provenance,
+        `${path}.plan_provenance`,
+      ),
+      package_provenance: record.package_provenance.map((item, index) =>
+        parseMesoscopeProvenance(item, `${path}.package_provenance[${index}]`)
+      ),
+      region_ids: ["R1", "R2", "R3", "R4"],
+      depth_labels: ["Z-A", "Z-B"],
+    };
+  }
   if (isRecord(value) && value.kind === "eeg_preflight_v1") {
-    const record = exactRecord(
+    const record = extensibleRecord(
       value,
       [
         "kind",
@@ -138,7 +235,7 @@ function parseVisualization(
       ),
     };
   }
-  const record = exactRecord(
+  const record = extensibleRecord(
     value,
     [
       "kind",
@@ -174,7 +271,7 @@ function parseVisualization(
 }
 
 function parseScalpSite(value: unknown, path: string): ScalpSitePresentation {
-  const record = exactRecord(value, ["id", "label", "x", "y", "kind"], path);
+  const record = extensibleRecord(value, ["id", "label", "x", "y", "kind"], path);
   return {
     id: nonEmptyString(record.id, `${path}.id`),
     label: nonEmptyString(record.label, `${path}.label`),
@@ -226,6 +323,25 @@ function extensibleRecord(
     malformed(path, `contain the required fields (missing ${missing.join(", ")})`);
   }
   return value;
+}
+
+function compatibleRecord(
+  value: unknown,
+  requiredKeys: readonly string[],
+  path: string,
+): UncheckedRecord {
+  const record = extensibleRecord(value, requiredKeys, path);
+  const required = new Set(requiredKeys);
+  const incompatible = Object.keys(record).filter(
+    (key) => !required.has(key) && !COMPATIBLE_EXTENSION_KEY.test(key),
+  );
+  if (incompatible.length > 0) {
+    malformed(
+      path,
+      `contain only declared fields or namespaced additions (unexpected ${incompatible.join(", ")})`,
+    );
+  }
+  return record;
 }
 
 function stringValue(value: unknown, path: string): string {
@@ -357,10 +473,57 @@ function parseSeededScenarioSummary(
     label: nonEmptyString(record.label, `${path}.label`),
     stage: oneOf(
       record.stage,
-      ["preflight", "short_acquisition"] as const,
+      ["preflight", "short_acquisition", "sealed_handoff"] as const,
       `${path}.stage`,
     ),
   };
+}
+
+function parseEnvironmentCatalogEntry(
+  value: unknown,
+  path: string,
+): EnvironmentCatalogEntry {
+  const record = exactRecord(
+    value,
+    [
+      "environment_id",
+      "environment_kind",
+      "name",
+      "navigation_label",
+      "navigation_summary",
+      "source_kind",
+    ],
+    path,
+  );
+  return {
+    environment_id: nonEmptyString(record.environment_id, `${path}.environment_id`),
+    environment_kind: oneOf(
+      record.environment_kind,
+      ["eeg", "mesoscope"] as const,
+      `${path}.environment_kind`,
+    ),
+    name: nonEmptyString(record.name, `${path}.name`),
+    navigation_label: nonEmptyString(
+      record.navigation_label,
+      `${path}.navigation_label`,
+    ),
+    navigation_summary: nonEmptyString(
+      record.navigation_summary,
+      `${path}.navigation_summary`,
+    ),
+    source_kind: oneOf(
+      record.source_kind,
+      ["editable_draft", "sealed_seed"] as const,
+      `${path}.source_kind`,
+    ),
+  };
+}
+
+function parseEnvironmentCatalog(value: unknown): EnvironmentCatalogEntry[] {
+  if (!Array.isArray(value)) malformed("EnvironmentCatalog", "be an array");
+  return value.map((entry, index) =>
+    parseEnvironmentCatalogEntry(entry, `EnvironmentCatalog[${index}]`),
+  );
 }
 
 function parseEnvironmentSummary(value: unknown): EnvironmentSummary {
@@ -369,6 +532,8 @@ function parseEnvironmentSummary(value: unknown): EnvironmentSummary {
     value,
     [
       "environment_id",
+      "environment_kind",
+      "source_kind",
       "name",
       "description",
       "simulation_label",
@@ -397,6 +562,16 @@ function parseEnvironmentSummary(value: unknown): EnvironmentSummary {
     environment_id: stringValue(
       record.environment_id,
       `${path}.environment_id`,
+    ),
+    environment_kind: oneOf(
+      record.environment_kind,
+      ["eeg", "mesoscope"] as const,
+      `${path}.environment_kind`,
+    ),
+    source_kind: oneOf(
+      record.source_kind,
+      ["editable_draft", "sealed_seed"] as const,
+      `${path}.source_kind`,
     ),
     name: stringValue(record.name, `${path}.name`),
     description: stringValue(record.description, `${path}.description`),
@@ -695,6 +870,45 @@ function parseFrozenEnvironment(value: unknown): FrozenEnvironment {
       1,
     ),
     procedure: parseDraftProcedure(record.procedure, `${path}.procedure`),
+  };
+}
+
+function parseSealedEnvironment(value: unknown): SealedEnvironment {
+  const path = "SealedEnvironment";
+  const record = exactRecord(
+    value,
+    [
+      "frozen_environment_id",
+      "environment_id",
+      "source_kind",
+      "bundle_revision",
+      "revision_digest",
+      "sealed_profile_id",
+      "signed_plan_id",
+    ],
+    path,
+  );
+  return {
+    frozen_environment_id: nonEmptyString(
+      record.frozen_environment_id,
+      `${path}.frozen_environment_id`,
+    ),
+    environment_id: nonEmptyString(record.environment_id, `${path}.environment_id`),
+    source_kind: oneOf(
+      record.source_kind,
+      ["sealed_seed"] as const,
+      `${path}.source_kind`,
+    ),
+    bundle_revision: nonEmptyString(record.bundle_revision, `${path}.bundle_revision`),
+    revision_digest: digest(record.revision_digest, `${path}.revision_digest`),
+    sealed_profile_id: nonEmptyString(
+      record.sealed_profile_id,
+      `${path}.sealed_profile_id`,
+    ),
+    signed_plan_id: nonEmptyString(
+      record.signed_plan_id,
+      `${path}.signed_plan_id`,
+    ),
   };
 }
 
@@ -1060,18 +1274,39 @@ async function request<T>(
 }
 
 export const environmentApi = {
+  async getCatalog(): Promise<EnvironmentCatalogEntry[]> {
+    return request("/api/environments", parseEnvironmentCatalog);
+  },
+
   async getEnvironment(): Promise<EnvironmentSummary> {
     return request("/api/environment", parseEnvironmentSummary);
+  },
+
+  async getEnvironmentById(environmentId: string): Promise<EnvironmentSummary> {
+    return request(
+      `/api/environments/${encodeURIComponent(environmentId)}`,
+      parseEnvironmentSummary,
+    );
+  },
+
+  async freezeSealed(environmentId: string): Promise<SealedEnvironment> {
+    return request(
+      `/api/environments/${encodeURIComponent(environmentId)}/freeze`,
+      parseSealedEnvironment,
+      { method: "POST" },
+    );
   },
 
   async start(
     scenarioId: string,
     policyAgent: string,
     frozenEnvironmentId: string,
+    environmentId?: string,
   ): Promise<RunSnapshot> {
     return request("/api/runs", parseRunSnapshot, {
       method: "POST",
       body: JSON.stringify({
+        ...(environmentId ? { environment_id: environmentId } : {}),
         scenario_id: scenarioId,
         policy_agent: policyAgent,
         frozen_environment_id: frozenEnvironmentId,

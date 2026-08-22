@@ -18,11 +18,11 @@ from environments.eeg.authoring import (
     EegDescriptiveNote,
     EegProcedureConfiguration,
 )
-from environments.eeg.curriculum import ConsoleStage
 from environments.eeg.presentation import (
     EegOnsetRouteVisualization,
     EegPreflightVisualization,
 )
+from environments.mesoscope.presentation import MesoscopeHandoffVisualization
 from studio.authoring import DraftRepositoryError, DraftSnapshot
 from studio.runtime import (
     EnvironmentAction,
@@ -37,6 +37,7 @@ from studio.service import (
     FrozenEnvironment,
     RoleBoundaryDescriptor,
     ScienceStudio,
+    SealedEnvironment,
 )
 
 PublicDraftOperation = Literal["seed", "edit", "undo", "redo", "restore_seed"]
@@ -64,17 +65,32 @@ class ActionPresentation(_StrictModel):
 class SeededScenarioSummary(_StrictModel):
     scenario_id: str
     label: str
-    stage: ConsoleStage
+    stage: str = Field(min_length=1)
+
+
+class EnvironmentCatalogSummary(_StrictModel):
+    environment_id: str
+    environment_kind: Literal["eeg", "mesoscope"]
+    name: str
+    navigation_label: str
+    navigation_summary: str
+    source_kind: Literal["editable_draft", "sealed_seed"]
 
 
 class EnvironmentSummary(_StrictModel):
     environment_id: str
+    environment_kind: Literal["eeg", "mesoscope"]
+    source_kind: Literal["editable_draft", "sealed_seed"]
     seeded_examples: tuple[SeededScenarioSummary, ...]
     name: str
     description: str
     simulation_label: str
     actions: tuple[ActionPresentation, ...]
-    visualization: EegOnsetRouteVisualization | EegPreflightVisualization
+    visualization: (
+        EegOnsetRouteVisualization
+        | EegPreflightVisualization
+        | MesoscopeHandoffVisualization
+    )
     validation: EnvironmentValidationSummary
     hidden_state_exposed: Literal[False]
     policy_agents: tuple[PolicyAgentIdentity, ...]
@@ -119,7 +135,18 @@ class FrozenEnvironmentSummary(_StrictModel):
     procedure: EegProcedureConfiguration
 
 
+class SealedEnvironmentSummary(_StrictModel):
+    frozen_environment_id: str = Field(min_length=1)
+    environment_id: str = Field(min_length=1)
+    source_kind: Literal["sealed_seed"]
+    bundle_revision: str = Field(min_length=1)
+    revision_digest: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
+    sealed_profile_id: str = Field(min_length=1)
+    signed_plan_id: str = Field(min_length=1)
+
+
 class StartRunRequest(_StrictModel):
+    environment_id: str | None = Field(default=None, min_length=1)
     scenario_id: str
     policy_agent: str
     frozen_environment_id: str = Field(min_length=1)
@@ -195,9 +222,6 @@ def create_app(
     studio = ScienceStudio(resolved_artifact_root)
     studio_lock = RLock()
     bundle = studio.source_bundle
-    environment_module = studio.source_environment
-    seeded_scenarios = studio.seeded_scenarios
-    seeded_scenario_ids = frozenset(choice.scenario_id for choice in seeded_scenarios)
 
     app = FastAPI(
         title="Science Environment Studio",
@@ -256,43 +280,35 @@ def create_app(
 
     @app.get("/api/environment", response_model=EnvironmentSummary)
     def get_environment() -> EnvironmentSummary:
-        return EnvironmentSummary(
-            environment_id=bundle.bundle_id,
-            seeded_examples=tuple(
-                SeededScenarioSummary(
-                    scenario_id=choice.scenario_id,
-                    label=choice.label,
-                    stage=choice.stage,
-                )
-                for choice in seeded_scenarios
-            ),
-            name=bundle.title,
-            description=bundle.description or bundle.simulation_label,
-            simulation_label=bundle.simulation_label,
-            actions=tuple(
-                ActionPresentation(
-                    type=action.type,
-                    title=action.title,
-                    description=action.description,
-                    input_schema=action.input_schema,
-                    group=action.presentation_group,
-                    changes_state=action.presentation_changes_state,
-                )
-                for action in bundle.actions
-            ),
-            visualization=environment_module.visualization,
-            validation=EnvironmentValidationSummary(
-                status="valid",
-                summary="Environment Bundle v1 validated",
-                checks=(
-                    "Contract version supported",
-                    "Action and observation schemas validated",
-                    "Policy-visible observations separated from hidden scenario truth",
-                ),
-            ),
-            hidden_state_exposed=False,
-            policy_agents=(SEEDED_POLICY_AGENT,),
+        return _environment_summary(studio, bundle.bundle_id)
+
+    @app.get(
+        "/api/environments",
+        response_model=tuple[EnvironmentCatalogSummary, ...],
+    )
+    def get_environment_catalog() -> tuple[EnvironmentCatalogSummary, ...]:
+        return tuple(
+            EnvironmentCatalogSummary.model_validate(entry.model_dump(mode="json"))
+            for entry in studio.environment_catalog
         )
+
+    @app.get(
+        "/api/environments/{environment_id}",
+        response_model=EnvironmentSummary,
+    )
+    def get_environment_by_id(environment_id: str) -> EnvironmentSummary:
+        return _environment_summary(studio, environment_id)
+
+    @app.post(
+        "/api/environments/{environment_id}/freeze",
+        response_model=SealedEnvironmentSummary,
+        status_code=status.HTTP_201_CREATED,
+    )
+    def freeze_seeded_environment(environment_id: str) -> SealedEnvironmentSummary:
+        with studio_lock:
+            return _sealed_environment_summary(
+                studio.freeze_seeded_environment(environment_id)
+            )
 
     @app.get("/api/draft", response_model=DraftSummary)
     def get_draft() -> DraftSummary:
@@ -301,10 +317,13 @@ def create_app(
 
     @app.get(
         "/api/role-boundaries",
-        response_model=tuple[RoleBoundaryDescriptor, RoleBoundaryDescriptor],
+        response_model=tuple[RoleBoundaryDescriptor, ...],
     )
-    def get_role_boundaries() -> tuple[RoleBoundaryDescriptor, RoleBoundaryDescriptor]:
-        return studio.role_boundaries
+    def get_role_boundaries(
+        environment_id: str | None = None,
+    ) -> tuple[RoleBoundaryDescriptor, ...]:
+        resolved_environment_id = environment_id or bundle.bundle_id
+        return studio.role_boundaries_for(resolved_environment_id)
 
     @app.post("/api/draft/commands", response_model=CommandResponse)
     def apply_draft_command(request: CommandRequest) -> CommandResponse:
@@ -376,16 +395,12 @@ def create_app(
                 status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                 detail="Unknown Policy agent identity.",
             )
-        if request.scenario_id not in seeded_scenario_ids:
-            raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                detail="Unknown seeded curriculum example.",
-            )
         with studio_lock:
             return studio.start_run(
                 scenario_id=request.scenario_id,
                 policy_agent=SEEDED_POLICY_AGENT,
                 frozen_environment_id=request.frozen_environment_id,
+                environment_id=request.environment_id,
             )
 
     @app.get("/api/runs/{run_id}", response_model=RunSnapshot)
@@ -467,6 +482,55 @@ def _draft_summary(snapshot: DraftSnapshot, studio: ScienceStudio) -> DraftSumma
     )
 
 
+def _environment_summary(
+    studio: ScienceStudio,
+    environment_id: str,
+) -> EnvironmentSummary:
+    bundle = studio.environment_bundle(environment_id)
+    validation_bundle = studio.environment_runtime_validation_bundle(environment_id)
+    entry = studio.environment_entry(environment_id)
+    seeded_scenarios = studio.seeded_scenarios_for(environment_id)
+    return EnvironmentSummary(
+        environment_id=bundle.bundle_id,
+        environment_kind=entry.environment_kind,
+        source_kind=entry.source_kind,
+        seeded_examples=tuple(
+            SeededScenarioSummary(
+                scenario_id=choice.scenario_id,
+                label=choice.label,
+                stage=choice.stage,
+            )
+            for choice in seeded_scenarios
+        ),
+        name=bundle.title,
+        description=bundle.description or bundle.simulation_label,
+        simulation_label=bundle.simulation_label,
+        actions=tuple(
+            ActionPresentation(
+                type=action.type,
+                title=action.title,
+                description=action.description,
+                input_schema=action.input_schema,
+                group=action.presentation_group,
+                changes_state=action.presentation_changes_state,
+            )
+            for action in validation_bundle.actions
+        ),
+        visualization=studio.environment_visualization(environment_id),
+        validation=EnvironmentValidationSummary(
+            status="valid",
+            summary="Environment Bundle v1 validated",
+            checks=(
+                "Contract version supported",
+                "Action and observation schemas validated",
+                "Policy-visible observations separated from hidden scenario truth",
+            ),
+        ),
+        hidden_state_exposed=False,
+        policy_agents=(SEEDED_POLICY_AGENT,),
+    )
+
+
 def _frozen_environment_summary(
     frozen: FrozenEnvironment,
 ) -> FrozenEnvironmentSummary:
@@ -476,6 +540,20 @@ def _frozen_environment_summary(
         revision_digest=frozen.revision_digest,
         draft_revision=frozen.draft_revision,
         procedure=frozen.procedure.model_copy(deep=True),
+    )
+
+
+def _sealed_environment_summary(
+    frozen: SealedEnvironment,
+) -> SealedEnvironmentSummary:
+    return SealedEnvironmentSummary(
+        frozen_environment_id=frozen.frozen_environment_id,
+        environment_id=frozen.environment_id,
+        source_kind=frozen.source_kind,
+        bundle_revision=frozen.bundle_revision,
+        revision_digest=frozen.revision_digest,
+        sealed_profile_id=frozen.sealed_profile_id,
+        signed_plan_id=frozen.signed_plan_id,
     )
 
 

@@ -10,8 +10,8 @@ handoff. The project doesn't connect to or control physical apparatus.
 ## Project status
 
 The product, domain, interface, runtime, evaluation, and training decisions are complete.
-Tickets 01 through 04 of 13 are complete and runnable end to end; nine tickets remain.
-Tickets 05 and 06 are now unblocked.
+Tickets 01 through 05 of 13 are complete and runnable end to end; eight tickets remain.
+Ticket 06 is now unblocked.
 
 Read these documents before you implement a ticket:
 
@@ -25,11 +25,11 @@ Read these documents before you implement a ticket:
 5. [`DESIGN.md`](DESIGN.md) supplies visual tokens. It doesn't define the page layout.
 
 The next implementation target is
-[ticket 05: Run the sealed mesoscope four-region handoff](docs/implementation/issues/05-run-the-sealed-mesoscope-four-region-handoff.md).
+[ticket 06: Evaluate EEG through Verifiers and local base Gemma](docs/implementation/issues/06-evaluate-eeg-through-verifiers-and-local-base-gemma.md).
 
 ## Implementation checkpoint
 
-Tickets 01 through 04 provide:
+Tickets 01 through 05 provide:
 
 - An extensible Environment Bundle v1 validator with nested JSON Schema checks.
 - A seeded synthetic EEG marker-recovery bundle and apparatus module.
@@ -57,6 +57,16 @@ Tickets 01 through 04 provide:
   attempt ledgers that preserve failed held-out slots across restarts.
 - A training-only wheel proven free of held-out resources, identities, canonical records,
   seeds, evaluator code, and reserved fault compositions.
+- A catalog-driven second Environment for a sealed synthetic mesoscope R1–R4 handoff,
+  sharing the EEG bundle, lifecycle, canonical trace, reset, replay, and Verifier contracts.
+- Immutable profile, signed-plan, and safety-gate presentation; deterministic procedural
+  region tiles; and progressive channel, frame, event, motion, manifest, and checksum evidence.
+- Eight reviewed package scenarios, sealed empty-input actions, quarantine/reject-only invalid
+  disposition, and exact `MOCK PACKAGE VERIFIED` success after complete agreement.
+- Structurally quarantined minor-version metadata: finite namespaced JSON remains in the raw
+  content-addressed bundle while reviewed runtime and presentation projections exclude it.
+- Desktop and mobile browser coverage that permanently labels the handoff synthetic, sealed,
+  disconnected from hardware, and free of physical or operational controls.
 
 The repository also retains the disposable Gemma training-path probe under
 `probes/gemma-training-path/`; it is not product runtime code.

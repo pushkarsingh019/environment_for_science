@@ -65,25 +65,65 @@ export interface EegPreflightVisualization {
   scalp_sites: ScalpSitePresentation[];
 }
 
+export interface MesoscopeHandoffVisualization {
+  kind: "mesoscope_handoff_v1";
+  title: string;
+  synthetic_label: "SYNTHETIC";
+  sealed_label: "SEALED — DISCONNECTED FROM HARDWARE";
+  survey_label: string;
+  raw_view_label: string;
+  spatial_view_label: string;
+  details_toggle_label: string;
+  profile_provenance: MesoscopeProvenance;
+  plan_provenance: MesoscopeProvenance;
+  package_provenance: MesoscopeProvenance[];
+  region_ids: ["R1", "R2", "R3", "R4"];
+  depth_labels: ["Z-A", "Z-B"];
+}
+
+export interface MesoscopeProvenance {
+  classification: "INSTRUMENT FACT" | "SOFTWARE FACT" | "SIMULATION CHOICE";
+  citation_ids: string[];
+  note: string;
+}
+
 export type EegVisualization =
   | EegOnsetRouteVisualization
   | EegPreflightVisualization;
 
+export type EnvironmentVisualization =
+  | EegVisualization
+  | MesoscopeHandoffVisualization;
+
+export type EnvironmentKind = "eeg" | "mesoscope";
+export type EnvironmentSourceKind = "editable_draft" | "sealed_seed";
+
+export interface EnvironmentCatalogEntry {
+  environment_id: string;
+  environment_kind: EnvironmentKind;
+  name: string;
+  navigation_label: string;
+  navigation_summary: string;
+  source_kind: EnvironmentSourceKind;
+}
+
 export interface SeededScenarioSummary {
   scenario_id: string;
   label: string;
-  stage: "preflight" | "short_acquisition";
+  stage: "preflight" | "short_acquisition" | "sealed_handoff";
 }
 
 /** Exact JSON DTO returned by GET /api/environment. */
 export interface EnvironmentSummary {
   environment_id: string;
+  environment_kind: EnvironmentKind;
+  source_kind: EnvironmentSourceKind;
   name: string;
   description: string;
   simulation_label: string;
   seeded_examples: SeededScenarioSummary[];
   actions: ActionPresentation[];
-  visualization: EegVisualization;
+  visualization: EnvironmentVisualization;
   validation: EnvironmentValidationSummary;
   hidden_state_exposed: false;
   policy_agents: PolicyAgentIdentity[];
@@ -185,6 +225,16 @@ export interface FrozenEnvironment {
   revision_digest: string;
   draft_revision: number;
   procedure: DraftProcedure;
+}
+
+export interface SealedEnvironment {
+  frozen_environment_id: string;
+  environment_id: string;
+  source_kind: "sealed_seed";
+  bundle_revision: string;
+  revision_digest: string;
+  sealed_profile_id: string;
+  signed_plan_id: string;
 }
 
 export interface TraceAction {

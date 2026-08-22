@@ -8,7 +8,7 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
 from threading import RLock
-from typing import Literal
+from typing import Literal, Union
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
@@ -20,10 +20,6 @@ from environments.eeg.authoring import (
     compile_frozen_bundle,
     seed_authoring_state,
     stage_descriptive_note,
-)
-from environments.eeg.curriculum import (
-    SeededScenarioChoice,
-    load_training_scenario_set,
 )
 from environments.eeg.runtime import EegEnvironmentModule
 from studio.authoring import (
@@ -40,6 +36,13 @@ from studio.index import (
     StudioIndex,
     StudioIndexError,
     StudioIndexNotFound,
+)
+from studio.registry import (
+    ConsoleScenarioChoice,
+    EnvironmentCatalogEntry,
+    EnvironmentRegistry,
+    EnvironmentRegistryError,
+    EnvironmentVisualization,
 )
 from studio.runtime import (
     EnvironmentAction,
@@ -68,6 +71,7 @@ class AuthoringAssistantIdentity(_FrozenModel):
 class RoleBoundaryDescriptor(_FrozenModel):
     """Explicit execution boundary for one isolated Studio agent role."""
 
+    environment_id: str = Field(min_length=1)
     identity_id: str = Field(min_length=1)
     identity_name: str = Field(min_length=1)
     role: Literal["authoring_assistant", "policy_agent"]
@@ -82,6 +86,8 @@ class FrozenEnvironment(_FrozenModel):
     """Caller-visible identity of one validated frozen bundle snapshot."""
 
     frozen_environment_id: str = Field(min_length=1)
+    environment_id: str | None = Field(default=None, min_length=1)
+    source_kind: Literal["editable_draft"] = "editable_draft"
     bundle_revision: str = Field(min_length=1)
     revision_digest: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
     scenario_id: str = Field(min_length=1)
@@ -100,6 +106,23 @@ class FrozenEnvironment(_FrozenModel):
                 promoted["scenario_ids"] = [scenario_id]
             return promoted
         return value
+
+
+class SealedEnvironment(_FrozenModel):
+    """Content-addressed identity for an immutable seeded Environment."""
+
+    frozen_environment_id: str = Field(min_length=1)
+    environment_id: str = Field(min_length=1)
+    source_kind: Literal["sealed_seed"] = "sealed_seed"
+    bundle_revision: str = Field(min_length=1)
+    revision_digest: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
+    scenario_id: str = Field(min_length=1)
+    scenario_ids: tuple[str, ...] = Field(min_length=1)
+    sealed_profile_id: str = Field(min_length=1)
+    signed_plan_id: str = Field(min_length=1)
+
+
+FrozenRuntimeMetadata = Union[FrozenEnvironment, SealedEnvironment]
 
 
 class AuthoringCommandOutcome(_FrozenModel):
@@ -139,9 +162,16 @@ class ScienceStudio:
 
     def __init__(self, artifact_root: Path) -> None:
         self._artifact_root = artifact_root.resolve()
-        training = load_training_scenario_set()
-        self._source_bundle = training.environment_bundle
-        self._seeded_scenarios = training.seeded_examples
+        self._registry = EnvironmentRegistry.from_seeded_environments()
+        eeg_entry = next(
+            entry
+            for entry in self._registry.catalog
+            if entry.environment_kind == "eeg"
+        )
+        self._source_bundle = self._registry.bundle(eeg_entry.environment_id)
+        self._seeded_scenarios = self._registry.seeded_scenarios(
+            eeg_entry.environment_id
+        )
         seed_state = seed_authoring_state(self._source_bundle)
         self._drafts = DraftRepository(
             artifact_root=self._artifact_root,
@@ -152,12 +182,14 @@ class ScienceStudio:
         self._index = StudioIndex(self._artifact_root)
         self._trace_directory = self._artifact_root / "traces"
         default_runtime = _runtime_for_bundle(
+            self._registry,
             self._source_bundle,
             trace_directory=self._trace_directory,
         )
         self._default_runtime = default_runtime
         self._frozen_runtimes: dict[str, EnvironmentRuntime] = {}
-        self._frozen_metadata: dict[str, FrozenEnvironment] = {}
+        self._frozen_metadata: dict[str, FrozenRuntimeMetadata] = {}
+        self._frozen_environment_ids: dict[str, str] = {}
         self._run_mutation_lock_stripes = tuple(
             RLock() for _ in range(_RUN_MUTATION_LOCK_STRIPE_COUNT)
         )
@@ -174,12 +206,61 @@ class ScienceStudio:
 
     @property
     def source_environment(self) -> EegEnvironmentModule:
-        return EegEnvironmentModule(self._source_bundle)
+        module = self._registry.module_for_bundle(self._source_bundle)
+        if not isinstance(module, EegEnvironmentModule):
+            raise RuntimeContractError(
+                "the default editable Environment is not EEG",
+                code="internal",
+            )
+        return module
 
     @property
-    def seeded_scenarios(self) -> tuple[SeededScenarioChoice, ...]:
+    def seeded_scenarios(self) -> tuple[ConsoleScenarioChoice, ...]:
         """Return the reviewed neutral examples exposed by the local console."""
         return tuple(choice.model_copy(deep=True) for choice in self._seeded_scenarios)
+
+    @property
+    def environment_catalog(self) -> tuple[EnvironmentCatalogEntry, ...]:
+        return self._registry.catalog
+
+    def environment_bundle(self, environment_id: str) -> EnvironmentBundle:
+        try:
+            return self._registry.bundle(environment_id)
+        except EnvironmentRegistryError as error:
+            raise RuntimeContractError(str(error), code="not_found") from error
+
+    def environment_runtime_validation_bundle(
+        self,
+        environment_id: str,
+    ) -> EnvironmentBundle:
+        try:
+            return self._registry.runtime_validation_bundle(environment_id)
+        except EnvironmentRegistryError as error:
+            raise RuntimeContractError(str(error), code="not_found") from error
+
+    def environment_visualization(
+        self,
+        environment_id: str,
+    ) -> EnvironmentVisualization:
+        try:
+            return self._registry.visualization(environment_id)
+        except EnvironmentRegistryError as error:
+            raise RuntimeContractError(str(error), code="not_found") from error
+
+    def environment_entry(self, environment_id: str) -> EnvironmentCatalogEntry:
+        try:
+            return self._registry.entry(environment_id)
+        except EnvironmentRegistryError as error:
+            raise RuntimeContractError(str(error), code="not_found") from error
+
+    def seeded_scenarios_for(
+        self,
+        environment_id: str,
+    ) -> tuple[ConsoleScenarioChoice, ...]:
+        try:
+            return self._registry.seeded_scenarios(environment_id)
+        except EnvironmentRegistryError as error:
+            raise RuntimeContractError(str(error), code="not_found") from error
 
     @property
     def authoring_assistant(self) -> AuthoringAssistantIdentity:
@@ -190,8 +271,24 @@ class ScienceStudio:
 
     @property
     def role_boundaries(self) -> tuple[RoleBoundaryDescriptor, RoleBoundaryDescriptor]:
-        """Return detached contracts proving the two agent instances are isolated."""
+        """Return the editable EEG role contracts for compatibility callers."""
+        boundaries = self.role_boundaries_for(self._source_bundle.bundle_id)
+        if len(boundaries) != 2:
+            raise RuntimeContractError(
+                "the editable Environment role boundary is incomplete",
+                code="internal",
+            )
+        return (boundaries[0], boundaries[1])
+
+    def role_boundaries_for(
+        self,
+        environment_id: str,
+    ) -> tuple[RoleBoundaryDescriptor, ...]:
+        """Return only the agent roles and tools installed for one Environment."""
+        bundle = self.environment_bundle(environment_id)
+        entry = self.environment_entry(environment_id)
         authoring = RoleBoundaryDescriptor(
+            environment_id=environment_id,
             identity_id=AUTHORING_ASSISTANT.id,
             identity_name=AUTHORING_ASSISTANT.name,
             role="authoring_assistant",
@@ -208,6 +305,7 @@ class ScienceStudio:
             log_sink="draft-workspace.sqlite3/append-only-authoring-activity",
         )
         policy = RoleBoundaryDescriptor(
+            environment_id=environment_id,
             identity_id=SEEDED_POLICY_AGENT.id,
             identity_name=SEEDED_POLICY_AGENT.name,
             role="policy_agent",
@@ -215,16 +313,21 @@ class ScienceStudio:
                 "No live model prompt is installed: the seeded Policy agent receives "
                 "only the frozen Policy-visible runtime observation."
             ),
-            tool_catalog=self._source_bundle.action_types,
+            tool_catalog=bundle.action_types,
             context_scope=(
                 "Frozen Policy-visible observation and canonical transitions only; "
-                "the authoring draft, notes, Authoring-assistant activity, verifier "
-                "implementation, and hidden state are excluded."
+                "authoring state, verifier implementation, and hidden state are excluded."
+                if entry.source_kind == "sealed_seed"
+                else (
+                    "Frozen Policy-visible observation and canonical transitions only; "
+                    "the authoring draft, notes, Authoring-assistant activity, verifier "
+                    "implementation, and hidden state are excluded."
+                )
             ),
             state_scope="isolated-environment-runtime/<run_id>",
             log_sink="traces/<run_id>.jsonl/canonical-policy-trace",
         )
-        return (authoring, policy)
+        return (authoring, policy) if entry.source_kind == "editable_draft" else (policy,)
 
     def current_draft(self) -> DraftSnapshot:
         return self._drafts.current().model_copy(deep=True)
@@ -301,6 +404,7 @@ class ScienceStudio:
         frozen_id = _frozen_id(revision_digest)
         metadata = FrozenEnvironment(
             frozen_environment_id=frozen_id,
+            environment_id=bundle.bundle_id,
             bundle_revision=bundle.bundle_revision,
             revision_digest=revision_digest,
             scenario_id=bundle.scenarios[0].id,
@@ -319,7 +423,61 @@ class ScienceStudio:
             except StudioIndexError as error:
                 raise _index_runtime_error(error) from error
             self._install_frozen_record(record)
-        return self._frozen_metadata[frozen_id].model_copy(deep=True)
+        installed = self._frozen_metadata[frozen_id]
+        if not isinstance(installed, FrozenEnvironment):
+            raise RuntimeContractError(
+                "the editable Environment identity collided with sealed metadata",
+                code="internal",
+            )
+        return installed.model_copy(deep=True)
+
+    def freeze_seeded_environment(self, environment_id: str) -> SealedEnvironment:
+        """Freeze one installed sealed seed without inventing editable metadata."""
+        entry = self.environment_entry(environment_id)
+        if entry.source_kind != "sealed_seed":
+            raise RuntimeContractError(
+                "the requested Environment uses the reversible draft freeze route",
+                code="invalid",
+            )
+        bundle = self.environment_bundle(environment_id)
+        revision_digest = _bundle_digest(bundle)
+        frozen_id = _frozen_id(revision_digest)
+        visible = bundle.scenarios[0].initial_state.policy_visible
+        profile = visible.get("sealed_profile")
+        plan = visible.get("signed_plan")
+        if not isinstance(profile, dict) or not isinstance(plan, dict):
+            raise RuntimeContractError(
+                "the sealed Environment metadata is incomplete",
+                code="internal",
+            )
+        metadata = SealedEnvironment(
+            frozen_environment_id=frozen_id,
+            environment_id=bundle.bundle_id,
+            bundle_revision=bundle.bundle_revision,
+            revision_digest=revision_digest,
+            scenario_id=bundle.scenarios[0].id,
+            scenario_ids=tuple(scenario.id for scenario in bundle.scenarios),
+            sealed_profile_id=str(profile["profile_id"]),
+            signed_plan_id=str(plan["plan_id"]),
+        )
+        if frozen_id not in self._frozen_runtimes:
+            try:
+                record = self._index.record_frozen(
+                    frozen_environment_id=frozen_id,
+                    revision_digest=revision_digest,
+                    bundle_document=bundle.model_dump(mode="json"),
+                    metadata_document=metadata.model_dump(mode="json"),
+                )
+            except StudioIndexError as error:
+                raise _index_runtime_error(error) from error
+            self._install_frozen_record(record)
+        installed = self._frozen_metadata[frozen_id]
+        if not isinstance(installed, SealedEnvironment):
+            raise RuntimeContractError(
+                "the sealed Environment identity collided with editable metadata",
+                code="internal",
+            )
+        return installed.model_copy(deep=True)
 
     def start_run(
         self,
@@ -327,9 +485,31 @@ class ScienceStudio:
         scenario_id: str,
         policy_agent: PolicyAgentIdentity,
         frozen_environment_id: str,
+        environment_id: str | None = None,
     ) -> RunSnapshot:
         runtime = self._runtime_for_frozen(frozen_environment_id)
         frozen = self._frozen_metadata[frozen_environment_id]
+        bound_environment_id = self._frozen_environment_ids[frozen_environment_id]
+        if environment_id is not None and environment_id != bound_environment_id:
+            raise RuntimeContractError(
+                "the requested Environment does not match the frozen Environment identity",
+                code="invalid",
+            )
+        if bound_environment_id == "eeg-onset-marker-recovery" and isinstance(
+            frozen,
+            FrozenEnvironment,
+        ):
+            console_scenario_ids = {frozen.scenario_id}
+        else:
+            console_scenario_ids = {
+                choice.scenario_id
+                for choice in self.seeded_scenarios_for(bound_environment_id)
+            }
+        if scenario_id not in console_scenario_ids:
+            raise RuntimeContractError(
+                "unknown seeded Environment example",
+                code="invalid",
+            )
         if scenario_id not in frozen.scenario_ids:
             raise RuntimeContractError(
                 "the scenario does not match the frozen Environment identity",
@@ -526,37 +706,66 @@ class ScienceStudio:
     def _install_frozen_record(self, record: FrozenEnvironmentRecord) -> None:
         try:
             bundle = validate_environment_bundle(record.bundle_document)
-            metadata = FrozenEnvironment.model_validate(record.metadata_document)
-            procedure = seed_authoring_state(bundle).procedure
+            if bundle.generator_revision.startswith("eeg-"):
+                metadata: FrozenRuntimeMetadata = FrozenEnvironment.model_validate(
+                    record.metadata_document
+                )
+                procedure = seed_authoring_state(bundle).procedure
+            elif bundle.generator_revision == "mesoscope-four-region-generator-1":
+                metadata = SealedEnvironment.model_validate(record.metadata_document)
+                procedure = None
+            else:
+                raise ValueError("unsupported frozen Environment generator")
         except ValueError as error:
             raise RuntimeContractError(
                 "the frozen Environment index is invalid",
                 code="internal",
             ) from error
-        if (
+        shared_invalid = (
             metadata.frozen_environment_id != record.frozen_environment_id
             or record.frozen_environment_id != _frozen_id(record.revision_digest)
             or metadata.revision_digest != record.revision_digest
             or metadata.revision_digest != _bundle_digest(bundle)
             or metadata.bundle_revision != bundle.bundle_revision
-            or not _bundle_revision_matches_draft(
-                metadata.bundle_revision,
-                metadata.draft_revision,
-            )
             or metadata.scenario_id != bundle.scenarios[0].id
             or metadata.scenario_ids
             != tuple(scenario.id for scenario in bundle.scenarios)
-            or metadata.procedure != procedure
-        ):
+        )
+        if isinstance(metadata, FrozenEnvironment):
+            apparatus_invalid = (
+                not _bundle_revision_matches_draft(
+                    metadata.bundle_revision,
+                    metadata.draft_revision,
+                )
+                or metadata.procedure != procedure
+                or (
+                    metadata.environment_id is not None
+                    and metadata.environment_id != bundle.bundle_id
+                )
+            )
+        else:
+            visible = bundle.scenarios[0].initial_state.policy_visible
+            profile = visible.get("sealed_profile")
+            plan = visible.get("signed_plan")
+            apparatus_invalid = (
+                metadata.environment_id != bundle.bundle_id
+                or not isinstance(profile, dict)
+                or not isinstance(plan, dict)
+                or metadata.sealed_profile_id != profile.get("profile_id")
+                or metadata.signed_plan_id != plan.get("plan_id")
+            )
+        if shared_invalid or apparatus_invalid:
             raise RuntimeContractError(
                 "the frozen Environment index is inconsistent",
                 code="internal",
             )
         self._frozen_runtimes[record.frozen_environment_id] = _runtime_for_bundle(
+            self._registry,
             bundle,
             trace_directory=self._trace_directory,
         )
         self._frozen_metadata[record.frozen_environment_id] = metadata
+        self._frozen_environment_ids[record.frozen_environment_id] = bundle.bundle_id
 
     def _run_route(self, run_id: str) -> RunIndexRecord:
         try:
@@ -678,12 +887,13 @@ def _state_from_snapshot(snapshot: DraftSnapshot) -> EegAuthoringState:
 
 
 def _runtime_for_bundle(
+    registry: EnvironmentRegistry,
     bundle: EnvironmentBundle,
     *,
     trace_directory: Path,
 ) -> EnvironmentRuntime:
     return EnvironmentRuntime(
-        EegEnvironmentModule(bundle.model_copy(deep=True)),
+        registry.module_for_bundle(bundle.model_copy(deep=True)),
         trace_directory=trace_directory,
     )
 
@@ -722,6 +932,7 @@ __all__ = [
     "AuthoringAssistantIdentity",
     "AuthoringCommandOutcome",
     "FrozenEnvironment",
+    "SealedEnvironment",
     "RoleBoundaryDescriptor",
     "ScienceStudio",
 ]

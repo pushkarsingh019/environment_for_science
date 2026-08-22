@@ -26,11 +26,13 @@ test("selects one of six neutral training examples without publishing the curric
     "actions",
     "description",
     "environment_id",
+    "environment_kind",
     "hidden_state_exposed",
     "name",
     "policy_agents",
     "seeded_examples",
     "simulation_label",
+    "source_kind",
     "validation",
     "visualization",
   ]);

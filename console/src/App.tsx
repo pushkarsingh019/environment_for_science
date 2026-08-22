@@ -11,12 +11,14 @@ import {
 import { RunActionComposer } from "./environments/RunActionComposer";
 import type {
   DraftCommandResult,
+  EnvironmentCatalogEntry,
   EnvironmentDraft,
   EnvironmentSummary,
   FrozenEnvironment,
   JsonObject,
   ReplayReport,
   RunSnapshot,
+  SealedEnvironment,
   TraceEvent,
 } from "./types";
 
@@ -31,12 +33,19 @@ function displayName(value: string): string {
     .join(" ");
 }
 
-const EVIDENCE_DOMAINS = [
+const EEG_EVIDENCE_DOMAINS = [
   ["configuration", "Configuration"],
   ["eeg", "EEG"],
   ["onset", "Onset"],
   ["response", "Response"],
   ["recording", "Recording"],
+] as const;
+
+const MESOSCOPE_EVIDENCE_DOMAINS = [
+  ["safety", "Safety"],
+  ["plan", "Plan"],
+  ["acquisition", "Acquisition"],
+  ["package", "Package"],
 ] as const;
 
 function ValidationPanel({ environment }: { environment: EnvironmentSummary }) {
@@ -183,7 +192,9 @@ function ActionPanel({
         </>
       )}
       <p className="boundary-note">
-        Synthetic apparatus actions only. No physical or operational controls.
+        {environment.environment_kind === "mesoscope"
+          ? "Sealed synthetic actions only · disconnected from hardware · no physical or operational controls."
+          : "Synthetic apparatus actions only. No physical or operational controls."}
       </p>
     </section>
   );
@@ -224,6 +235,11 @@ function TracePanel({
     <section className="trace-panel" aria-labelledby="trace-title">
       <p className="eyebrow">Canonical trace</p>
       <h2 id="trace-title">Ordered run evidence</h2>
+      {environment.environment_kind === "mesoscope" && (
+        <p className="mesoscope-trace-boundary" data-testid="mesoscope-trace-boundary">
+          SEALED SYNTHETIC TRACE · DISCONNECTED FROM HARDWARE
+        </p>
+      )}
       {!run ? (
         <p className="panel-copy">Observations, actions, transitions, and verification appear here.</p>
       ) : (
@@ -296,7 +312,13 @@ function ResultPanel({
   );
 }
 
-function RunIdentity({ run }: { run: RunSnapshot }) {
+function RunIdentity({
+  environment,
+  run,
+}: {
+  environment: EnvironmentSummary;
+  run: RunSnapshot;
+}) {
   const statusLabels: Record<RunSnapshot["status"], string> = {
     active: "Active run",
     awaiting_verification: "Awaiting verification",
@@ -310,6 +332,9 @@ function RunIdentity({ run }: { run: RunSnapshot }) {
   const stage = typeof run.observation.stage === "string"
     ? displayName(run.observation.stage)
     : "Unavailable";
+  const evidenceDomains = environment.environment_kind === "mesoscope"
+    ? MESOSCOPE_EVIDENCE_DOMAINS
+    : EEG_EVIDENCE_DOMAINS;
   return (
     <section className="identity-panel" aria-label="Frozen run identity">
       <div className="section-heading-row">
@@ -321,7 +346,7 @@ function RunIdentity({ run }: { run: RunSnapshot }) {
       </div>
       <dl className="identity-list">
         <div>
-          <dt>Curriculum stage</dt>
+          <dt>{environment.environment_kind === "mesoscope" ? "Handoff stage" : "Curriculum stage"}</dt>
           <dd data-testid="curriculum-stage">{stage}</dd>
         </div>
         <div>
@@ -341,7 +366,7 @@ function RunIdentity({ run }: { run: RunSnapshot }) {
       </dl>
       <p className="eyebrow">Evidence freshness</p>
       <dl className="identity-list" data-testid="domain-freshness">
-        {EVIDENCE_DOMAINS.map(([domain, label]) => {
+        {evidenceDomains.map(([domain, label]) => {
           const entry = freshnessRecord[domain];
           const status =
             entry !== null && typeof entry === "object" && !Array.isArray(entry)
@@ -386,12 +411,20 @@ function EmptyRunPanel({
   return (
     <section className="start-panel" aria-labelledby="start-title">
       <p className="eyebrow">Run setup</p>
-      <h2 id="start-title">Freeze the current draft and start</h2>
+      <h2 id="start-title">
+        {environment.source_kind === "sealed_seed"
+          ? "Freeze the sealed seed and start"
+          : "Freeze the current draft and start"}
+      </h2>
       <p>
         Launching records an immutable bundle revision, scenario identity, and active
         Policy agent before any scored action.
       </p>
-      <label htmlFor="seeded-example">Seeded curriculum example</label>
+      <label htmlFor="seeded-example">
+        {environment.source_kind === "sealed_seed"
+          ? "Sealed package example"
+          : "Seeded curriculum example"}
+      </label>
       <select
         data-testid="seeded-example-selector"
         id="seeded-example"
@@ -431,19 +464,99 @@ function EmptyRunPanel({
         onClick={onStart}
         disabled={busy || !selectedAgent || !selectedScenario}
       >
-        {busy ? "Freezing and starting…" : "Freeze draft and start run"}
+        {busy
+          ? "Freezing and starting…"
+          : environment.source_kind === "sealed_seed"
+            ? "Freeze sealed Environment and start run"
+            : "Freeze draft and start run"}
       </button>
       <p className="boundary-note">{environment.simulation_label}. No hardware connection.</p>
     </section>
   );
 }
 
+function SealedEnvironmentWorkspace({
+  environment,
+}: {
+  environment: EnvironmentSummary;
+}) {
+  const visualization = environment.visualization.kind === "mesoscope_handoff_v1"
+    ? environment.visualization
+    : null;
+  return (
+    <section
+      aria-labelledby="edit-heading"
+      className="sealed-environment-workspace"
+      data-testid="sealed-environment-workspace"
+      id="edit-workspace"
+      role="tabpanel"
+    >
+      <div className="workspace-heading">
+        <div>
+          <p className="breadcrumb">Mesoscope Environment / Sealed seed</p>
+          <h1 id="edit-heading">{environment.name}</h1>
+          <p>
+            Profiles, signed plans, and the independent safety gate are immutable.
+          </p>
+        </div>
+        <span className="scenario-tag">Read-only</span>
+      </div>
+      <div className="sealed-boundary-banner" role="note">
+        <strong>{visualization?.sealed_label ?? "SEALED"}</strong>
+        <span>{environment.simulation_label}</span>
+      </div>
+      <div className="sealed-overview-grid">
+        <article>
+          <p className="eyebrow">Profiles</p>
+          <h2>Source conventions remain separate</h2>
+          <p>
+            Research-paper and commercial reference profiles are visible and locked;
+            their source conventions remain distinct.
+          </p>
+        </article>
+        <article>
+          <p className="eyebrow">Signed plan</p>
+          <h2>R1–R4 · Z-A / Z-B</h2>
+          <p>The selected four-region handoff cannot be redrawn or converted to apparatus control.</p>
+        </article>
+        <article>
+          <p className="eyebrow">Safety gate</p>
+          <h2>Independent and immutable</h2>
+          <p>No reset, bypass, alignment, calibration, or physical connector is available.</p>
+        </article>
+      </div>
+      <p className="sealed-workspace-note">
+        Switch to Run to inspect the cached procedural phantom and verify a synthetic package.
+      </p>
+    </section>
+  );
+}
+
+function SealedFrozenPanel({ frozen }: { frozen: SealedEnvironment }) {
+  return (
+    <section className="identity-panel" data-testid="sealed-frozen-identity">
+      <p className="eyebrow">Sealed revision</p>
+      <h2>Immutable handoff identity</h2>
+      <dl className="identity-list">
+        <div><dt>Profile</dt><dd>{frozen.sealed_profile_id}</dd></div>
+        <div><dt>Signed plan</dt><dd>{frozen.signed_plan_id}</dd></div>
+        <div>
+          <dt>Revision</dt>
+          <dd title={frozen.revision_digest}>{digestTail(frozen.revision_digest)}</dd>
+        </div>
+      </dl>
+    </section>
+  );
+}
+
 export function App() {
   const [mode, setMode] = useState<"edit" | "run">("edit");
+  const [catalog, setCatalog] = useState<EnvironmentCatalogEntry[]>([]);
   const [environment, setEnvironment] = useState<EnvironmentSummary | null>(null);
   const [draft, setDraft] = useState<EnvironmentDraft | null>(null);
   const [draftResult, setDraftResult] = useState<DraftCommandResult | null>(null);
   const [frozen, setFrozen] = useState<FrozenEnvironment | null>(null);
+  const [sealedFrozen, setSealedFrozen] = useState<SealedEnvironment | null>(null);
   const [run, setRun] = useState<RunSnapshot | null>(null);
   const [selectedAgent, setSelectedAgent] = useState("");
   const [selectedScenario, setSelectedScenario] = useState("");
@@ -454,9 +567,14 @@ export function App() {
 
   useEffect(() => {
     let cancelled = false;
-    Promise.all([environmentApi.getEnvironment(), draftApi.get()])
-      .then(([loadedEnvironment, loadedDraft]) => {
+    Promise.all([
+      environmentApi.getCatalog(),
+      environmentApi.getEnvironment(),
+      draftApi.get(),
+    ])
+      .then(([loadedCatalog, loadedEnvironment, loadedDraft]) => {
         if (cancelled) return;
+        setCatalog(loadedCatalog);
         setEnvironment(loadedEnvironment);
         setDraft(loadedDraft);
         setSelectedAgent(loadedEnvironment.policy_agents[0]?.id ?? "");
@@ -473,6 +591,27 @@ export function App() {
       cancelled = true;
     };
   }, []);
+
+  async function selectEnvironment(environmentId: string) {
+    if (environmentId === environment?.environment_id) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const selected = await environmentApi.getEnvironmentById(environmentId);
+      setEnvironment(selected);
+      setSelectedAgent(selected.policy_agents[0]?.id ?? "");
+      setSelectedScenario(selected.seeded_examples[0]?.scenario_id ?? "");
+      setFrozen(null);
+      setSealedFrozen(null);
+      setRun(null);
+      setReplay(null);
+      setDraftResult(null);
+    } catch (reason) {
+      setError(errorMessage(reason, "Unable to switch Environment"));
+    } finally {
+      setBusy(false);
+    }
+  }
 
   async function perform(operation: () => Promise<RunSnapshot>) {
     setBusy(true);
@@ -536,16 +675,24 @@ export function App() {
   }
 
   async function startRun() {
-    if (!draft || !selectedAgent || !selectedScenario) return;
+    if (
+      !environment ||
+      !selectedAgent ||
+      !selectedScenario ||
+      (environment.source_kind === "editable_draft" && !draft)
+    ) return;
     setBusy(true);
     setError(null);
     setReplay(null);
     try {
-      const frozenEnvironment = await draftApi.freeze(draft.revision);
+      const frozenEnvironment = environment.source_kind === "sealed_seed"
+        ? await environmentApi.freezeSealed(environment.environment_id)
+        : await draftApi.freeze(draft!.revision);
       const started = await environmentApi.start(
         selectedScenario,
         selectedAgent,
         frozenEnvironment.frozen_environment_id,
+        environment.environment_id,
       );
       if (
         started.revision_digest !== frozenEnvironment.revision_digest ||
@@ -555,7 +702,13 @@ export function App() {
           "The started run did not match the frozen Environment identity.",
         );
       }
-      setFrozen(frozenEnvironment);
+      if ("source_kind" in frozenEnvironment) {
+        setSealedFrozen(frozenEnvironment);
+        setFrozen(null);
+      } else {
+        setFrozen(frozenEnvironment);
+        setSealedFrozen(null);
+      }
       setRun(started);
     } catch (reason) {
       setError(errorMessage(reason, "Unable to freeze and start the run"));
@@ -611,16 +764,28 @@ export function App() {
 
       <aside className="environment-nav" aria-label="Environment navigation">
         <div className="nav-heading"><p className="eyebrow">Environments</p></div>
-        <button className="environment-row is-active" type="button">
-          <span className="environment-icon" aria-hidden="true">EEG</span>
-          <span><strong>EEG</strong><small>Authoring and marker recovery</small></span>
-        </button>
-        <div className="nav-rule" />
-        <p className="nav-caption">Available in later slices</p>
-        <div className="environment-row is-disabled" aria-disabled="true">
-          <span className="environment-icon muted" aria-hidden="true">4R</span>
-          <span><strong>Mesoscope</strong><small>Sealed synthetic handoff</small></span>
-        </div>
+        {catalog.map((entry) => {
+          const active = entry.environment_id === environment?.environment_id;
+          return (
+            <button
+              aria-current={active ? "page" : undefined}
+              className={`environment-row${active ? " is-active" : ""}`}
+              data-testid={`environment-nav-${entry.environment_kind}`}
+              disabled={busy}
+              key={entry.environment_id}
+              onClick={() => void selectEnvironment(entry.environment_id)}
+              type="button"
+            >
+              <span className="environment-icon" aria-hidden="true">
+                {entry.environment_kind === "eeg" ? "EEG" : "4R"}
+              </span>
+              <span>
+                <strong>{entry.navigation_label}</strong>
+                <small>{entry.navigation_summary}</small>
+              </span>
+            </button>
+          );
+        })}
         <footer className="nav-footer">
           <span className="simulation-indicator" aria-hidden="true" />Synthetic environments
         </footer>
@@ -655,36 +820,40 @@ export function App() {
         {error && <div className="error-banner" role="alert"><strong>Console request failed.</strong> {error}</div>}
 
         {mode === "edit" ? (
-          <section
-            aria-labelledby="edit-heading"
-            className="workspace-mode-panel"
-            data-testid="edit-workspace"
-            id="edit-workspace"
-            role="tabpanel"
-          >
-            <div className="workspace-heading">
-              <div>
-                <p className="breadcrumb">EEG Environment / Reversible draft</p>
-                <h1 id="edit-heading">{draft?.title ?? "Loading EEG draft…"}</h1>
-                <p>Configure the whole-cap Apparatus and this Procedure's selected Montage.</p>
+          environment?.source_kind === "sealed_seed" ? (
+            <SealedEnvironmentWorkspace environment={environment} />
+          ) : (
+            <section
+              aria-labelledby="edit-heading"
+              className="workspace-mode-panel"
+              data-testid="edit-workspace"
+              id="edit-workspace"
+              role="tabpanel"
+            >
+              <div className="workspace-heading">
+                <div>
+                  <p className="breadcrumb">EEG Environment / Reversible draft</p>
+                  <h1 id="edit-heading">{draft?.title ?? "Loading EEG draft…"}</h1>
+                  <p>Configure the whole-cap Apparatus and this Procedure's selected Montage.</p>
+                </div>
+                <span className="scenario-tag">Editable draft</span>
               </div>
-              <span className="scenario-tag">Editable draft</span>
-            </div>
-            {draft ? (
-              <DraftWorkspace
-                busy={draftBusy}
-                draft={draft}
-                onCommand={(command) => void applyDraftCommand(command)}
-                onRedo={redoDraft}
-                onRestore={restoreDraft}
-                onStageNote={stageNote}
-                onUndo={undoDraft}
-                result={draftResult}
-              />
-            ) : (
-              <div className="loading-panel">Loading reversible authoring state…</div>
-            )}
-          </section>
+              {draft ? (
+                <DraftWorkspace
+                  busy={draftBusy}
+                  draft={draft}
+                  onCommand={(command) => void applyDraftCommand(command)}
+                  onRedo={redoDraft}
+                  onRestore={restoreDraft}
+                  onStageNote={stageNote}
+                  onUndo={undoDraft}
+                  result={draftResult}
+                />
+              ) : (
+                <div className="loading-panel">Loading reversible authoring state…</div>
+              )}
+            </section>
+          )
         ) : (
           <section
             aria-labelledby="run-heading"
@@ -723,12 +892,14 @@ export function App() {
 
       <aside className="details-rail" aria-label="Environment and run details">
         {mode === "edit" ? (
-          draft ? <DraftIdentity draft={draft} /> : <div className="loading-panel">Loading draft identity…</div>
+          environment?.source_kind === "sealed_seed" ? (
+            <ValidationPanel environment={environment} />
+          ) : draft ? <DraftIdentity draft={draft} /> : <div className="loading-panel">Loading draft identity…</div>
         ) : environment ? (
           <>
             <ValidationPanel environment={environment} />
             {run ? (
-              <RunIdentity run={run} />
+              <RunIdentity environment={environment} run={run} />
             ) : (
               <EmptyRunPanel
                 busy={busy}
@@ -741,6 +912,7 @@ export function App() {
               />
             )}
             {frozen && <FrozenConfigurationPanel frozen={frozen} />}
+            {sealedFrozen && <SealedFrozenPanel frozen={sealedFrozen} />}
           </>
         ) : <div className="loading-panel" aria-live="polite">Loading validation…</div>}
       </aside>

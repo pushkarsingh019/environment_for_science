@@ -178,7 +178,12 @@ class EnvironmentModule(Protocol):
     @property
     def bundle(self) -> EnvironmentBundle: ...
 
+    @property
+    def runtime_validation_bundle(self) -> EnvironmentBundle: ...
+
     def initialize(self, scenario: ScenarioManifest) -> EpisodeState: ...
+
+    def permitted_actions(self, state: EpisodeState) -> tuple[str, ...]: ...
 
     def apply_action(
         self,
@@ -617,6 +622,24 @@ class EnvironmentRuntime:
     ) -> None:
         self._environment_module = environment_module
         self._bundle = environment_module.bundle.model_copy(deep=True)
+        validation_bundle = environment_module.runtime_validation_bundle.model_copy(
+            deep=True
+        )
+        if (
+            validation_bundle.bundle_id != self._bundle.bundle_id
+            or validation_bundle.bundle_revision != self._bundle.bundle_revision
+            or validation_bundle.action_types != self._bundle.action_types
+        ):
+            raise RuntimeContractError(
+                "the Environment validation projection is inconsistent",
+                code="internal",
+            )
+        self._observation_schema = deepcopy(validation_bundle.observation_schema)
+        self._hidden_state_schema = deepcopy(validation_bundle.hidden_state_schema)
+        self._action_input_schemas = {
+            action.type: deepcopy(action.input_schema)
+            for action in validation_bundle.actions
+        }
         self._revision_digest = _digest(self._bundle.model_dump(mode="json"))
         self._runs: dict[str, _RunRecord] = {}
         self._run_lock_stripes = tuple(
@@ -925,12 +948,12 @@ class EnvironmentRuntime:
         _validate_runtime_payload(
             "Policy-visible observation",
             observation,
-            self._bundle.observation_schema,
+            self._observation_schema,
         )
         _validate_runtime_payload(
             "hidden Environment state",
             hidden_state,
-            self._bundle.hidden_state_schema,
+            self._hidden_state_schema,
             expose_details=False,
         )
         scenario_digest = self._scenario_digest(frozen_scenario)
@@ -1024,7 +1047,10 @@ class EnvironmentRuntime:
         )
         if action_definition is None:
             raise RuntimeContractError(f"unknown action {action.type!r}")
-        _validate_action_arguments(action.arguments, action_definition.input_schema)
+        _validate_action_arguments(
+            action.arguments,
+            self._action_input_schemas[action.type],
+        )
 
         transition = next(
             (
@@ -1056,12 +1082,12 @@ class EnvironmentRuntime:
         _validate_runtime_payload(
             "Policy-visible observation",
             update.observation,
-            self._bundle.observation_schema,
+            self._observation_schema,
         )
         _validate_runtime_payload(
             "hidden Environment state",
             update.hidden_state,
-            self._bundle.hidden_state_schema,
+            self._hidden_state_schema,
             expose_details=False,
         )
         action_sequence = len(record.trace) + 1
@@ -1207,7 +1233,7 @@ class EnvironmentRuntime:
             status=record.status,
             observation=deepcopy(record.state.observation),
             permitted_actions=(
-                self._bundle.action_types if record.status == "active" else ()
+                self._permitted_actions(record) if record.status == "active" else ()
             ),
             trace=tuple(event.model_copy(deep=True) for event in record.trace),
             trace_digest=self._trace_digest(record),
@@ -1220,6 +1246,22 @@ class EnvironmentRuntime:
             lineage=record.lineage.model_copy(deep=True),
             trace_header=record.trace_header.model_copy(deep=True),
         )
+
+    def _permitted_actions(self, record: _RunRecord) -> tuple[str, ...]:
+        transition_actions = {
+            transition.action
+            for transition in self._bundle.procedure.transitions
+            if transition.from_state == record.state.procedure_state
+        }
+        actions = self._environment_module.permitted_actions(deepcopy(record.state))
+        if len(actions) != len(set(actions)) or any(
+            action not in transition_actions for action in actions
+        ):
+            raise RuntimeContractError(
+                "the Environment module returned invalid state-current actions",
+                code="internal",
+            )
+        return actions
 
     def _run_record(self, run_id: str) -> _RunRecord:
         try:

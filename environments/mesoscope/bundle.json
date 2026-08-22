@@ -1,0 +1,2739 @@
+{
+  "contract_version": "1.0",
+  "bundle_id": "mesoscope-four-region-handoff",
+  "bundle_revision": "mesoscope-four-region-handoff.1",
+  "generator_revision": "mesoscope-four-region-generator-1",
+  "title": "Sealed mesoscope four-region handoff",
+  "description": "Inspect, run, and verify one sealed synthetic R1–R4 output package without operational apparatus controls.",
+  "simulation_label": "SIMULATED DATA — NO HARDWARE CONNECTION — NOT LASER OR ANIMAL GUIDANCE",
+  "apparatus": {
+    "kind": "sealed_synthetic_mesoscope",
+    "simulation_only": true,
+    "sealed": true,
+    "physical_control_available": false,
+    "source_profiles": [
+      {
+        "profile_id": "paper-derived-context-v1",
+        "geometry_convention": "5 mm diameter",
+        "provenance": "Sofroniew et al. 2016 research profile"
+      },
+      {
+        "profile_id": "commercial-reference-v1",
+        "geometry_convention": "5 mm × 5 mm",
+        "provenance": "current commercial-page reference profile"
+      }
+    ]
+  },
+  "observation_schema": {
+    "type": "object",
+    "properties": {
+      "stage": {
+        "type": "string",
+        "enum": [
+          "sealed_preflight",
+          "inspection_complete",
+          "package_review",
+          "disposition_ready",
+          "complete"
+        ]
+      },
+      "summary": {
+        "type": "string",
+        "minLength": 1
+      },
+      "simulation_notice": {
+        "type": "string",
+        "const": "SIMULATED DATA — NO HARDWARE CONNECTION — NOT LASER OR ANIMAL GUIDANCE"
+      },
+      "profile_catalog": {
+        "type": "array",
+        "minItems": 2,
+        "maxItems": 2,
+        "items": {
+          "type": "object",
+          "properties": {
+            "profile_id": {
+              "type": "string",
+              "minLength": 1
+            },
+            "provenance_label": {
+              "type": "string",
+              "minLength": 1
+            },
+            "selected": {
+              "type": "boolean"
+            },
+            "immutable": {
+              "type": "boolean",
+              "const": true
+            }
+          },
+          "required": [
+            "profile_id",
+            "provenance_label",
+            "selected",
+            "immutable"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "sealed_profile": {
+        "type": "object",
+        "properties": {
+          "profile_id": {
+            "type": "string",
+            "const": "paper-derived-context-v1"
+          },
+          "source_geometry": {
+            "type": "string",
+            "const": "5 mm diameter research-paper convention"
+          },
+          "immutable": {
+            "type": "boolean",
+            "const": true
+          },
+          "simulation_only": {
+            "type": "boolean",
+            "const": true
+          },
+          "status": {
+            "type": "string",
+            "const": "sealed"
+          }
+        },
+        "required": [
+          "profile_id",
+          "source_geometry",
+          "immutable",
+          "simulation_only",
+          "status"
+        ],
+        "additionalProperties": false
+      },
+      "plan_catalog": {
+        "type": "array",
+        "minItems": 2,
+        "maxItems": 2,
+        "items": {
+          "type": "object",
+          "properties": {
+            "plan_id": {
+              "type": "string",
+              "minLength": 1
+            },
+            "signature_digest": {
+              "type": "string",
+              "pattern": "^sha256:[0-9a-f]{64}$"
+            },
+            "selected": {
+              "type": "boolean"
+            },
+            "immutable": {
+              "type": "boolean",
+              "const": true
+            }
+          },
+          "required": [
+            "plan_id",
+            "signature_digest",
+            "selected",
+            "immutable"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "signed_plan": {
+        "type": "object",
+        "properties": {
+          "plan_id": {
+            "type": "string",
+            "const": "4R-HANDOFF-v1"
+          },
+          "immutable": {
+            "type": "boolean",
+            "const": true
+          },
+          "signature_digest": {
+            "type": "string",
+            "pattern": "^sha256:[0-9a-f]{64}$"
+          },
+          "regions": {
+            "type": "array",
+            "minItems": 4,
+            "maxItems": 4,
+            "items": {
+              "type": "object",
+              "properties": {
+                "region_id": {
+                  "type": "string",
+                  "enum": [
+                    "R1",
+                    "R2",
+                    "R3",
+                    "R4"
+                  ]
+                },
+                "z_label": {
+                  "type": "string",
+                  "enum": [
+                    "Z-A",
+                    "Z-B"
+                  ]
+                },
+                "visit_order": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 4
+                },
+                "tile_seed_offset": {
+                  "type": "integer",
+                  "minimum": 0
+                }
+              },
+              "required": [
+                "region_id",
+                "z_label",
+                "visit_order",
+                "tile_seed_offset"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": [
+          "plan_id",
+          "immutable",
+          "signature_digest",
+          "regions"
+        ],
+        "additionalProperties": false
+      },
+      "safety_gate": {
+        "type": "object",
+        "properties": {
+          "state": {
+            "type": "string",
+            "enum": [
+              "closed",
+              "open",
+              "unknown"
+            ]
+          },
+          "immutable": {
+            "type": "boolean",
+            "const": true
+          },
+          "independently_enforced": {
+            "type": "boolean",
+            "const": true
+          }
+        },
+        "required": [
+          "state",
+          "immutable",
+          "independently_enforced"
+        ],
+        "additionalProperties": false
+      },
+      "survey": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "const": "procedural_non_biological_phantom"
+          },
+          "visual_seed": {
+            "type": "integer"
+          },
+          "synthetic": {
+            "type": "boolean",
+            "const": true
+          },
+          "watermark": {
+            "type": "string",
+            "const": "SYNTHETIC"
+          }
+        },
+        "required": [
+          "kind",
+          "visual_seed",
+          "synthetic",
+          "watermark"
+        ],
+        "additionalProperties": false
+      },
+      "expected_outputs": {
+        "type": "array",
+        "minItems": 8,
+        "maxItems": 8,
+        "items": {
+          "type": "object",
+          "properties": {
+            "region_id": {
+              "type": "string",
+              "enum": [
+                "R1",
+                "R2",
+                "R3",
+                "R4"
+              ]
+            },
+            "z_label": {
+              "type": "string",
+              "enum": [
+                "Z-A",
+                "Z-B"
+              ]
+            },
+            "channel_id": {
+              "type": "string",
+              "enum": [
+                "CH-A",
+                "CH-B"
+              ]
+            },
+            "output_id": {
+              "type": "string",
+              "minLength": 1
+            },
+            "frame_count": {
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          "required": [
+            "region_id",
+            "z_label",
+            "channel_id",
+            "output_id",
+            "frame_count"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "region_tiles": {
+        "type": "array",
+        "maxItems": 4,
+        "items": {
+          "type": "object",
+          "properties": {
+            "region_id": {
+              "type": "string",
+              "enum": [
+                "R1",
+                "R2",
+                "R3",
+                "R4"
+              ]
+            },
+            "z_label": {
+              "type": "string",
+              "enum": [
+                "Z-A",
+                "Z-B"
+              ]
+            },
+            "tile_seed": {
+              "type": "integer"
+            },
+            "synthetic": {
+              "type": "boolean",
+              "const": true
+            },
+            "status": {
+              "type": "string",
+              "enum": [
+                "cached",
+                "present"
+              ]
+            }
+          },
+          "required": [
+            "region_id",
+            "z_label",
+            "tile_seed",
+            "synthetic",
+            "status"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "channel_records": {
+        "type": "array",
+        "maxItems": 8,
+        "items": {
+          "type": "object",
+          "properties": {
+            "region_id": {
+              "type": "string",
+              "enum": [
+                "R1",
+                "R2",
+                "R3",
+                "R4"
+              ]
+            },
+            "z_label": {
+              "type": "string",
+              "enum": [
+                "Z-A",
+                "Z-B"
+              ]
+            },
+            "channel_id": {
+              "type": "string",
+              "enum": [
+                "CH-A",
+                "CH-B"
+              ]
+            },
+            "frame_count": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "package_id": {
+              "type": "string",
+              "minLength": 1
+            },
+            "received": {
+              "type": "boolean"
+            },
+            "saved": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "region_id",
+            "z_label",
+            "channel_id",
+            "frame_count",
+            "package_id",
+            "received",
+            "saved"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "event_records": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "event_id": {
+              "type": "string",
+              "enum": [
+                "start",
+                "trial",
+                "reward"
+              ]
+            },
+            "sequence_index": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "package_id": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required": [
+            "event_id",
+            "sequence_index",
+            "package_id"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "motion_rows": {
+        "type": "array",
+        "maxItems": 8,
+        "items": {
+          "type": "object",
+          "properties": {
+            "row_id": {
+              "type": "string",
+              "minLength": 1
+            },
+            "region_id": {
+              "type": "string",
+              "enum": [
+                "R1",
+                "R2",
+                "R3",
+                "R4"
+              ]
+            },
+            "z_label": {
+              "type": "string",
+              "enum": [
+                "Z-A",
+                "Z-B"
+              ]
+            },
+            "channel_id": {
+              "type": "string",
+              "enum": [
+                "CH-A",
+                "CH-B"
+              ]
+            },
+            "package_id": {
+              "type": "string",
+              "minLength": 1
+            },
+            "quality_status": {
+              "type": "string",
+              "const": "within_synthetic_contract"
+            }
+          },
+          "required": [
+            "row_id",
+            "region_id",
+            "z_label",
+            "channel_id",
+            "package_id",
+            "quality_status"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "manifest_records": {
+        "type": "array",
+        "maxItems": 8,
+        "items": {
+          "type": "object",
+          "properties": {
+            "output_id": {
+              "type": "string",
+              "minLength": 1
+            },
+            "package_id": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required": [
+            "output_id",
+            "package_id"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "package_checksums": {
+        "type": "array",
+        "maxItems": 5,
+        "items": {
+          "type": "object",
+          "properties": {
+            "artifact_id": {
+              "type": "string",
+              "minLength": 1
+            },
+            "expected_digest": {
+              "type": "string",
+              "pattern": "^sha256:[0-9a-f]{64}$"
+            },
+            "computed_digest": {
+              "type": "string",
+              "pattern": "^sha256:[0-9a-f]{64}$"
+            },
+            "observed_digest": {
+              "type": "string",
+              "pattern": "^sha256:[0-9a-f]{64}$"
+            }
+          },
+          "required": [
+            "artifact_id",
+            "expected_digest",
+            "computed_digest",
+            "observed_digest"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "package_checks": {
+        "type": "array",
+        "maxItems": 7,
+        "items": {
+          "type": "object",
+          "properties": {
+            "check_id": {
+              "type": "string",
+              "enum": [
+                "region_agreement",
+                "z_assignment",
+                "channel_agreement",
+                "event_records",
+                "motion_rows",
+                "manifest_membership",
+                "checksums"
+              ]
+            },
+            "status": {
+              "type": "string",
+              "enum": [
+                "match",
+                "mismatch"
+              ]
+            }
+          },
+          "required": [
+            "check_id",
+            "status"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "validation_status": {
+        "type": "string",
+        "enum": [
+          "not_run",
+          "valid",
+          "invalid"
+        ]
+      },
+      "detected_faults": {
+        "type": "array",
+        "maxItems": 1,
+        "items": {
+          "type": "string",
+          "enum": [
+            "MISSING_REGION",
+            "WRONG_Z_ASSIGNMENT",
+            "MISSING_CHANNEL",
+            "DUPLICATE_EVENT",
+            "MISSING_EVENT",
+            "MOTION_ROW_MISMATCH",
+            "CHECKSUM_MISMATCH"
+          ]
+        }
+      },
+      "terminal_status": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "enum": [
+          null,
+          "MOCK PACKAGE VERIFIED",
+          "SYNTHETIC PACKAGE QUARANTINED",
+          "SYNTHETIC PACKAGE REJECTED"
+        ]
+      },
+      "evidence_freshness": {
+        "type": "object",
+        "properties": {
+          "safety": {
+            "type": "object",
+            "properties": {
+              "evidence_id": {
+                "type": "string",
+                "minLength": 1
+              },
+              "status": {
+                "type": "string",
+                "enum": [
+                  "current",
+                  "unavailable"
+                ]
+              }
+            },
+            "required": [
+              "evidence_id",
+              "status"
+            ],
+            "additionalProperties": false
+          },
+          "plan": {
+            "type": "object",
+            "properties": {
+              "evidence_id": {
+                "type": "string",
+                "minLength": 1
+              },
+              "status": {
+                "type": "string",
+                "enum": [
+                  "current",
+                  "unavailable"
+                ]
+              }
+            },
+            "required": [
+              "evidence_id",
+              "status"
+            ],
+            "additionalProperties": false
+          },
+          "acquisition": {
+            "type": "object",
+            "properties": {
+              "evidence_id": {
+                "type": "string",
+                "minLength": 1
+              },
+              "status": {
+                "type": "string",
+                "enum": [
+                  "current",
+                  "unavailable"
+                ]
+              }
+            },
+            "required": [
+              "evidence_id",
+              "status"
+            ],
+            "additionalProperties": false
+          },
+          "package": {
+            "type": "object",
+            "properties": {
+              "evidence_id": {
+                "type": "string",
+                "minLength": 1
+              },
+              "status": {
+                "type": "string",
+                "enum": [
+                  "current",
+                  "unavailable"
+                ]
+              }
+            },
+            "required": [
+              "evidence_id",
+              "status"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "safety",
+          "plan",
+          "acquisition",
+          "package"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "required": [
+      "stage",
+      "summary",
+      "simulation_notice",
+      "profile_catalog",
+      "sealed_profile",
+      "plan_catalog",
+      "signed_plan",
+      "safety_gate",
+      "survey",
+      "expected_outputs",
+      "region_tiles",
+      "channel_records",
+      "event_records",
+      "motion_rows",
+      "manifest_records",
+      "package_checksums",
+      "package_checks",
+      "validation_status",
+      "detected_faults",
+      "terminal_status",
+      "evidence_freshness"
+    ],
+    "additionalProperties": false
+  },
+  "hidden_state_schema": {
+    "type": "object",
+    "properties": {
+      "scenario_id": {
+        "type": "string",
+        "pattern": "^mesoscope-demo-[0-9]{3}$"
+      },
+      "visual_seed": {
+        "type": "integer"
+      },
+      "fault_id": {
+        "type": "string",
+        "enum": [
+          "valid_package",
+          "missing_region",
+          "wrong_z_assignment",
+          "missing_channel",
+          "duplicate_event",
+          "missing_event",
+          "motion_row_mismatch",
+          "checksum_mismatch"
+        ]
+      },
+      "acquisition_complete": {
+        "type": "boolean"
+      },
+      "validation_complete": {
+        "type": "boolean"
+      },
+      "package_valid": {
+        "type": [
+          "boolean",
+          "null"
+        ]
+      },
+      "terminal_action": {
+        "type": "string",
+        "enum": [
+          "none",
+          "accepted",
+          "quarantined",
+          "rejected"
+        ]
+      }
+    },
+    "required": [
+      "scenario_id",
+      "visual_seed",
+      "fault_id",
+      "acquisition_complete",
+      "validation_complete",
+      "package_valid",
+      "terminal_action"
+    ],
+    "additionalProperties": false
+  },
+  "actions": [
+    {
+      "type": "inspect_sealed_handoff",
+      "title": "Inspect sealed synthetic handoff",
+      "description": "Inspect the immutable synthetic profile, plan, and safety evidence.",
+      "group": "inspect",
+      "changes_state": false,
+      "input_schema": {
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false
+      }
+    },
+    {
+      "type": "run_mock_acquisition",
+      "title": "Run synthetic mock acquisition",
+      "description": "Run one deterministic software-only acquisition with no hardware connector.",
+      "group": "collect",
+      "changes_state": true,
+      "input_schema": {
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false
+      }
+    },
+    {
+      "type": "validate_mock_package",
+      "title": "Validate synthetic mock package",
+      "description": "Compare every synthetic package record with the sealed expected contract.",
+      "group": "collect",
+      "changes_state": true,
+      "input_schema": {
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false
+      }
+    },
+    {
+      "type": "accept_mock_package",
+      "title": "Accept sealed synthetic package",
+      "description": "Accept only a completely agreeing synthetic package.",
+      "group": "decide",
+      "changes_state": true,
+      "input_schema": {
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false
+      }
+    },
+    {
+      "type": "quarantine_mock_package",
+      "title": "Quarantine sealed synthetic package",
+      "description": "Quarantine an invalid synthetic package without changing it.",
+      "group": "decide",
+      "changes_state": true,
+      "input_schema": {
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false
+      }
+    },
+    {
+      "type": "reject_mock_package",
+      "title": "Reject sealed synthetic package",
+      "description": "Reject an invalid synthetic package without changing it.",
+      "group": "decide",
+      "changes_state": true,
+      "input_schema": {
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false
+      }
+    }
+  ],
+  "procedure": {
+    "initial_state": "sealed_preflight",
+    "states": [
+      {
+        "id": "sealed_preflight",
+        "terminal": false
+      },
+      {
+        "id": "inspection_complete",
+        "terminal": false
+      },
+      {
+        "id": "package_review",
+        "terminal": false
+      },
+      {
+        "id": "disposition_ready",
+        "terminal": false
+      },
+      {
+        "id": "mock_package_verified",
+        "terminal": true
+      },
+      {
+        "id": "package_quarantined",
+        "terminal": true
+      },
+      {
+        "id": "package_rejected",
+        "terminal": true
+      }
+    ],
+    "transitions": [
+      {
+        "id": "inspect-sealed-handoff",
+        "from_state": "sealed_preflight",
+        "action": "inspect_sealed_handoff",
+        "to_state": "inspection_complete"
+      },
+      {
+        "id": "run-synthetic-acquisition",
+        "from_state": "inspection_complete",
+        "action": "run_mock_acquisition",
+        "to_state": "package_review"
+      },
+      {
+        "id": "validate-synthetic-package",
+        "from_state": "package_review",
+        "action": "validate_mock_package",
+        "to_state": "disposition_ready"
+      },
+      {
+        "id": "accept-synthetic-package",
+        "from_state": "disposition_ready",
+        "action": "accept_mock_package",
+        "to_state": "mock_package_verified"
+      },
+      {
+        "id": "quarantine-synthetic-package",
+        "from_state": "disposition_ready",
+        "action": "quarantine_mock_package",
+        "to_state": "package_quarantined"
+      },
+      {
+        "id": "reject-synthetic-package",
+        "from_state": "disposition_ready",
+        "action": "reject_mock_package",
+        "to_state": "package_rejected"
+      }
+    ]
+  },
+  "split_identities": [
+    "demonstration"
+  ],
+  "scenarios": [
+    {
+      "id": "mesoscope-demo-001",
+      "split": "demonstration",
+      "seed": 4100,
+      "console_label": "Sealed example A",
+      "console_stage": "sealed_handoff",
+      "initial_state": {
+        "policy_visible": {
+          "stage": "sealed_preflight",
+          "summary": "Sealed synthetic four-region handoff loaded with no hardware connection.",
+          "simulation_notice": "SIMULATED DATA — NO HARDWARE CONNECTION — NOT LASER OR ANIMAL GUIDANCE",
+          "profile_catalog": [
+            {
+              "profile_id": "paper-derived-context-v1",
+              "provenance_label": "5 mm diameter research-paper convention",
+              "selected": true,
+              "immutable": true
+            },
+            {
+              "profile_id": "commercial-reference-v1",
+              "provenance_label": "5 mm × 5 mm current commercial-page convention",
+              "selected": false,
+              "immutable": true
+            }
+          ],
+          "sealed_profile": {
+            "profile_id": "paper-derived-context-v1",
+            "source_geometry": "5 mm diameter research-paper convention",
+            "immutable": true,
+            "simulation_only": true,
+            "status": "sealed"
+          },
+          "plan_catalog": [
+            {
+              "plan_id": "4R-HANDOFF-v1",
+              "signature_digest": "sha256:7143c9080bc365f96e8793e8eb011d5a40856d26e78535b2193f6d92b7d2683c",
+              "selected": true,
+              "immutable": true
+            },
+            {
+              "plan_id": "4R-HANDOFF-reference-v1",
+              "signature_digest": "sha256:ea71f22af5498a5c88a8904e2de3392b85c9027e454c9b60649725f4c1ad22bb",
+              "selected": false,
+              "immutable": true
+            }
+          ],
+          "signed_plan": {
+            "plan_id": "4R-HANDOFF-v1",
+            "immutable": true,
+            "regions": [
+              {
+                "region_id": "R1",
+                "z_label": "Z-A",
+                "visit_order": 1,
+                "tile_seed_offset": 0
+              },
+              {
+                "region_id": "R2",
+                "z_label": "Z-A",
+                "visit_order": 2,
+                "tile_seed_offset": 101
+              },
+              {
+                "region_id": "R3",
+                "z_label": "Z-B",
+                "visit_order": 3,
+                "tile_seed_offset": 202
+              },
+              {
+                "region_id": "R4",
+                "z_label": "Z-B",
+                "visit_order": 4,
+                "tile_seed_offset": 303
+              }
+            ],
+            "signature_digest": "sha256:7143c9080bc365f96e8793e8eb011d5a40856d26e78535b2193f6d92b7d2683c"
+          },
+          "safety_gate": {
+            "state": "closed",
+            "immutable": true,
+            "independently_enforced": true
+          },
+          "survey": {
+            "kind": "procedural_non_biological_phantom",
+            "visual_seed": 7100,
+            "synthetic": true,
+            "watermark": "SYNTHETIC"
+          },
+          "expected_outputs": [
+            {
+              "region_id": "R1",
+              "z_label": "Z-A",
+              "channel_id": "CH-A",
+              "output_id": "R1-ZA-CHA",
+              "frame_count": 12
+            },
+            {
+              "region_id": "R1",
+              "z_label": "Z-A",
+              "channel_id": "CH-B",
+              "output_id": "R1-ZA-CHB",
+              "frame_count": 12
+            },
+            {
+              "region_id": "R2",
+              "z_label": "Z-A",
+              "channel_id": "CH-A",
+              "output_id": "R2-ZA-CHA",
+              "frame_count": 12
+            },
+            {
+              "region_id": "R2",
+              "z_label": "Z-A",
+              "channel_id": "CH-B",
+              "output_id": "R2-ZA-CHB",
+              "frame_count": 12
+            },
+            {
+              "region_id": "R3",
+              "z_label": "Z-B",
+              "channel_id": "CH-A",
+              "output_id": "R3-ZB-CHA",
+              "frame_count": 12
+            },
+            {
+              "region_id": "R3",
+              "z_label": "Z-B",
+              "channel_id": "CH-B",
+              "output_id": "R3-ZB-CHB",
+              "frame_count": 12
+            },
+            {
+              "region_id": "R4",
+              "z_label": "Z-B",
+              "channel_id": "CH-A",
+              "output_id": "R4-ZB-CHA",
+              "frame_count": 12
+            },
+            {
+              "region_id": "R4",
+              "z_label": "Z-B",
+              "channel_id": "CH-B",
+              "output_id": "R4-ZB-CHB",
+              "frame_count": 12
+            }
+          ],
+          "region_tiles": [
+            {
+              "region_id": "R1",
+              "z_label": "Z-A",
+              "tile_seed": 7100,
+              "synthetic": true,
+              "status": "cached"
+            },
+            {
+              "region_id": "R2",
+              "z_label": "Z-A",
+              "tile_seed": 7201,
+              "synthetic": true,
+              "status": "cached"
+            },
+            {
+              "region_id": "R3",
+              "z_label": "Z-B",
+              "tile_seed": 7302,
+              "synthetic": true,
+              "status": "cached"
+            },
+            {
+              "region_id": "R4",
+              "z_label": "Z-B",
+              "tile_seed": 7403,
+              "synthetic": true,
+              "status": "cached"
+            }
+          ],
+          "channel_records": [],
+          "event_records": [],
+          "motion_rows": [],
+          "manifest_records": [],
+          "package_checksums": [],
+          "package_checks": [],
+          "validation_status": "not_run",
+          "detected_faults": [],
+          "terminal_status": null,
+          "evidence_freshness": {
+            "safety": {
+              "evidence_id": "meso-safety-001",
+              "status": "current"
+            },
+            "plan": {
+              "evidence_id": "meso-plan-001",
+              "status": "current"
+            },
+            "acquisition": {
+              "evidence_id": "meso-acquisition-001",
+              "status": "unavailable"
+            },
+            "package": {
+              "evidence_id": "meso-package-001",
+              "status": "unavailable"
+            }
+          }
+        },
+        "hidden": {
+          "scenario_id": "mesoscope-demo-001",
+          "visual_seed": 7100,
+          "fault_id": "valid_package",
+          "acquisition_complete": false,
+          "validation_complete": false,
+          "package_valid": null,
+          "terminal_action": "none"
+        }
+      }
+    },
+    {
+      "id": "mesoscope-demo-002",
+      "split": "demonstration",
+      "seed": 4101,
+      "console_label": "Sealed example B",
+      "console_stage": "sealed_handoff",
+      "initial_state": {
+        "policy_visible": {
+          "stage": "sealed_preflight",
+          "summary": "Sealed synthetic four-region handoff loaded with no hardware connection.",
+          "simulation_notice": "SIMULATED DATA — NO HARDWARE CONNECTION — NOT LASER OR ANIMAL GUIDANCE",
+          "profile_catalog": [
+            {
+              "profile_id": "paper-derived-context-v1",
+              "provenance_label": "5 mm diameter research-paper convention",
+              "selected": true,
+              "immutable": true
+            },
+            {
+              "profile_id": "commercial-reference-v1",
+              "provenance_label": "5 mm × 5 mm current commercial-page convention",
+              "selected": false,
+              "immutable": true
+            }
+          ],
+          "sealed_profile": {
+            "profile_id": "paper-derived-context-v1",
+            "source_geometry": "5 mm diameter research-paper convention",
+            "immutable": true,
+            "simulation_only": true,
+            "status": "sealed"
+          },
+          "plan_catalog": [
+            {
+              "plan_id": "4R-HANDOFF-v1",
+              "signature_digest": "sha256:7143c9080bc365f96e8793e8eb011d5a40856d26e78535b2193f6d92b7d2683c",
+              "selected": true,
+              "immutable": true
+            },
+            {
+              "plan_id": "4R-HANDOFF-reference-v1",
+              "signature_digest": "sha256:ea71f22af5498a5c88a8904e2de3392b85c9027e454c9b60649725f4c1ad22bb",
+              "selected": false,
+              "immutable": true
+            }
+          ],
+          "signed_plan": {
+            "plan_id": "4R-HANDOFF-v1",
+            "immutable": true,
+            "regions": [
+              {
+                "region_id": "R1",
+                "z_label": "Z-A",
+                "visit_order": 1,
+                "tile_seed_offset": 0
+              },
+              {
+                "region_id": "R2",
+                "z_label": "Z-A",
+                "visit_order": 2,
+                "tile_seed_offset": 101
+              },
+              {
+                "region_id": "R3",
+                "z_label": "Z-B",
+                "visit_order": 3,
+                "tile_seed_offset": 202
+              },
+              {
+                "region_id": "R4",
+                "z_label": "Z-B",
+                "visit_order": 4,
+                "tile_seed_offset": 303
+              }
+            ],
+            "signature_digest": "sha256:7143c9080bc365f96e8793e8eb011d5a40856d26e78535b2193f6d92b7d2683c"
+          },
+          "safety_gate": {
+            "state": "closed",
+            "immutable": true,
+            "independently_enforced": true
+          },
+          "survey": {
+            "kind": "procedural_non_biological_phantom",
+            "visual_seed": 7237,
+            "synthetic": true,
+            "watermark": "SYNTHETIC"
+          },
+          "expected_outputs": [
+            {
+              "region_id": "R1",
+              "z_label": "Z-A",
+              "channel_id": "CH-A",
+              "output_id": "R1-ZA-CHA",
+              "frame_count": 12
+            },
+            {
+              "region_id": "R1",
+              "z_label": "Z-A",
+              "channel_id": "CH-B",
+              "output_id": "R1-ZA-CHB",
+              "frame_count": 12
+            },
+            {
+              "region_id": "R2",
+              "z_label": "Z-A",
+              "channel_id": "CH-A",
+              "output_id": "R2-ZA-CHA",
+              "frame_count": 12
+            },
+            {
+              "region_id": "R2",
+              "z_label": "Z-A",
+              "channel_id": "CH-B",
+              "output_id": "R2-ZA-CHB",
+              "frame_count": 12
+            },
+            {
+              "region_id": "R3",
+              "z_label": "Z-B",
+              "channel_id": "CH-A",
+              "output_id": "R3-ZB-CHA",
+              "frame_count": 12
+            },
+            {
+              "region_id": "R3",
+              "z_label": "Z-B",
+              "channel_id": "CH-B",
+              "output_id": "R3-ZB-CHB",
+              "frame_count": 12
+            },
+            {
+              "region_id": "R4",
+              "z_label": "Z-B",
+              "channel_id": "CH-A",
+              "output_id": "R4-ZB-CHA",
+              "frame_count": 12
+            },
+            {
+              "region_id": "R4",
+              "z_label": "Z-B",
+              "channel_id": "CH-B",
+              "output_id": "R4-ZB-CHB",
+              "frame_count": 12
+            }
+          ],
+          "region_tiles": [
+            {
+              "region_id": "R1",
+              "z_label": "Z-A",
+              "tile_seed": 7237,
+              "synthetic": true,
+              "status": "cached"
+            },
+            {
+              "region_id": "R2",
+              "z_label": "Z-A",
+              "tile_seed": 7338,
+              "synthetic": true,
+              "status": "cached"
+            },
+            {
+              "region_id": "R3",
+              "z_label": "Z-B",
+              "tile_seed": 7439,
+              "synthetic": true,
+              "status": "cached"
+            },
+            {
+              "region_id": "R4",
+              "z_label": "Z-B",
+              "tile_seed": 7540,
+              "synthetic": true,
+              "status": "cached"
+            }
+          ],
+          "channel_records": [],
+          "event_records": [],
+          "motion_rows": [],
+          "manifest_records": [],
+          "package_checksums": [],
+          "package_checks": [],
+          "validation_status": "not_run",
+          "detected_faults": [],
+          "terminal_status": null,
+          "evidence_freshness": {
+            "safety": {
+              "evidence_id": "meso-safety-001",
+              "status": "current"
+            },
+            "plan": {
+              "evidence_id": "meso-plan-001",
+              "status": "current"
+            },
+            "acquisition": {
+              "evidence_id": "meso-acquisition-001",
+              "status": "unavailable"
+            },
+            "package": {
+              "evidence_id": "meso-package-001",
+              "status": "unavailable"
+            }
+          }
+        },
+        "hidden": {
+          "scenario_id": "mesoscope-demo-002",
+          "visual_seed": 7237,
+          "fault_id": "missing_region",
+          "acquisition_complete": false,
+          "validation_complete": false,
+          "package_valid": null,
+          "terminal_action": "none"
+        }
+      }
+    },
+    {
+      "id": "mesoscope-demo-003",
+      "split": "demonstration",
+      "seed": 4102,
+      "console_label": "Sealed example C",
+      "console_stage": "sealed_handoff",
+      "initial_state": {
+        "policy_visible": {
+          "stage": "sealed_preflight",
+          "summary": "Sealed synthetic four-region handoff loaded with no hardware connection.",
+          "simulation_notice": "SIMULATED DATA — NO HARDWARE CONNECTION — NOT LASER OR ANIMAL GUIDANCE",
+          "profile_catalog": [
+            {
+              "profile_id": "paper-derived-context-v1",
+              "provenance_label": "5 mm diameter research-paper convention",
+              "selected": true,
+              "immutable": true
+            },
+            {
+              "profile_id": "commercial-reference-v1",
+              "provenance_label": "5 mm × 5 mm current commercial-page convention",
+              "selected": false,
+              "immutable": true
+            }
+          ],
+          "sealed_profile": {
+            "profile_id": "paper-derived-context-v1",
+            "source_geometry": "5 mm diameter research-paper convention",
+            "immutable": true,
+            "simulation_only": true,
+            "status": "sealed"
+          },
+          "plan_catalog": [
+            {
+              "plan_id": "4R-HANDOFF-v1",
+              "signature_digest": "sha256:7143c9080bc365f96e8793e8eb011d5a40856d26e78535b2193f6d92b7d2683c",
+              "selected": true,
+              "immutable": true
+            },
+            {
+              "plan_id": "4R-HANDOFF-reference-v1",
+              "signature_digest": "sha256:ea71f22af5498a5c88a8904e2de3392b85c9027e454c9b60649725f4c1ad22bb",
+              "selected": false,
+              "immutable": true
+            }
+          ],
+          "signed_plan": {
+            "plan_id": "4R-HANDOFF-v1",
+            "immutable": true,
+            "regions": [
+              {
+                "region_id": "R1",
+                "z_label": "Z-A",
+                "visit_order": 1,
+                "tile_seed_offset": 0
+              },
+              {
+                "region_id": "R2",
+                "z_label": "Z-A",
+                "visit_order": 2,
+                "tile_seed_offset": 101
+              },
+              {
+                "region_id": "R3",
+                "z_label": "Z-B",
+                "visit_order": 3,
+                "tile_seed_offset": 202
+              },
+              {
+                "region_id": "R4",
+                "z_label": "Z-B",
+                "visit_order": 4,
+                "tile_seed_offset": 303
+              }
+            ],
+            "signature_digest": "sha256:7143c9080bc365f96e8793e8eb011d5a40856d26e78535b2193f6d92b7d2683c"
+          },
+          "safety_gate": {
+            "state": "closed",
+            "immutable": true,
+            "independently_enforced": true
+          },
+          "survey": {
+            "kind": "procedural_non_biological_phantom",
+            "visual_seed": 7374,
+            "synthetic": true,
+            "watermark": "SYNTHETIC"
+          },
+          "expected_outputs": [
+            {
+              "region_id": "R1",
+              "z_label": "Z-A",
+              "channel_id": "CH-A",
+              "output_id": "R1-ZA-CHA",
+              "frame_count": 12
+            },
+            {
+              "region_id": "R1",
+              "z_label": "Z-A",
+              "channel_id": "CH-B",
+              "output_id": "R1-ZA-CHB",
+              "frame_count": 12
+            },
+            {
+              "region_id": "R2",
+              "z_label": "Z-A",
+              "channel_id": "CH-A",
+              "output_id": "R2-ZA-CHA",
+              "frame_count": 12
+            },
+            {
+              "region_id": "R2",
+              "z_label": "Z-A",
+              "channel_id": "CH-B",
+              "output_id": "R2-ZA-CHB",
+              "frame_count": 12
+            },
+            {
+              "region_id": "R3",
+              "z_label": "Z-B",
+              "channel_id": "CH-A",
+              "output_id": "R3-ZB-CHA",
+              "frame_count": 12
+            },
+            {
+              "region_id": "R3",
+              "z_label": "Z-B",
+              "channel_id": "CH-B",
+              "output_id": "R3-ZB-CHB",
+              "frame_count": 12
+            },
+            {
+              "region_id": "R4",
+              "z_label": "Z-B",
+              "channel_id": "CH-A",
+              "output_id": "R4-ZB-CHA",
+              "frame_count": 12
+            },
+            {
+              "region_id": "R4",
+              "z_label": "Z-B",
+              "channel_id": "CH-B",
+              "output_id": "R4-ZB-CHB",
+              "frame_count": 12
+            }
+          ],
+          "region_tiles": [
+            {
+              "region_id": "R1",
+              "z_label": "Z-A",
+              "tile_seed": 7374,
+              "synthetic": true,
+              "status": "cached"
+            },
+            {
+              "region_id": "R2",
+              "z_label": "Z-A",
+              "tile_seed": 7475,
+              "synthetic": true,
+              "status": "cached"
+            },
+            {
+              "region_id": "R3",
+              "z_label": "Z-B",
+              "tile_seed": 7576,
+              "synthetic": true,
+              "status": "cached"
+            },
+            {
+              "region_id": "R4",
+              "z_label": "Z-B",
+              "tile_seed": 7677,
+              "synthetic": true,
+              "status": "cached"
+            }
+          ],
+          "channel_records": [],
+          "event_records": [],
+          "motion_rows": [],
+          "manifest_records": [],
+          "package_checksums": [],
+          "package_checks": [],
+          "validation_status": "not_run",
+          "detected_faults": [],
+          "terminal_status": null,
+          "evidence_freshness": {
+            "safety": {
+              "evidence_id": "meso-safety-001",
+              "status": "current"
+            },
+            "plan": {
+              "evidence_id": "meso-plan-001",
+              "status": "current"
+            },
+            "acquisition": {
+              "evidence_id": "meso-acquisition-001",
+              "status": "unavailable"
+            },
+            "package": {
+              "evidence_id": "meso-package-001",
+              "status": "unavailable"
+            }
+          }
+        },
+        "hidden": {
+          "scenario_id": "mesoscope-demo-003",
+          "visual_seed": 7374,
+          "fault_id": "wrong_z_assignment",
+          "acquisition_complete": false,
+          "validation_complete": false,
+          "package_valid": null,
+          "terminal_action": "none"
+        }
+      }
+    },
+    {
+      "id": "mesoscope-demo-004",
+      "split": "demonstration",
+      "seed": 4103,
+      "console_label": "Sealed example D",
+      "console_stage": "sealed_handoff",
+      "initial_state": {
+        "policy_visible": {
+          "stage": "sealed_preflight",
+          "summary": "Sealed synthetic four-region handoff loaded with no hardware connection.",
+          "simulation_notice": "SIMULATED DATA — NO HARDWARE CONNECTION — NOT LASER OR ANIMAL GUIDANCE",
+          "profile_catalog": [
+            {
+              "profile_id": "paper-derived-context-v1",
+              "provenance_label": "5 mm diameter research-paper convention",
+              "selected": true,
+              "immutable": true
+            },
+            {
+              "profile_id": "commercial-reference-v1",
+              "provenance_label": "5 mm × 5 mm current commercial-page convention",
+              "selected": false,
+              "immutable": true
+            }
+          ],
+          "sealed_profile": {
+            "profile_id": "paper-derived-context-v1",
+            "source_geometry": "5 mm diameter research-paper convention",
+            "immutable": true,
+            "simulation_only": true,
+            "status": "sealed"
+          },
+          "plan_catalog": [
+            {
+              "plan_id": "4R-HANDOFF-v1",
+              "signature_digest": "sha256:7143c9080bc365f96e8793e8eb011d5a40856d26e78535b2193f6d92b7d2683c",
+              "selected": true,
+              "immutable": true
+            },
+            {
+              "plan_id": "4R-HANDOFF-reference-v1",
+              "signature_digest": "sha256:ea71f22af5498a5c88a8904e2de3392b85c9027e454c9b60649725f4c1ad22bb",
+              "selected": false,
+              "immutable": true
+            }
+          ],
+          "signed_plan": {
+            "plan_id": "4R-HANDOFF-v1",
+            "immutable": true,
+            "regions": [
+              {
+                "region_id": "R1",
+                "z_label": "Z-A",
+                "visit_order": 1,
+                "tile_seed_offset": 0
+              },
+              {
+                "region_id": "R2",
+                "z_label": "Z-A",
+                "visit_order": 2,
+                "tile_seed_offset": 101
+              },
+              {
+                "region_id": "R3",
+                "z_label": "Z-B",
+                "visit_order": 3,
+                "tile_seed_offset": 202
+              },
+              {
+                "region_id": "R4",
+                "z_label": "Z-B",
+                "visit_order": 4,
+                "tile_seed_offset": 303
+              }
+            ],
+            "signature_digest": "sha256:7143c9080bc365f96e8793e8eb011d5a40856d26e78535b2193f6d92b7d2683c"
+          },
+          "safety_gate": {
+            "state": "closed",
+            "immutable": true,
+            "independently_enforced": true
+          },
+          "survey": {
+            "kind": "procedural_non_biological_phantom",
+            "visual_seed": 7511,
+            "synthetic": true,
+            "watermark": "SYNTHETIC"
+          },
+          "expected_outputs": [
+            {
+              "region_id": "R1",
+              "z_label": "Z-A",
+              "channel_id": "CH-A",
+              "output_id": "R1-ZA-CHA",
+              "frame_count": 12
+            },
+            {
+              "region_id": "R1",
+              "z_label": "Z-A",
+              "channel_id": "CH-B",
+              "output_id": "R1-ZA-CHB",
+              "frame_count": 12
+            },
+            {
+              "region_id": "R2",
+              "z_label": "Z-A",
+              "channel_id": "CH-A",
+              "output_id": "R2-ZA-CHA",
+              "frame_count": 12
+            },
+            {
+              "region_id": "R2",
+              "z_label": "Z-A",
+              "channel_id": "CH-B",
+              "output_id": "R2-ZA-CHB",
+              "frame_count": 12
+            },
+            {
+              "region_id": "R3",
+              "z_label": "Z-B",
+              "channel_id": "CH-A",
+              "output_id": "R3-ZB-CHA",
+              "frame_count": 12
+            },
+            {
+              "region_id": "R3",
+              "z_label": "Z-B",
+              "channel_id": "CH-B",
+              "output_id": "R3-ZB-CHB",
+              "frame_count": 12
+            },
+            {
+              "region_id": "R4",
+              "z_label": "Z-B",
+              "channel_id": "CH-A",
+              "output_id": "R4-ZB-CHA",
+              "frame_count": 12
+            },
+            {
+              "region_id": "R4",
+              "z_label": "Z-B",
+              "channel_id": "CH-B",
+              "output_id": "R4-ZB-CHB",
+              "frame_count": 12
+            }
+          ],
+          "region_tiles": [
+            {
+              "region_id": "R1",
+              "z_label": "Z-A",
+              "tile_seed": 7511,
+              "synthetic": true,
+              "status": "cached"
+            },
+            {
+              "region_id": "R2",
+              "z_label": "Z-A",
+              "tile_seed": 7612,
+              "synthetic": true,
+              "status": "cached"
+            },
+            {
+              "region_id": "R3",
+              "z_label": "Z-B",
+              "tile_seed": 7713,
+              "synthetic": true,
+              "status": "cached"
+            },
+            {
+              "region_id": "R4",
+              "z_label": "Z-B",
+              "tile_seed": 7814,
+              "synthetic": true,
+              "status": "cached"
+            }
+          ],
+          "channel_records": [],
+          "event_records": [],
+          "motion_rows": [],
+          "manifest_records": [],
+          "package_checksums": [],
+          "package_checks": [],
+          "validation_status": "not_run",
+          "detected_faults": [],
+          "terminal_status": null,
+          "evidence_freshness": {
+            "safety": {
+              "evidence_id": "meso-safety-001",
+              "status": "current"
+            },
+            "plan": {
+              "evidence_id": "meso-plan-001",
+              "status": "current"
+            },
+            "acquisition": {
+              "evidence_id": "meso-acquisition-001",
+              "status": "unavailable"
+            },
+            "package": {
+              "evidence_id": "meso-package-001",
+              "status": "unavailable"
+            }
+          }
+        },
+        "hidden": {
+          "scenario_id": "mesoscope-demo-004",
+          "visual_seed": 7511,
+          "fault_id": "missing_channel",
+          "acquisition_complete": false,
+          "validation_complete": false,
+          "package_valid": null,
+          "terminal_action": "none"
+        }
+      }
+    },
+    {
+      "id": "mesoscope-demo-005",
+      "split": "demonstration",
+      "seed": 4104,
+      "console_label": "Sealed example E",
+      "console_stage": "sealed_handoff",
+      "initial_state": {
+        "policy_visible": {
+          "stage": "sealed_preflight",
+          "summary": "Sealed synthetic four-region handoff loaded with no hardware connection.",
+          "simulation_notice": "SIMULATED DATA — NO HARDWARE CONNECTION — NOT LASER OR ANIMAL GUIDANCE",
+          "profile_catalog": [
+            {
+              "profile_id": "paper-derived-context-v1",
+              "provenance_label": "5 mm diameter research-paper convention",
+              "selected": true,
+              "immutable": true
+            },
+            {
+              "profile_id": "commercial-reference-v1",
+              "provenance_label": "5 mm × 5 mm current commercial-page convention",
+              "selected": false,
+              "immutable": true
+            }
+          ],
+          "sealed_profile": {
+            "profile_id": "paper-derived-context-v1",
+            "source_geometry": "5 mm diameter research-paper convention",
+            "immutable": true,
+            "simulation_only": true,
+            "status": "sealed"
+          },
+          "plan_catalog": [
+            {
+              "plan_id": "4R-HANDOFF-v1",
+              "signature_digest": "sha256:7143c9080bc365f96e8793e8eb011d5a40856d26e78535b2193f6d92b7d2683c",
+              "selected": true,
+              "immutable": true
+            },
+            {
+              "plan_id": "4R-HANDOFF-reference-v1",
+              "signature_digest": "sha256:ea71f22af5498a5c88a8904e2de3392b85c9027e454c9b60649725f4c1ad22bb",
+              "selected": false,
+              "immutable": true
+            }
+          ],
+          "signed_plan": {
+            "plan_id": "4R-HANDOFF-v1",
+            "immutable": true,
+            "regions": [
+              {
+                "region_id": "R1",
+                "z_label": "Z-A",
+                "visit_order": 1,
+                "tile_seed_offset": 0
+              },
+              {
+                "region_id": "R2",
+                "z_label": "Z-A",
+                "visit_order": 2,
+                "tile_seed_offset": 101
+              },
+              {
+                "region_id": "R3",
+                "z_label": "Z-B",
+                "visit_order": 3,
+                "tile_seed_offset": 202
+              },
+              {
+                "region_id": "R4",
+                "z_label": "Z-B",
+                "visit_order": 4,
+                "tile_seed_offset": 303
+              }
+            ],
+            "signature_digest": "sha256:7143c9080bc365f96e8793e8eb011d5a40856d26e78535b2193f6d92b7d2683c"
+          },
+          "safety_gate": {
+            "state": "closed",
+            "immutable": true,
+            "independently_enforced": true
+          },
+          "survey": {
+            "kind": "procedural_non_biological_phantom",
+            "visual_seed": 7648,
+            "synthetic": true,
+            "watermark": "SYNTHETIC"
+          },
+          "expected_outputs": [
+            {
+              "region_id": "R1",
+              "z_label": "Z-A",
+              "channel_id": "CH-A",
+              "output_id": "R1-ZA-CHA",
+              "frame_count": 12
+            },
+            {
+              "region_id": "R1",
+              "z_label": "Z-A",
+              "channel_id": "CH-B",
+              "output_id": "R1-ZA-CHB",
+              "frame_count": 12
+            },
+            {
+              "region_id": "R2",
+              "z_label": "Z-A",
+              "channel_id": "CH-A",
+              "output_id": "R2-ZA-CHA",
+              "frame_count": 12
+            },
+            {
+              "region_id": "R2",
+              "z_label": "Z-A",
+              "channel_id": "CH-B",
+              "output_id": "R2-ZA-CHB",
+              "frame_count": 12
+            },
+            {
+              "region_id": "R3",
+              "z_label": "Z-B",
+              "channel_id": "CH-A",
+              "output_id": "R3-ZB-CHA",
+              "frame_count": 12
+            },
+            {
+              "region_id": "R3",
+              "z_label": "Z-B",
+              "channel_id": "CH-B",
+              "output_id": "R3-ZB-CHB",
+              "frame_count": 12
+            },
+            {
+              "region_id": "R4",
+              "z_label": "Z-B",
+              "channel_id": "CH-A",
+              "output_id": "R4-ZB-CHA",
+              "frame_count": 12
+            },
+            {
+              "region_id": "R4",
+              "z_label": "Z-B",
+              "channel_id": "CH-B",
+              "output_id": "R4-ZB-CHB",
+              "frame_count": 12
+            }
+          ],
+          "region_tiles": [
+            {
+              "region_id": "R1",
+              "z_label": "Z-A",
+              "tile_seed": 7648,
+              "synthetic": true,
+              "status": "cached"
+            },
+            {
+              "region_id": "R2",
+              "z_label": "Z-A",
+              "tile_seed": 7749,
+              "synthetic": true,
+              "status": "cached"
+            },
+            {
+              "region_id": "R3",
+              "z_label": "Z-B",
+              "tile_seed": 7850,
+              "synthetic": true,
+              "status": "cached"
+            },
+            {
+              "region_id": "R4",
+              "z_label": "Z-B",
+              "tile_seed": 7951,
+              "synthetic": true,
+              "status": "cached"
+            }
+          ],
+          "channel_records": [],
+          "event_records": [],
+          "motion_rows": [],
+          "manifest_records": [],
+          "package_checksums": [],
+          "package_checks": [],
+          "validation_status": "not_run",
+          "detected_faults": [],
+          "terminal_status": null,
+          "evidence_freshness": {
+            "safety": {
+              "evidence_id": "meso-safety-001",
+              "status": "current"
+            },
+            "plan": {
+              "evidence_id": "meso-plan-001",
+              "status": "current"
+            },
+            "acquisition": {
+              "evidence_id": "meso-acquisition-001",
+              "status": "unavailable"
+            },
+            "package": {
+              "evidence_id": "meso-package-001",
+              "status": "unavailable"
+            }
+          }
+        },
+        "hidden": {
+          "scenario_id": "mesoscope-demo-005",
+          "visual_seed": 7648,
+          "fault_id": "duplicate_event",
+          "acquisition_complete": false,
+          "validation_complete": false,
+          "package_valid": null,
+          "terminal_action": "none"
+        }
+      }
+    },
+    {
+      "id": "mesoscope-demo-006",
+      "split": "demonstration",
+      "seed": 4105,
+      "console_label": "Sealed example F",
+      "console_stage": "sealed_handoff",
+      "initial_state": {
+        "policy_visible": {
+          "stage": "sealed_preflight",
+          "summary": "Sealed synthetic four-region handoff loaded with no hardware connection.",
+          "simulation_notice": "SIMULATED DATA — NO HARDWARE CONNECTION — NOT LASER OR ANIMAL GUIDANCE",
+          "profile_catalog": [
+            {
+              "profile_id": "paper-derived-context-v1",
+              "provenance_label": "5 mm diameter research-paper convention",
+              "selected": true,
+              "immutable": true
+            },
+            {
+              "profile_id": "commercial-reference-v1",
+              "provenance_label": "5 mm × 5 mm current commercial-page convention",
+              "selected": false,
+              "immutable": true
+            }
+          ],
+          "sealed_profile": {
+            "profile_id": "paper-derived-context-v1",
+            "source_geometry": "5 mm diameter research-paper convention",
+            "immutable": true,
+            "simulation_only": true,
+            "status": "sealed"
+          },
+          "plan_catalog": [
+            {
+              "plan_id": "4R-HANDOFF-v1",
+              "signature_digest": "sha256:7143c9080bc365f96e8793e8eb011d5a40856d26e78535b2193f6d92b7d2683c",
+              "selected": true,
+              "immutable": true
+            },
+            {
+              "plan_id": "4R-HANDOFF-reference-v1",
+              "signature_digest": "sha256:ea71f22af5498a5c88a8904e2de3392b85c9027e454c9b60649725f4c1ad22bb",
+              "selected": false,
+              "immutable": true
+            }
+          ],
+          "signed_plan": {
+            "plan_id": "4R-HANDOFF-v1",
+            "immutable": true,
+            "regions": [
+              {
+                "region_id": "R1",
+                "z_label": "Z-A",
+                "visit_order": 1,
+                "tile_seed_offset": 0
+              },
+              {
+                "region_id": "R2",
+                "z_label": "Z-A",
+                "visit_order": 2,
+                "tile_seed_offset": 101
+              },
+              {
+                "region_id": "R3",
+                "z_label": "Z-B",
+                "visit_order": 3,
+                "tile_seed_offset": 202
+              },
+              {
+                "region_id": "R4",
+                "z_label": "Z-B",
+                "visit_order": 4,
+                "tile_seed_offset": 303
+              }
+            ],
+            "signature_digest": "sha256:7143c9080bc365f96e8793e8eb011d5a40856d26e78535b2193f6d92b7d2683c"
+          },
+          "safety_gate": {
+            "state": "closed",
+            "immutable": true,
+            "independently_enforced": true
+          },
+          "survey": {
+            "kind": "procedural_non_biological_phantom",
+            "visual_seed": 7785,
+            "synthetic": true,
+            "watermark": "SYNTHETIC"
+          },
+          "expected_outputs": [
+            {
+              "region_id": "R1",
+              "z_label": "Z-A",
+              "channel_id": "CH-A",
+              "output_id": "R1-ZA-CHA",
+              "frame_count": 12
+            },
+            {
+              "region_id": "R1",
+              "z_label": "Z-A",
+              "channel_id": "CH-B",
+              "output_id": "R1-ZA-CHB",
+              "frame_count": 12
+            },
+            {
+              "region_id": "R2",
+              "z_label": "Z-A",
+              "channel_id": "CH-A",
+              "output_id": "R2-ZA-CHA",
+              "frame_count": 12
+            },
+            {
+              "region_id": "R2",
+              "z_label": "Z-A",
+              "channel_id": "CH-B",
+              "output_id": "R2-ZA-CHB",
+              "frame_count": 12
+            },
+            {
+              "region_id": "R3",
+              "z_label": "Z-B",
+              "channel_id": "CH-A",
+              "output_id": "R3-ZB-CHA",
+              "frame_count": 12
+            },
+            {
+              "region_id": "R3",
+              "z_label": "Z-B",
+              "channel_id": "CH-B",
+              "output_id": "R3-ZB-CHB",
+              "frame_count": 12
+            },
+            {
+              "region_id": "R4",
+              "z_label": "Z-B",
+              "channel_id": "CH-A",
+              "output_id": "R4-ZB-CHA",
+              "frame_count": 12
+            },
+            {
+              "region_id": "R4",
+              "z_label": "Z-B",
+              "channel_id": "CH-B",
+              "output_id": "R4-ZB-CHB",
+              "frame_count": 12
+            }
+          ],
+          "region_tiles": [
+            {
+              "region_id": "R1",
+              "z_label": "Z-A",
+              "tile_seed": 7785,
+              "synthetic": true,
+              "status": "cached"
+            },
+            {
+              "region_id": "R2",
+              "z_label": "Z-A",
+              "tile_seed": 7886,
+              "synthetic": true,
+              "status": "cached"
+            },
+            {
+              "region_id": "R3",
+              "z_label": "Z-B",
+              "tile_seed": 7987,
+              "synthetic": true,
+              "status": "cached"
+            },
+            {
+              "region_id": "R4",
+              "z_label": "Z-B",
+              "tile_seed": 8088,
+              "synthetic": true,
+              "status": "cached"
+            }
+          ],
+          "channel_records": [],
+          "event_records": [],
+          "motion_rows": [],
+          "manifest_records": [],
+          "package_checksums": [],
+          "package_checks": [],
+          "validation_status": "not_run",
+          "detected_faults": [],
+          "terminal_status": null,
+          "evidence_freshness": {
+            "safety": {
+              "evidence_id": "meso-safety-001",
+              "status": "current"
+            },
+            "plan": {
+              "evidence_id": "meso-plan-001",
+              "status": "current"
+            },
+            "acquisition": {
+              "evidence_id": "meso-acquisition-001",
+              "status": "unavailable"
+            },
+            "package": {
+              "evidence_id": "meso-package-001",
+              "status": "unavailable"
+            }
+          }
+        },
+        "hidden": {
+          "scenario_id": "mesoscope-demo-006",
+          "visual_seed": 7785,
+          "fault_id": "missing_event",
+          "acquisition_complete": false,
+          "validation_complete": false,
+          "package_valid": null,
+          "terminal_action": "none"
+        }
+      }
+    },
+    {
+      "id": "mesoscope-demo-007",
+      "split": "demonstration",
+      "seed": 4106,
+      "console_label": "Sealed example G",
+      "console_stage": "sealed_handoff",
+      "initial_state": {
+        "policy_visible": {
+          "stage": "sealed_preflight",
+          "summary": "Sealed synthetic four-region handoff loaded with no hardware connection.",
+          "simulation_notice": "SIMULATED DATA — NO HARDWARE CONNECTION — NOT LASER OR ANIMAL GUIDANCE",
+          "profile_catalog": [
+            {
+              "profile_id": "paper-derived-context-v1",
+              "provenance_label": "5 mm diameter research-paper convention",
+              "selected": true,
+              "immutable": true
+            },
+            {
+              "profile_id": "commercial-reference-v1",
+              "provenance_label": "5 mm × 5 mm current commercial-page convention",
+              "selected": false,
+              "immutable": true
+            }
+          ],
+          "sealed_profile": {
+            "profile_id": "paper-derived-context-v1",
+            "source_geometry": "5 mm diameter research-paper convention",
+            "immutable": true,
+            "simulation_only": true,
+            "status": "sealed"
+          },
+          "plan_catalog": [
+            {
+              "plan_id": "4R-HANDOFF-v1",
+              "signature_digest": "sha256:7143c9080bc365f96e8793e8eb011d5a40856d26e78535b2193f6d92b7d2683c",
+              "selected": true,
+              "immutable": true
+            },
+            {
+              "plan_id": "4R-HANDOFF-reference-v1",
+              "signature_digest": "sha256:ea71f22af5498a5c88a8904e2de3392b85c9027e454c9b60649725f4c1ad22bb",
+              "selected": false,
+              "immutable": true
+            }
+          ],
+          "signed_plan": {
+            "plan_id": "4R-HANDOFF-v1",
+            "immutable": true,
+            "regions": [
+              {
+                "region_id": "R1",
+                "z_label": "Z-A",
+                "visit_order": 1,
+                "tile_seed_offset": 0
+              },
+              {
+                "region_id": "R2",
+                "z_label": "Z-A",
+                "visit_order": 2,
+                "tile_seed_offset": 101
+              },
+              {
+                "region_id": "R3",
+                "z_label": "Z-B",
+                "visit_order": 3,
+                "tile_seed_offset": 202
+              },
+              {
+                "region_id": "R4",
+                "z_label": "Z-B",
+                "visit_order": 4,
+                "tile_seed_offset": 303
+              }
+            ],
+            "signature_digest": "sha256:7143c9080bc365f96e8793e8eb011d5a40856d26e78535b2193f6d92b7d2683c"
+          },
+          "safety_gate": {
+            "state": "closed",
+            "immutable": true,
+            "independently_enforced": true
+          },
+          "survey": {
+            "kind": "procedural_non_biological_phantom",
+            "visual_seed": 7922,
+            "synthetic": true,
+            "watermark": "SYNTHETIC"
+          },
+          "expected_outputs": [
+            {
+              "region_id": "R1",
+              "z_label": "Z-A",
+              "channel_id": "CH-A",
+              "output_id": "R1-ZA-CHA",
+              "frame_count": 12
+            },
+            {
+              "region_id": "R1",
+              "z_label": "Z-A",
+              "channel_id": "CH-B",
+              "output_id": "R1-ZA-CHB",
+              "frame_count": 12
+            },
+            {
+              "region_id": "R2",
+              "z_label": "Z-A",
+              "channel_id": "CH-A",
+              "output_id": "R2-ZA-CHA",
+              "frame_count": 12
+            },
+            {
+              "region_id": "R2",
+              "z_label": "Z-A",
+              "channel_id": "CH-B",
+              "output_id": "R2-ZA-CHB",
+              "frame_count": 12
+            },
+            {
+              "region_id": "R3",
+              "z_label": "Z-B",
+              "channel_id": "CH-A",
+              "output_id": "R3-ZB-CHA",
+              "frame_count": 12
+            },
+            {
+              "region_id": "R3",
+              "z_label": "Z-B",
+              "channel_id": "CH-B",
+              "output_id": "R3-ZB-CHB",
+              "frame_count": 12
+            },
+            {
+              "region_id": "R4",
+              "z_label": "Z-B",
+              "channel_id": "CH-A",
+              "output_id": "R4-ZB-CHA",
+              "frame_count": 12
+            },
+            {
+              "region_id": "R4",
+              "z_label": "Z-B",
+              "channel_id": "CH-B",
+              "output_id": "R4-ZB-CHB",
+              "frame_count": 12
+            }
+          ],
+          "region_tiles": [
+            {
+              "region_id": "R1",
+              "z_label": "Z-A",
+              "tile_seed": 7922,
+              "synthetic": true,
+              "status": "cached"
+            },
+            {
+              "region_id": "R2",
+              "z_label": "Z-A",
+              "tile_seed": 8023,
+              "synthetic": true,
+              "status": "cached"
+            },
+            {
+              "region_id": "R3",
+              "z_label": "Z-B",
+              "tile_seed": 8124,
+              "synthetic": true,
+              "status": "cached"
+            },
+            {
+              "region_id": "R4",
+              "z_label": "Z-B",
+              "tile_seed": 8225,
+              "synthetic": true,
+              "status": "cached"
+            }
+          ],
+          "channel_records": [],
+          "event_records": [],
+          "motion_rows": [],
+          "manifest_records": [],
+          "package_checksums": [],
+          "package_checks": [],
+          "validation_status": "not_run",
+          "detected_faults": [],
+          "terminal_status": null,
+          "evidence_freshness": {
+            "safety": {
+              "evidence_id": "meso-safety-001",
+              "status": "current"
+            },
+            "plan": {
+              "evidence_id": "meso-plan-001",
+              "status": "current"
+            },
+            "acquisition": {
+              "evidence_id": "meso-acquisition-001",
+              "status": "unavailable"
+            },
+            "package": {
+              "evidence_id": "meso-package-001",
+              "status": "unavailable"
+            }
+          }
+        },
+        "hidden": {
+          "scenario_id": "mesoscope-demo-007",
+          "visual_seed": 7922,
+          "fault_id": "motion_row_mismatch",
+          "acquisition_complete": false,
+          "validation_complete": false,
+          "package_valid": null,
+          "terminal_action": "none"
+        }
+      }
+    },
+    {
+      "id": "mesoscope-demo-008",
+      "split": "demonstration",
+      "seed": 4107,
+      "console_label": "Sealed example H",
+      "console_stage": "sealed_handoff",
+      "initial_state": {
+        "policy_visible": {
+          "stage": "sealed_preflight",
+          "summary": "Sealed synthetic four-region handoff loaded with no hardware connection.",
+          "simulation_notice": "SIMULATED DATA — NO HARDWARE CONNECTION — NOT LASER OR ANIMAL GUIDANCE",
+          "profile_catalog": [
+            {
+              "profile_id": "paper-derived-context-v1",
+              "provenance_label": "5 mm diameter research-paper convention",
+              "selected": true,
+              "immutable": true
+            },
+            {
+              "profile_id": "commercial-reference-v1",
+              "provenance_label": "5 mm × 5 mm current commercial-page convention",
+              "selected": false,
+              "immutable": true
+            }
+          ],
+          "sealed_profile": {
+            "profile_id": "paper-derived-context-v1",
+            "source_geometry": "5 mm diameter research-paper convention",
+            "immutable": true,
+            "simulation_only": true,
+            "status": "sealed"
+          },
+          "plan_catalog": [
+            {
+              "plan_id": "4R-HANDOFF-v1",
+              "signature_digest": "sha256:7143c9080bc365f96e8793e8eb011d5a40856d26e78535b2193f6d92b7d2683c",
+              "selected": true,
+              "immutable": true
+            },
+            {
+              "plan_id": "4R-HANDOFF-reference-v1",
+              "signature_digest": "sha256:ea71f22af5498a5c88a8904e2de3392b85c9027e454c9b60649725f4c1ad22bb",
+              "selected": false,
+              "immutable": true
+            }
+          ],
+          "signed_plan": {
+            "plan_id": "4R-HANDOFF-v1",
+            "immutable": true,
+            "regions": [
+              {
+                "region_id": "R1",
+                "z_label": "Z-A",
+                "visit_order": 1,
+                "tile_seed_offset": 0
+              },
+              {
+                "region_id": "R2",
+                "z_label": "Z-A",
+                "visit_order": 2,
+                "tile_seed_offset": 101
+              },
+              {
+                "region_id": "R3",
+                "z_label": "Z-B",
+                "visit_order": 3,
+                "tile_seed_offset": 202
+              },
+              {
+                "region_id": "R4",
+                "z_label": "Z-B",
+                "visit_order": 4,
+                "tile_seed_offset": 303
+              }
+            ],
+            "signature_digest": "sha256:7143c9080bc365f96e8793e8eb011d5a40856d26e78535b2193f6d92b7d2683c"
+          },
+          "safety_gate": {
+            "state": "closed",
+            "immutable": true,
+            "independently_enforced": true
+          },
+          "survey": {
+            "kind": "procedural_non_biological_phantom",
+            "visual_seed": 8059,
+            "synthetic": true,
+            "watermark": "SYNTHETIC"
+          },
+          "expected_outputs": [
+            {
+              "region_id": "R1",
+              "z_label": "Z-A",
+              "channel_id": "CH-A",
+              "output_id": "R1-ZA-CHA",
+              "frame_count": 12
+            },
+            {
+              "region_id": "R1",
+              "z_label": "Z-A",
+              "channel_id": "CH-B",
+              "output_id": "R1-ZA-CHB",
+              "frame_count": 12
+            },
+            {
+              "region_id": "R2",
+              "z_label": "Z-A",
+              "channel_id": "CH-A",
+              "output_id": "R2-ZA-CHA",
+              "frame_count": 12
+            },
+            {
+              "region_id": "R2",
+              "z_label": "Z-A",
+              "channel_id": "CH-B",
+              "output_id": "R2-ZA-CHB",
+              "frame_count": 12
+            },
+            {
+              "region_id": "R3",
+              "z_label": "Z-B",
+              "channel_id": "CH-A",
+              "output_id": "R3-ZB-CHA",
+              "frame_count": 12
+            },
+            {
+              "region_id": "R3",
+              "z_label": "Z-B",
+              "channel_id": "CH-B",
+              "output_id": "R3-ZB-CHB",
+              "frame_count": 12
+            },
+            {
+              "region_id": "R4",
+              "z_label": "Z-B",
+              "channel_id": "CH-A",
+              "output_id": "R4-ZB-CHA",
+              "frame_count": 12
+            },
+            {
+              "region_id": "R4",
+              "z_label": "Z-B",
+              "channel_id": "CH-B",
+              "output_id": "R4-ZB-CHB",
+              "frame_count": 12
+            }
+          ],
+          "region_tiles": [
+            {
+              "region_id": "R1",
+              "z_label": "Z-A",
+              "tile_seed": 8059,
+              "synthetic": true,
+              "status": "cached"
+            },
+            {
+              "region_id": "R2",
+              "z_label": "Z-A",
+              "tile_seed": 8160,
+              "synthetic": true,
+              "status": "cached"
+            },
+            {
+              "region_id": "R3",
+              "z_label": "Z-B",
+              "tile_seed": 8261,
+              "synthetic": true,
+              "status": "cached"
+            },
+            {
+              "region_id": "R4",
+              "z_label": "Z-B",
+              "tile_seed": 8362,
+              "synthetic": true,
+              "status": "cached"
+            }
+          ],
+          "channel_records": [],
+          "event_records": [],
+          "motion_rows": [],
+          "manifest_records": [],
+          "package_checksums": [],
+          "package_checks": [],
+          "validation_status": "not_run",
+          "detected_faults": [],
+          "terminal_status": null,
+          "evidence_freshness": {
+            "safety": {
+              "evidence_id": "meso-safety-001",
+              "status": "current"
+            },
+            "plan": {
+              "evidence_id": "meso-plan-001",
+              "status": "current"
+            },
+            "acquisition": {
+              "evidence_id": "meso-acquisition-001",
+              "status": "unavailable"
+            },
+            "package": {
+              "evidence_id": "meso-package-001",
+              "status": "unavailable"
+            }
+          }
+        },
+        "hidden": {
+          "scenario_id": "mesoscope-demo-008",
+          "visual_seed": 8059,
+          "fault_id": "checksum_mismatch",
+          "acquisition_complete": false,
+          "validation_complete": false,
+          "package_valid": null,
+          "terminal_action": "none"
+        }
+      }
+    }
+  ],
+  "verifier": {
+    "id": "sealed-mesoscope-package-integrity-v1",
+    "result_version": "1.0",
+    "success_state": "mock_package_verified",
+    "exact_success_wording": "MOCK PACKAGE VERIFIED"
+  },
+  "metrics": [
+    "exact_terminal_match",
+    "fault_detection",
+    "package_agreement",
+    "safe_disposition",
+    "sealed_boundary"
+  ],
+  "visualization": {
+    "kind": "mesoscope_handoff_v1",
+    "title": "Synthetic four-region handoff",
+    "synthetic_label": "SYNTHETIC",
+    "sealed_label": "SEALED — DISCONNECTED FROM HARDWARE",
+    "survey_label": "Cached procedural phantom",
+    "raw_view_label": "Packed synthetic strips",
+    "spatial_view_label": "R1–R4 spatial context",
+    "details_toggle_label": "Package evidence",
+    "profile_provenance": {
+      "classification": "INSTRUMENT FACT",
+      "citation_ids": [
+        "P1",
+        "M2"
+      ],
+      "note": "The geometry conventions are source-specific instrument facts; this sealed profile does not merge them."
+    },
+    "plan_provenance": {
+      "classification": "SIMULATION CHOICE",
+      "citation_ids": [
+        "P1",
+        "M3",
+        "SES-SIMULATION-CONTRACT"
+      ],
+      "note": "The immutable R1–R4 and Z-A/Z-B handoff is a product-owned simulation choice inspired by cited four-region examples."
+    },
+    "package_provenance": [
+      {
+        "classification": "SOFTWARE FACT",
+        "citation_ids": [
+          "S4",
+          "S5",
+          "S6"
+        ],
+        "note": "Event, output-file, and motion-row concepts come from cited software documentation."
+      },
+      {
+        "classification": "SIMULATION CHOICE",
+        "citation_ids": [
+          "SES-SIMULATION-CONTRACT"
+        ],
+        "note": "The exact synthetic ledger, checksum set, and acceptance contract are product-owned simulation choices."
+      }
+    ],
+    "region_ids": [
+      "R1",
+      "R2",
+      "R3",
+      "R4"
+    ],
+    "depth_labels": [
+      "Z-A",
+      "Z-B"
+    ]
+  }
+}

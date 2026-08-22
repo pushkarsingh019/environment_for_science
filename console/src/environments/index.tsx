@@ -7,6 +7,10 @@ import {
   EegPreflightVisualization,
   eegPreflightTraceEvidence,
 } from "./eeg/PreflightVisualization";
+import {
+  MesoscopeHandoffVisualization,
+  mesoscopeHandoffTraceEvidence,
+} from "./mesoscope/MesoscopeHandoffVisualization";
 
 type EnvironmentAdapter = {
   Visualization: (properties: {
@@ -24,6 +28,10 @@ const environmentAdapters = {
   eeg_preflight_v1: {
     Visualization: EegPreflightVisualization,
     traceEvidence: eegPreflightTraceEvidence,
+  },
+  mesoscope_handoff_v1: {
+    Visualization: MesoscopeHandoffVisualization,
+    traceEvidence: mesoscopeHandoffTraceEvidence,
   },
 } satisfies Record<
   EnvironmentSummary["visualization"]["kind"],

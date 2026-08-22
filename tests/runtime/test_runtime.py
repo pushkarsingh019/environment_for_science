@@ -69,6 +69,59 @@ def test_start_freezes_seeded_episode_and_exposes_only_policy_visible_state() ->
     assert snapshot.trace[0].observation == snapshot.observation
 
 
+def test_current_does_not_clone_the_entire_environment_module(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    runtime, run_id = _start_seeded_run()
+
+    def reject_module_copy(
+        _module: EegMarkerRecoveryModule,
+        _memo: dict[int, object],
+    ) -> EegMarkerRecoveryModule:
+        raise AssertionError("current() must not clone the Environment module")
+
+    monkeypatch.setattr(
+        EegMarkerRecoveryModule,
+        "__deepcopy__",
+        reject_module_copy,
+        raising=False,
+    )
+
+    snapshot = runtime.current(run_id)
+
+    assert snapshot.status == "active"
+    assert snapshot.permitted_actions
+
+
+def test_permitted_action_query_cannot_mutate_the_active_episode(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    runtime, run_id = _start_seeded_run()
+    original = runtime.current(run_id)
+
+    def mutate_detached_state(
+        module: EegMarkerRecoveryModule,
+        state: EpisodeState,
+    ) -> tuple[str, ...]:
+        state.observation["onset_timeline"]["marker_count"] = 99
+        return tuple(
+            transition.action
+            for transition in module.bundle.procedure.transitions
+            if transition.from_state == state.procedure_state
+        )
+
+    monkeypatch.setattr(
+        EegMarkerRecoveryModule,
+        "permitted_actions",
+        mutate_detached_state,
+    )
+
+    queried = runtime.current(run_id)
+
+    assert queried.observation == original.observation
+    assert runtime.current(run_id).observation == original.observation
+
+
 def test_canonical_trace_header_binds_frozen_scenario_and_policy_identity() -> None:
     runtime, run_id = _start_seeded_run()
 

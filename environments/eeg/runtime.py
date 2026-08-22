@@ -48,6 +48,10 @@ class _LegacyMarkerRecoveryRuntime:
         return self._bundle.model_copy(deep=True)
 
     @property
+    def runtime_validation_bundle(self) -> EnvironmentBundle:
+        return self._bundle.model_copy(deep=True)
+
+    @property
     def visualization(self) -> EegOnsetRouteVisualization:
         return self._visualization.model_copy(deep=True)
 
@@ -263,6 +267,10 @@ class EegEnvironmentModule:
         return self._bundle.model_copy(deep=True)
 
     @property
+    def runtime_validation_bundle(self) -> EnvironmentBundle:
+        return self._bundle.model_copy(deep=True)
+
+    @property
     def visualization(
         self,
     ) -> EegOnsetRouteVisualization | EegPreflightVisualization:
@@ -270,6 +278,13 @@ class EegEnvironmentModule:
 
     def initialize(self, scenario: ScenarioManifest) -> EpisodeState:
         return self._implementation.initialize(scenario.model_copy(deep=True))
+
+    def permitted_actions(self, state: EpisodeState) -> tuple[str, ...]:
+        return tuple(
+            transition.action
+            for transition in self._bundle.procedure.transitions
+            if transition.from_state == state.procedure_state
+        )
 
     def apply_action(
         self,

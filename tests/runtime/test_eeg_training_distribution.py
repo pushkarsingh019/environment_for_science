@@ -145,5 +145,19 @@ def test_actual_training_wheel_excludes_and_survives_evaluator_audit(
     assert audit.valid is True
     with ZipFile(wheels[0]) as wheel:
         names = wheel.namelist()
+        mesoscope_bundle = json.loads(
+            wheel.read("environments/mesoscope/bundle.json")
+        )
     assert not any("evaluation" in PurePosixPath(name).parts for name in names)
     assert not any(name.endswith("curriculum_heldout_v1.json") for name in names)
+    assert {
+        "environments/mesoscope/__init__.py",
+        "environments/mesoscope/bundle.json",
+        "environments/mesoscope/presentation.py",
+        "environments/mesoscope/runtime.py",
+    }.issubset(names)
+    assert all(
+        action["input_schema"]
+        == {"type": "object", "properties": {}, "additionalProperties": False}
+        for action in mesoscope_bundle["actions"]
+    )
