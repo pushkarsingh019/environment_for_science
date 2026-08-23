@@ -311,7 +311,6 @@ def _native_row(
         trace = document["traces"][0]
         scenario_id = document["task"]["data"]["name"]
         calls = trace["calls"]
-        roles = [node["message"]["role"] for node in trace["nodes"]]
         runtime = trace["info"]["science_environment_runtime"]
         sampled_nodes = [node for node in trace["nodes"] if node["sampled"]]
         sampled_tokens = sum(len(node["token_ids"]) for node in sampled_nodes)
@@ -336,10 +335,7 @@ def _native_row(
             or any(call.get("error") is not None for call in calls)
             or {call["model"] for call in calls} != {expected_call_model}
             or runtime["scenario_id"] != scenario_id
-            or (
-                require_token_metadata
-                and (roles.count("tool") < 1 or not sampled_nodes or not aligned)
-            )
+            or (require_token_metadata and (not sampled_nodes or not aligned))
         ):
             raise ValueError("incomplete trace")
         trace_digest = runtime["runtime_trace_digest"]

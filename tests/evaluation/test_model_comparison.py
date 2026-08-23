@@ -124,6 +124,29 @@ def test_loopback_comparison_routes_switch_replay_and_reset_fixtures(
         assert "/home/" not in reset.text.casefold()
 
 
+def test_reset_preserves_installed_real_comparison_rows(tmp_path: Path) -> None:
+    repository = ModelComparisonRepository(tmp_path)
+    document = seeded_comparison("successful").model_dump(mode="json")
+    document.update(
+        {
+            "comparison_id": "model-comparison-real-test0001",
+            "source": "real_evaluation",
+            "fixture_state": None,
+            "fixture_notice": None,
+        }
+    )
+    real = ModelComparisonResult.model_validate_json(json.dumps(document))
+
+    repository.install_real(real)
+    assert repository.current() == real
+    assert repository.real_result_count() == 1
+
+    repository.reset_demo()
+
+    assert repository.current().source == "seeded_offline_fixture"
+    assert repository.real_result_count() == 1
+
+
 def test_replay_resolves_exact_model_and_scenario_digests(tmp_path: Path) -> None:
     repository = ModelComparisonRepository(tmp_path)
     result = repository.current()
