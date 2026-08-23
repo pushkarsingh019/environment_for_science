@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { evaluationApi } from "../api";
+import { evaluationApi, portabilityApi } from "../api";
 import type {
   EvaluationAttemptSummary,
   EvaluationInteraction,
@@ -7,6 +7,8 @@ import type {
   EvaluationSnapshot,
   EvaluationStatus,
   EvaluationSummary,
+  MesoscopePortabilityReplay,
+  MesoscopePortabilityReport,
   TraceEvent,
 } from "../types";
 
@@ -605,7 +607,129 @@ function AttemptTable({
   );
 }
 
-export function EvaluationWorkspace() {
+function MesoscopePortabilityWorkspace() {
+  const [report, setReport] = useState<MesoscopePortabilityReport | null>(null);
+  const [replay, setReplay] = useState<MesoscopePortabilityReplay | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    portabilityApi.mesoscope()
+      .then((loaded) => {
+        if (active) setReport(loaded);
+      })
+      .catch((reason: unknown) => {
+        if (active) setError(safeMessage(reason, "Unable to load portability evidence."));
+      });
+    return () => { active = false; };
+  }, []);
+
+  async function openReplay(
+    replayId: "valid-handoff" | "quarantine-handoff",
+  ) {
+    setBusy(true);
+    setError(null);
+    try {
+      setReplay(await portabilityApi.replayMesoscope(replayId));
+    } catch (reason) {
+      setError(safeMessage(reason, "Unable to replay portability evidence."));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <section
+      aria-labelledby="mesoscope-evaluation-heading"
+      className="workspace-mode-panel evaluation-workspace"
+      data-testid="mesoscope-portability-workspace"
+      id="evaluation-workspace"
+      role="tabpanel"
+    >
+      <div className="workspace-heading evaluation-heading">
+        <div>
+          <p className="breadcrumb">Mesoscope Environment / Separate evidence track</p>
+          <h1 id="mesoscope-evaluation-heading">Platform-generality evidence</h1>
+          <p>
+            The sealed synthetic handoff uses the same compiler, Runtime, Verifiers
+            adapter contract, canonical trace, and replay lifecycle as EEG.
+          </p>
+        </div>
+        <span className="scenario-tag">No training claim</span>
+      </div>
+      {error && <div className="error-banner" role="alert">{error}</div>}
+      {!report ? (
+        <section className="evaluation-card">
+          <p>Loading compiler and replay evidence…</p>
+        </section>
+      ) : (
+        <>
+          <section className="evaluation-card" data-testid="mesoscope-portability-report">
+            <div className="section-heading-row">
+              <div>
+                <p className="eyebrow">Shared compiler receipt</p>
+                <h2>{report.compilation.compilation_version}</h2>
+              </div>
+              <span className="evaluation-status is-completed">Conformant</span>
+            </div>
+            <p>{report.fixture_notice}</p>
+            <dl className="evaluation-replay-checks">
+              <div><dt>Environment</dt><dd>{report.environment_id}</dd></div>
+              <div><dt>Generated artifacts</dt><dd>{report.compilation.artifacts.length}</dd></div>
+            </dl>
+          </section>
+          <section className="evaluation-card" data-testid="mesoscope-portability-results">
+            <div className="section-heading-row">
+              <div>
+                <p className="eyebrow">Seeded protocol fixtures</p>
+                <h2>Verified and quarantine handoffs</h2>
+              </div>
+              <span className="evaluation-count">{report.results.length}</span>
+            </div>
+            <div className="evaluation-response-list">
+              {report.results.map((result) => (
+                <article key={result.replay_id}>
+                  <div>
+                    <strong>{result.terminal_summary}</strong>
+                    <code>{result.runtime_trace_digest}</code>
+                  </div>
+                  <span>Offline fixture · {result.terminal_disposition}</span>
+                  <button
+                    className="secondary-button"
+                    data-testid={`portability-replay-${result.replay_id}`}
+                    disabled={busy}
+                    onClick={() => void openReplay(result.replay_id)}
+                    type="button"
+                  >
+                    Open canonical replay
+                  </button>
+                </article>
+              ))}
+            </div>
+          </section>
+        </>
+      )}
+      {replay && (
+        <section className="evaluation-card" data-testid="mesoscope-portability-replay">
+          <p className="eyebrow">Deterministic canonical replay</p>
+          <h2>
+            {replay.trace_matches && replay.result_matches
+              ? "Trace and result match"
+              : "Replay mismatch"}
+          </h2>
+          <p>{replay.snapshot.verifier_result?.summary}</p>
+        </section>
+      )}
+      <p className="evaluation-boundary-note">
+        This separate track demonstrates platform portability only. It does not imply
+        mesoscope training or cross-Apparatus generalization.
+      </p>
+    </section>
+  );
+}
+
+function EegEvaluationWorkspace() {
   const [evaluations, setEvaluations] = useState<EvaluationSummary[]>([]);
   const [selected, setSelected] = useState<EvaluationSnapshot | null>(null);
   const [replay, setReplay] = useState<EvaluationReplay | null>(null);
@@ -838,7 +962,35 @@ export function EvaluationWorkspace() {
   );
 }
 
-export function EvaluationBoundaryPanel() {
+export function EvaluationWorkspace({
+  environmentKind = "eeg",
+}: {
+  environmentKind?: "eeg" | "mesoscope";
+}) {
+  return environmentKind === "mesoscope"
+    ? <MesoscopePortabilityWorkspace />
+    : <EegEvaluationWorkspace />;
+}
+
+export function EvaluationBoundaryPanel({
+  environmentKind = "eeg",
+}: {
+  environmentKind?: "eeg" | "mesoscope";
+}) {
+  if (environmentKind === "mesoscope") {
+    return (
+      <section className="identity-panel evaluation-boundary-panel">
+        <p className="eyebrow">Platform evidence boundary</p>
+        <h2>Separate from EEG training</h2>
+        <dl className="identity-list">
+          <div><dt>Apparatus</dt><dd>Sealed synthetic mesoscope</dd></div>
+          <div><dt>Track</dt><dd>Platform generality</dd></div>
+          <div><dt>Evidence</dt><dd>Seeded offline fixtures</dd></div>
+          <div><dt>Controls</dt><dd>No operational actions</dd></div>
+        </dl>
+      </section>
+    );
+  }
   return (
     <section className="identity-panel evaluation-boundary-panel">
       <p className="eyebrow">Evaluation boundary</p>

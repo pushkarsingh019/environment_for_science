@@ -4,14 +4,14 @@ Source specification: [Science Environment Studio executable prototype specifica
 
 ## Progress
 
-- Completed: **6 / 13**
+- Completed: **7 / 13**
 - In progress: **None**
-- Ready now: **07, 08, 09, 10**
+- Ready now: **08, 09, 10**
 - A ticket counts as complete only after its acceptance criteria, tests, review, and commit pass.
 
 ## Current checkpoint
 
-Tickets 01 through 06 are complete. One local command builds and serves the Scientist Console
+Tickets 01 through 07 are complete. One local command builds and serves the Scientist Console
 with the loopback-only deterministic Environment Runtime. The console runs and replays the
 targeted EEG recovery episodes and now provides a scientifically recognizable EEG
 diagnostic preflight over a configurable schematic whole-cap Apparatus and distinct
@@ -96,9 +96,14 @@ namespace proxy, immutable model/runtime receipts, and operator procedure define
 supported local-Gemma serving boundary without adding physical Apparatus controls or exposing
 provider-side tools.
 
+Mesoscope now compiles through the exact public compiler used by EEG and executes valid and
+quarantine multi-turn Policy traces through the unchanged canonical runner and Runtime bridge.
+The console keeps its seeded replayable compiler and handoff evidence in a separate
+platform-generality track, with no EEG-training or cross-Apparatus claim. Shared conformance and
+artifact scans keep generated and model-visible tools inside the sealed mock-action boundary.
+
 ## Frontier
 
-- [07: Prove mesoscope portability through the same compiler](issues/07-prove-mesoscope-portability-through-the-same-compiler.md) — can start immediately
 - [08: Evaluate GPT through OpenAI Responses](issues/08-evaluate-gpt-through-openai-responses.md) — can start immediately
 - [09: Evaluate Gemini through Interactions](issues/09-evaluate-gemini-through-interactions.md) — can start immediately
 - [10: Train, save, reload, and evaluate a bounded Gemma adapter](issues/10-train-save-reload-and-evaluate-a-bounded-gemma-adapter.md) — can start immediately
@@ -111,7 +116,7 @@ provider-side tools.
 4. [Run the complete EEG curriculum and fixed splits](issues/04-run-the-complete-eeg-curriculum-and-fixed-splits.md) — complete
 5. [Run the sealed mesoscope four-region handoff](issues/05-run-the-sealed-mesoscope-four-region-handoff.md) — complete
 6. [Evaluate EEG through Verifiers and local base Gemma](issues/06-evaluate-eeg-through-verifiers-and-local-base-gemma.md) — complete
-7. [Prove mesoscope portability through the same compiler](issues/07-prove-mesoscope-portability-through-the-same-compiler.md) — ready
+7. [Prove mesoscope portability through the same compiler](issues/07-prove-mesoscope-portability-through-the-same-compiler.md) — complete
 8. [Evaluate GPT through OpenAI Responses](issues/08-evaluate-gpt-through-openai-responses.md) — ready
 9. [Evaluate Gemini through Interactions](issues/09-evaluate-gemini-through-interactions.md) — ready
 10. [Train, save, reload, and evaluate a bounded Gemma adapter](issues/10-train-save-reload-and-evaluate-a-bounded-gemma-adapter.md) — ready

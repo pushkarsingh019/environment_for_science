@@ -658,3 +658,44 @@ export interface EvaluationReplay {
   report: EvaluationReplayReport | null;
   infrastructure_error: EvaluationInfrastructureError | null;
 }
+
+export interface MesoscopePortabilityResult {
+  replay_id: "valid-handoff" | "quarantine-handoff";
+  scenario_id: string;
+  fixture: true;
+  terminal_summary: string;
+  terminal_disposition: string;
+  runtime_trace_digest: string;
+  result_digest: string;
+}
+
+export interface MesoscopePortabilityReport {
+  report_revision: "science-mesoscope-portability-report/1";
+  track: "platform_generality";
+  environment_id: "mesoscope-four-region-handoff";
+  training_claim_included: false;
+  fixture_notice: string;
+  compilation: {
+    compilation_version: "science-environment-verifiers-v1/1";
+    verifiers_revision: string;
+    model_id: "google/gemma-4-E4B-it";
+    model_revision: string;
+    bundle_id: string;
+    bundle_revision: string;
+    source_bundle_digest: string;
+    artifact_digest: string;
+    artifacts: Array<{ path: string; digest: string; size_bytes: number }>;
+  };
+  results: MesoscopePortabilityResult[];
+}
+
+export interface MesoscopePortabilityReplay {
+  replay_id: "valid-handoff" | "quarantine-handoff";
+  source_trace_digest: string;
+  replay_trace_digest: string;
+  trace_matches: boolean;
+  source_result_digest: string;
+  replay_result_digest: string;
+  result_matches: boolean;
+  snapshot: RunSnapshot;
+}

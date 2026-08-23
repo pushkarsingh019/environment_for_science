@@ -40,6 +40,9 @@ import type {
   FrozenEnvironment,
   JsonObject,
   JsonValue,
+  MesoscopePortabilityReplay,
+  MesoscopePortabilityReport,
+  MesoscopePortabilityResult,
   MesoscopeProvenance,
   PolicyAgentIdentity,
   ReplayReport,
@@ -2995,6 +2998,203 @@ function parseEvaluationReplay(value: unknown): EvaluationReplay {
   };
 }
 
+export function decodeMesoscopePortabilityReport(
+  value: unknown,
+): MesoscopePortabilityReport {
+  const path = "MesoscopePortabilityReport";
+  const record = exactRecord(
+    value,
+    [
+      "report_revision",
+      "track",
+      "environment_id",
+      "training_claim_included",
+      "fixture_notice",
+      "compilation",
+      "results",
+    ],
+    path,
+  );
+  const compilation = exactRecord(
+    record.compilation,
+    [
+      "compilation_version",
+      "verifiers_revision",
+      "model_id",
+      "model_revision",
+      "bundle_id",
+      "bundle_revision",
+      "source_bundle_digest",
+      "artifact_digest",
+      "artifacts",
+    ],
+    `${path}.compilation`,
+  );
+  if (!Array.isArray(compilation.artifacts)) {
+    malformed(`${path}.compilation.artifacts`, "be an array");
+  }
+  const artifacts = compilation.artifacts.map((value, index) => {
+    const artifactPath = `${path}.compilation.artifacts[${index}]`;
+    const artifact = exactRecord(
+      value,
+      ["path", "digest", "size_bytes"],
+      artifactPath,
+    );
+    return {
+      path: nonEmptyString(artifact.path, `${artifactPath}.path`),
+      digest: digest(artifact.digest, `${artifactPath}.digest`),
+      size_bytes: integerValue(artifact.size_bytes, `${artifactPath}.size_bytes`),
+    };
+  });
+  if (!Array.isArray(record.results) || record.results.length !== 2) {
+    malformed(`${path}.results`, "contain the valid and quarantine fixtures");
+  }
+  const results: MesoscopePortabilityResult[] = record.results.map((value, index) => {
+    const resultPath = `${path}.results[${index}]`;
+    const result = exactRecord(
+      value,
+      [
+        "replay_id",
+        "scenario_id",
+        "fixture",
+        "terminal_summary",
+        "terminal_disposition",
+        "runtime_trace_digest",
+        "result_digest",
+      ],
+      resultPath,
+    );
+    if (booleanValue(result.fixture, `${resultPath}.fixture`) !== true) {
+      malformed(`${resultPath}.fixture`, "identify seeded offline evidence");
+    }
+    return {
+      replay_id: oneOf(
+        result.replay_id,
+        ["valid-handoff", "quarantine-handoff"] as const,
+        `${resultPath}.replay_id`,
+      ),
+      scenario_id: nonEmptyString(result.scenario_id, `${resultPath}.scenario_id`),
+      fixture: true,
+      terminal_summary: nonEmptyString(
+        result.terminal_summary,
+        `${resultPath}.terminal_summary`,
+      ),
+      terminal_disposition: nonEmptyString(
+        result.terminal_disposition,
+        `${resultPath}.terminal_disposition`,
+      ),
+      runtime_trace_digest: digest(
+        result.runtime_trace_digest,
+        `${resultPath}.runtime_trace_digest`,
+      ),
+      result_digest: digest(result.result_digest, `${resultPath}.result_digest`),
+    };
+  });
+  if (new Set(results.map((result) => result.replay_id)).size !== 2) {
+    malformed(`${path}.results`, "contain two distinct replay fixtures");
+  }
+  if (
+    booleanValue(record.training_claim_included, `${path}.training_claim_included`)
+      !== false
+  ) {
+    malformed(`${path}.training_claim_included`, "remain false");
+  }
+  return {
+    report_revision: oneOf(
+      record.report_revision,
+      ["science-mesoscope-portability-report/1"] as const,
+      `${path}.report_revision`,
+    ),
+    track: oneOf(record.track, ["platform_generality"] as const, `${path}.track`),
+    environment_id: oneOf(
+      record.environment_id,
+      ["mesoscope-four-region-handoff"] as const,
+      `${path}.environment_id`,
+    ),
+    training_claim_included: false,
+    fixture_notice: nonEmptyString(record.fixture_notice, `${path}.fixture_notice`),
+    compilation: {
+      compilation_version: oneOf(
+        compilation.compilation_version,
+        ["science-environment-verifiers-v1/1"] as const,
+        `${path}.compilation.compilation_version`,
+      ),
+      verifiers_revision: nonEmptyString(
+        compilation.verifiers_revision,
+        `${path}.compilation.verifiers_revision`,
+      ),
+      model_id: oneOf(
+        compilation.model_id,
+        ["google/gemma-4-E4B-it"] as const,
+        `${path}.compilation.model_id`,
+      ),
+      model_revision: nonEmptyString(
+        compilation.model_revision,
+        `${path}.compilation.model_revision`,
+      ),
+      bundle_id: nonEmptyString(compilation.bundle_id, `${path}.compilation.bundle_id`),
+      bundle_revision: nonEmptyString(
+        compilation.bundle_revision,
+        `${path}.compilation.bundle_revision`,
+      ),
+      source_bundle_digest: digest(
+        compilation.source_bundle_digest,
+        `${path}.compilation.source_bundle_digest`,
+      ),
+      artifact_digest: digest(
+        compilation.artifact_digest,
+        `${path}.compilation.artifact_digest`,
+      ),
+      artifacts,
+    },
+    results,
+  };
+}
+
+function parseMesoscopePortabilityReplay(value: unknown): MesoscopePortabilityReplay {
+  const path = "MesoscopePortabilityReplay";
+  const record = exactRecord(
+    value,
+    [
+      "replay_id",
+      "source_trace_digest",
+      "replay_trace_digest",
+      "trace_matches",
+      "source_result_digest",
+      "replay_result_digest",
+      "result_matches",
+      "snapshot",
+    ],
+    path,
+  );
+  return {
+    replay_id: oneOf(
+      record.replay_id,
+      ["valid-handoff", "quarantine-handoff"] as const,
+      `${path}.replay_id`,
+    ),
+    source_trace_digest: digest(
+      record.source_trace_digest,
+      `${path}.source_trace_digest`,
+    ),
+    replay_trace_digest: digest(
+      record.replay_trace_digest,
+      `${path}.replay_trace_digest`,
+    ),
+    trace_matches: booleanValue(record.trace_matches, `${path}.trace_matches`),
+    source_result_digest: digest(
+      record.source_result_digest,
+      `${path}.source_result_digest`,
+    ),
+    replay_result_digest: digest(
+      record.replay_result_digest,
+      `${path}.replay_result_digest`,
+    ),
+    result_matches: booleanValue(record.result_matches, `${path}.result_matches`),
+    snapshot: parseRunSnapshot(record.snapshot),
+  };
+}
+
 function errorDetail(value: unknown): string | undefined {
   if (!isRecord(value)) return undefined;
   return typeof value.detail === "string" && value.detail.length > 0
@@ -3109,6 +3309,25 @@ export const environmentApi = {
     return request(`/api/runs/${runId}/replay`, parseReplayResponse, {
       method: "POST",
     });
+  },
+};
+
+export const portabilityApi = {
+  async mesoscope(): Promise<MesoscopePortabilityReport> {
+    return request(
+      "/api/platform-evidence/mesoscope",
+      decodeMesoscopePortabilityReport,
+    );
+  },
+
+  async replayMesoscope(
+    replayId: MesoscopePortabilityResult["replay_id"],
+  ): Promise<MesoscopePortabilityReplay> {
+    return request(
+      `/api/platform-evidence/mesoscope/replays/${encodeURIComponent(replayId)}`,
+      parseMesoscopePortabilityReplay,
+      { method: "POST" },
+    );
   },
 };
 

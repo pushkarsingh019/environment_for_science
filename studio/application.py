@@ -43,6 +43,11 @@ from studio.policy_evaluation.coordinator import (
     EvaluationSummary,
 )
 from studio.policy_evaluation.local_gemma import LocalGemmaChatProvider
+from studio.policy_evaluation.mesoscope_portability import (
+    MesoscopePortabilityReplay,
+    MesoscopePortabilityReport,
+    MesoscopePortabilityService,
+)
 from studio.policy_evaluation.model_runner import CanonicalModelRunner
 from studio.policy_evaluation.runtime_bridge import EvaluationRuntimeBridge
 from studio.runtime import (
@@ -279,6 +284,9 @@ def create_app(
             else _production_evaluation_runner
         ),
     )
+    mesoscope_portability = MesoscopePortabilityService(
+        resolved_artifact_root / "platform-evidence"
+    )
     studio_lock = RLock()
     bundle = studio.source_bundle
 
@@ -496,6 +504,22 @@ def create_app(
         attempt_id: str,
     ) -> EvaluationReplay:
         return evaluation_coordinator.replay(evaluation_id, attempt_id)
+
+    @app.get(
+        "/api/platform-evidence/mesoscope",
+        response_model=MesoscopePortabilityReport,
+    )
+    def get_mesoscope_portability_report() -> MesoscopePortabilityReport:
+        return mesoscope_portability.report()
+
+    @app.post(
+        "/api/platform-evidence/mesoscope/replays/{replay_id}",
+        response_model=MesoscopePortabilityReplay,
+    )
+    def replay_mesoscope_portability_result(
+        replay_id: str,
+    ) -> MesoscopePortabilityReplay:
+        return mesoscope_portability.replay(replay_id)
 
     @app.get(
         "/api/environments",

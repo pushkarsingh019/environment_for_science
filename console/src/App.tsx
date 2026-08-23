@@ -835,7 +835,7 @@ export function App() {
         {error && <div className="error-banner" role="alert"><strong>Console request failed.</strong> {error}</div>}
 
         {mode === "evaluate" ? (
-          <EvaluationWorkspace />
+          <EvaluationWorkspace environmentKind={environment?.environment_kind} />
         ) : mode === "edit" ? (
           environment?.source_kind === "sealed_seed" ? (
             <SealedEnvironmentWorkspace environment={environment} />
@@ -909,7 +909,7 @@ export function App() {
 
       <aside className="details-rail" aria-label="Environment and run details">
         {mode === "evaluate" ? (
-          <EvaluationBoundaryPanel />
+          <EvaluationBoundaryPanel environmentKind={environment?.environment_kind} />
         ) : mode === "edit" ? (
           environment?.source_kind === "sealed_seed" ? (
             <ValidationPanel environment={environment} />
