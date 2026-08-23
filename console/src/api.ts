@@ -1994,6 +1994,7 @@ function parseEvaluationResponseRecord(
         "runtime_instance_id",
         "provider_request_id",
         "service_tier",
+        "provider_usage",
       ],
       `${path}.metadata`,
     );
@@ -2031,6 +2032,12 @@ function parseEvaluationResponseRecord(
         : nonEmptyString(
             metadataRecord.service_tier,
             `${path}.metadata.service_tier`,
+          ),
+      provider_usage: metadataRecord.provider_usage === null
+        ? null
+        : jsonObject(
+            metadataRecord.provider_usage,
+            `${path}.metadata.provider_usage`,
           ),
     };
   }
@@ -3222,7 +3229,7 @@ function parseMesoscopePortabilityReplay(value: unknown): MesoscopePortabilityRe
 
 function parseProviderReadiness(value: unknown): ProviderReadinessSummary {
   const path = "ProviderReadinessSummary";
-  const record = exactRecord(value, ["openai"], path);
+  const record = exactRecord(value, ["openai", "gemini"], path);
   const openai = exactRecord(
     record.openai,
     [
@@ -3235,6 +3242,18 @@ function parseProviderReadiness(value: unknown): ProviderReadinessSummary {
     ],
     `${path}.openai`,
   );
+  const gemini = exactRecord(
+    record.gemini,
+    [
+      "provider",
+      "route",
+      "requested_model",
+      "adapter_revision",
+      "credential_configured",
+      "status",
+    ],
+    `${path}.gemini`,
+  );
   const configured = booleanValue(
     openai.credential_configured,
     `${path}.openai.credential_configured`,
@@ -3244,8 +3263,20 @@ function parseProviderReadiness(value: unknown): ProviderReadinessSummary {
     ["configured", "missing_credential"] as const,
     `${path}.openai.status`,
   );
-  if (configured !== (status === "configured")) {
-    malformed(`${path}.openai`, "bind status to credential readiness");
+  const geminiConfigured = booleanValue(
+    gemini.credential_configured,
+    `${path}.gemini.credential_configured`,
+  );
+  const geminiStatus = oneOf(
+    gemini.status,
+    ["configured", "missing_credential"] as const,
+    `${path}.gemini.status`,
+  );
+  if (
+    configured !== (status === "configured")
+    || geminiConfigured !== (geminiStatus === "configured")
+  ) {
+    malformed(path, "bind each status to credential readiness");
   }
   return {
     openai: {
@@ -3263,6 +3294,30 @@ function parseProviderReadiness(value: unknown): ProviderReadinessSummary {
       ),
       credential_configured: configured,
       status,
+    },
+    gemini: {
+      provider: oneOf(
+        gemini.provider,
+        ["gemini"] as const,
+        `${path}.gemini.provider`,
+      ),
+      route: oneOf(
+        gemini.route,
+        ["interactions"] as const,
+        `${path}.gemini.route`,
+      ),
+      requested_model: oneOf(
+        gemini.requested_model,
+        ["gemini-3.7-flash"] as const,
+        `${path}.gemini.requested_model`,
+      ),
+      adapter_revision: oneOf(
+        gemini.adapter_revision,
+        ["gemini-interactions/1"] as const,
+        `${path}.gemini.adapter_revision`,
+      ),
+      credential_configured: geminiConfigured,
+      status: geminiStatus,
     },
   };
 }

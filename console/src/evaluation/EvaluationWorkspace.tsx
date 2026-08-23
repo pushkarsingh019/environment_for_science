@@ -745,34 +745,59 @@ function HostedReferenceReadiness() {
     return () => { active = false; };
   }, []);
 
-  const openai = readiness?.openai;
+  const providers = [
+    {
+      key: "openai",
+      name: "OpenAI Responses",
+      model: readiness?.openai.requested_model ?? "gpt-5.6-sol",
+      route: "Responses · stateless · storage disabled",
+      configured: readiness?.openai.credential_configured ?? false,
+      variable: "OPENAI_API_KEY",
+    },
+    {
+      key: "gemini",
+      name: "Gemini Interactions",
+      model: readiness?.gemini.requested_model ?? "gemini-3.7-flash",
+      route: "Interactions · signed-step replay · storage disabled",
+      configured: readiness?.gemini.credential_configured ?? false,
+      variable: "GEMINI_API_KEY",
+    },
+  ] as const;
   return (
     <section className="evaluation-card" data-testid="hosted-reference-readiness">
       <div className="section-heading-row">
         <div>
           <p className="eyebrow">Hosted reference readiness</p>
-          <h2>OpenAI Responses</h2>
+          <h2>Provider-native routes</h2>
         </div>
-        <span className={`evaluation-status ${openai?.credential_configured
-          ? "is-completed"
-          : "is-interrupted"}`}>
-          {openai?.credential_configured ? "Configured" : "Missing credential"}
-        </span>
+        <span className="evaluation-count">{providers.length}</span>
       </div>
       <p>
-        GPT is a separately labeled hosted reference under the same canonical tools,
-        budgets, Runtime transitions, and deterministic Verifier.
+        GPT and Gemini are separately labeled hosted references under the same canonical
+        tools, budgets, Runtime transitions, and deterministic Verifier.
       </p>
-      <dl className="evaluation-replay-checks">
-        <div><dt>Exact model</dt><dd>{openai?.requested_model ?? "gpt-5.6-sol"}</dd></div>
-        <div><dt>Route</dt><dd>Responses · stateless · storage disabled</dd></div>
-      </dl>
-      {!openai?.credential_configured && (
-        <p className="identity-note">
-          Set OPENAI_API_KEY in the launch environment to enable a live smoke run.
-          No secret value is read into this view.
-        </p>
-      )}
+      <div className="evaluation-response-list">
+        {providers.map((provider) => (
+          <article data-testid={`provider-readiness-${provider.key}`} key={provider.key}>
+            <div>
+              <strong>{provider.name}</strong>
+              <span className={`evaluation-status ${provider.configured
+                ? "is-completed"
+                : "is-interrupted"}`}>
+                {provider.configured ? "Configured" : "Missing credential"}
+              </span>
+            </div>
+            <span>{provider.model}</span>
+            <span>{provider.route}</span>
+            {!provider.configured && (
+              <small>
+                Set {provider.variable} only in the launch environment. No secret value
+                is read into this view.
+              </small>
+            )}
+          </article>
+        ))}
+      </div>
     </section>
   );
 }

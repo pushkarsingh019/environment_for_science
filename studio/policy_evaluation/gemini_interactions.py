@@ -1,4 +1,4 @@
-"""Native, stateless OpenAI Responses adapter for canonical scientific episodes."""
+"""Native, stateless Gemini Interactions adapter for scientific episodes."""
 
 from __future__ import annotations
 
@@ -26,25 +26,27 @@ from .model_runner import (
     TokenUsage,
 )
 
-OPENAI_RESPONSES_MODEL: Final = "gpt-5.6-sol"
-OPENAI_RESPONSES_ADAPTER_REVISION: Final = "openai-responses/1"
-OPENAI_RESPONSES_SAMPLING: Final = ModelSamplingSettings(
+GEMINI_INTERACTIONS_MODEL: Final = "gemini-3.7-flash"
+GEMINI_INTERACTIONS_ADAPTER_REVISION: Final = "gemini-interactions/1"
+GEMINI_INTERACTIONS_SAMPLING: Final = ModelSamplingSettings(
     profile="hosted-reference-medium-v1",
     temperature=None,
 )
-_OPENAI_API_KEY_ENV: Final = "OPENAI_API_KEY"
-_RESPONSES_URL: Final = "https://api.openai.com/v1/responses"
+_GEMINI_API_KEY_ENV: Final = "GEMINI_API_KEY"
+_INTERACTIONS_URL: Final = (
+    "https://generativelanguage.googleapis.com/v1beta/interactions"
+)
 _MAX_ATTEMPTS: Final = 3
 _INVALID_ARGUMENTS_KEY: Final = "__provider_invalid_arguments__"
 
 
-def openai_credential_ready(environ: Mapping[str, str]) -> bool:
-    """Report only whether a non-empty credential is configured."""
-    return bool(environ.get(_OPENAI_API_KEY_ENV, ""))
+def gemini_credential_ready(environ: Mapping[str, str]) -> bool:
+    """Report credential presence without reading it into a public model."""
+    return bool(environ.get(_GEMINI_API_KEY_ENV, ""))
 
 
-class OpenAIResponsesProvider:
-    """Translate canonical turns to storage-disabled OpenAI Responses requests."""
+class GeminiInteractionsProvider:
+    """Translate canonical turns to storage-disabled Gemini Interactions."""
 
     def __init__(
         self,
@@ -56,7 +58,7 @@ class OpenAIResponsesProvider:
         monotonic: Callable[[], float] = time.monotonic,
     ) -> None:
         if not api_key or any(character in api_key for character in "\r\n"):
-            raise ValueError("an OpenAI credential is required")
+            raise ValueError("a Gemini credential is required")
         if timeout_seconds <= 0:
             raise ValueError("provider timeout must be positive")
         self._api_key = api_key
@@ -72,31 +74,31 @@ class OpenAIResponsesProvider:
         *,
         transport: HostedJsonTransport | None = None,
         timeout_seconds: float = 120.0,
-    ) -> OpenAIResponsesProvider:
+    ) -> GeminiInteractionsProvider:
         return cls(
-            api_key=environ.get(_OPENAI_API_KEY_ENV, ""),
+            api_key=environ.get(_GEMINI_API_KEY_ENV, ""),
             transport=transport or UrllibHostedJsonTransport(),
             timeout_seconds=timeout_seconds,
         )
 
     def __repr__(self) -> str:
-        return "OpenAIResponsesProvider(credential_configured=True)"
+        return "GeminiInteractionsProvider(credential_configured=True)"
 
     def complete(self, request: ModelRequest) -> ModelResponse:
         if (
-            request.model.provider != "openai-responses"
-            or request.model.requested_model != OPENAI_RESPONSES_MODEL
-            or request.model.adapter_revision != OPENAI_RESPONSES_ADAPTER_REVISION
-            or request.sampling != OPENAI_RESPONSES_SAMPLING
+            request.model.provider != "gemini-interactions"
+            or request.model.requested_model != GEMINI_INTERACTIONS_MODEL
+            or request.model.adapter_revision != GEMINI_INTERACTIONS_ADAPTER_REVISION
+            or request.sampling != GEMINI_INTERACTIONS_SAMPLING
         ):
             raise ModelProviderFailure(
                 category="adapter",
                 code="adapter.protocol_error",
             )
-        payload = _responses_payload(request)
+        payload = _interactions_payload(request)
         headers = {
-            "Authorization": f"Bearer {self._api_key}",
             "Content-Type": "application/json",
+            "x-goog-api-key": self._api_key,
         }
         started = self._monotonic()
         status = 0
@@ -111,13 +113,12 @@ class OpenAIResponsesProvider:
                     category="inference",
                     code="inference.episode_timeout",
                 )
-            timeout = min(self._timeout_seconds, remaining)
             try:
                 status, response_headers, body = self._transport.post_json(
-                    url=_RESPONSES_URL,
+                    url=_INTERACTIONS_URL,
                     headers=headers,
                     payload=payload,
-                    timeout_seconds=timeout,
+                    timeout_seconds=min(self._timeout_seconds, remaining),
                 )
             except (TimeoutError, socket.timeout) as failure:
                 raise ModelProviderFailure(
@@ -138,7 +139,7 @@ class OpenAIResponsesProvider:
                     category="adapter",
                     code="adapter.protocol_error",
                 ) from failure
-            if status not in {429} and status < 500:
+            if status != 429 and status < 500:
                 break
             if attempt == _MAX_ATTEMPTS:
                 break
@@ -159,19 +160,14 @@ class OpenAIResponsesProvider:
             ) from failure
 
 
-def _responses_payload(request: ModelRequest) -> dict[str, Any]:
+def _interactions_payload(request: ModelRequest) -> dict[str, Any]:
     input_items: list[dict[str, Any]] = []
     for message in request.messages:
         if message.role == "user":
             input_items.append(
                 {
                     "role": "user",
-                    "content": [
-                        {
-                            "type": "input_text",
-                            "text": _canonical_json(message.content),
-                        }
-                    ],
+                    "content": _canonical_json(message.content),
                 }
             )
         elif message.role == "assistant":
@@ -182,16 +178,17 @@ def _responses_payload(request: ModelRequest) -> dict[str, Any]:
                 )
             input_items.extend(deepcopy(message.provider_state))
         else:
-            if message.provider_tool_call_id is None:
+            if message.provider_tool_call_id is None or message.tool_name is None:
                 raise ModelProviderFailure(
                     category="adapter",
                     code="adapter.protocol_error",
                 )
             input_items.append(
                 {
-                    "type": "function_call_output",
+                    "type": "function_result",
                     "call_id": message.provider_tool_call_id,
-                    "output": _canonical_json(message.content),
+                    "name": message.tool_name,
+                    "result": deepcopy(message.content),
                 }
             )
     return {
@@ -203,21 +200,15 @@ def _responses_payload(request: ModelRequest) -> dict[str, Any]:
                 "name": tool.name,
                 "description": tool.description,
                 "parameters": deepcopy(tool.input_schema),
-                # Schema validity remains a canonical-runner responsibility.
-                "strict": False,
             }
             for tool in request.tools
         ],
-        "tool_choice": request.sampling.tool_choice,
-        "parallel_tool_calls": True,
-        "reasoning": {
-            "effort": "medium",
-            "mode": "standard",
-            "context": "all_turns",
+        "tool_choice": "auto",
+        "generation_config": {
+            "thinking_level": "medium",
+            "max_output_tokens": request.sampling.max_output_tokens,
         },
-        "include": ["reasoning.encrypted_content"],
-        "max_output_tokens": request.sampling.max_output_tokens,
-        "service_tier": "default",
+        "service_tier": "standard",
         "store": False,
         "stream": False,
     }
@@ -229,53 +220,53 @@ def _parse_response(
     response_headers: Mapping[str, str],
 ) -> ModelResponse:
     document = _mapping(value)
-    if document.get("object") != "response":
-        raise ValueError("OpenAI response object is invalid")
+    if document.get("object") != "interaction":
+        raise ValueError("Gemini interaction object is invalid")
     status = document.get("status")
-    if status == "failed":
-        raise ModelProviderFailure(category="inference", code="inference.unavailable")
+    if status in {"failed", "blocked", "cancelled"}:
+        raise ModelProviderFailure(category="inference", code="inference.cancelled")
     if status not in {"completed", "incomplete"}:
-        raise ValueError("OpenAI response status is invalid")
-    output = document.get("output")
-    if not isinstance(output, list) or not all(isinstance(item, dict) for item in output):
-        raise ValueError("OpenAI response output must be an item list")
-    if len(output) > 64:
-        raise ValueError("OpenAI response output exceeds the item budget")
+        raise ValueError("Gemini interaction status is invalid")
+    steps = document.get("steps")
+    if not isinstance(steps, list) or not all(isinstance(step, dict) for step in steps):
+        raise ValueError("Gemini interaction steps must be an object list")
+    if len(steps) > 64:
+        raise ValueError("Gemini interaction exceeds the step budget")
 
     calls: list[ModelToolCall] = []
     text_parts: list[str] = []
-    for item_value in output:
-        item = _mapping(item_value)
-        item_type = item.get("type")
-        if item_type == "function_call":
-            arguments = _parse_arguments(item.get("arguments"))
+    for step_value in steps:
+        step = _mapping(step_value)
+        step_type = step.get("type")
+        if step_type in {"thought", "function_call"}:
+            signature = step.get("thought_signature")
+            if not isinstance(signature, str) or not signature:
+                raise ValueError("Gemini reasoning step is missing its signature")
+        if step_type == "thought":
+            continue
+        if step_type == "function_call":
+            arguments_value = step.get("arguments")
+            arguments = (
+                deepcopy(arguments_value)
+                if isinstance(arguments_value, dict)
+                else {_INVALID_ARGUMENTS_KEY: True}
+            )
             calls.append(
                 ModelToolCall(
-                    call_id=item["call_id"],
-                    name=item["name"],
+                    call_id=step["call_id"],
+                    name=step["name"],
                     arguments=arguments,
                 )
             )
-        elif item_type == "message":
-            if item.get("role") != "assistant":
-                raise ValueError("OpenAI output message must be assistant")
-            content = item.get("content")
-            if not isinstance(content, list):
-                raise ValueError("OpenAI output message content must be a list")
-            for part_value in content:
-                part = _mapping(part_value)
-                if part.get("type") == "output_text":
-                    text = part.get("text")
-                    if not isinstance(text, str):
-                        raise ValueError("OpenAI output text is invalid")
-                    text_parts.append(text)
-                elif part.get("type") == "refusal":
-                    raise ModelProviderFailure(
-                        category="inference",
-                        code="inference.cancelled",
-                    )
-        elif item_type != "reasoning":
-            raise ValueError("OpenAI output contains an unsupported item")
+        elif step_type == "message":
+            if step.get("role") != "assistant":
+                raise ValueError("Gemini output message must be assistant")
+            content = step.get("content")
+            if not isinstance(content, str):
+                raise ValueError("Gemini output message content is invalid")
+            text_parts.append(content)
+        elif step_type != "thought":
+            raise ValueError("Gemini interaction contains an unsupported step")
 
     finish_reason: Literal["stop", "tool_calls", "length"]
     if status == "incomplete":
@@ -283,60 +274,61 @@ def _parse_response(
         if details.get("reason") == "max_output_tokens":
             finish_reason = "length"
         else:
-            raise ModelProviderFailure(
-                category="inference",
-                code="inference.cancelled",
-            )
+            raise ModelProviderFailure(category="inference", code="inference.cancelled")
     else:
         finish_reason = "tool_calls" if calls else "stop"
     usage_value = document.get("usage")
-    usage = _parse_usage(usage_value) if usage_value is not None else None
+    usage, native_usage = (
+        _parse_usage(usage_value) if usage_value is not None else (None, None)
+    )
     created = document.get("created_at")
     if not isinstance(created, int) or isinstance(created, bool) or created < 0:
-        raise ValueError("OpenAI response timestamp is invalid")
-    request_id = _header(response_headers, "x-request-id")
-    service_tier = document.get("service_tier")
-    if service_tier is not None and not isinstance(service_tier, str):
-        raise ValueError("OpenAI service tier is invalid")
+        raise ValueError("Gemini interaction timestamp is invalid")
     return ModelResponse(
         response_id=document["id"],
         returned_model=document["model"],
         message=ModelMessage.assistant(
             "\n".join(text_parts),
             tool_calls=tuple(calls),
-            provider_state=tuple(deepcopy(output)),
+            provider_state=tuple(deepcopy(steps)),
         ),
         usage=usage,
         metadata=ModelResponseMetadata(
             created_unix_seconds=created,
             finish_reason=finish_reason,
-            provider_request_id=request_id,
-            service_tier=service_tier,
+            provider_request_id=_header(response_headers, "x-request-id"),
+            service_tier="standard",
+            provider_usage=native_usage,
         ),
     )
 
 
-def _parse_arguments(value: object) -> dict[str, Any]:
-    if not isinstance(value, str):
-        return {_INVALID_ARGUMENTS_KEY: True}
-    try:
-        parsed = json.loads(value)
-    except json.JSONDecodeError:
-        return {_INVALID_ARGUMENTS_KEY: True}
-    return parsed if isinstance(parsed, dict) else {_INVALID_ARGUMENTS_KEY: True}
-
-
-def _parse_usage(value: object) -> TokenUsage:
+def _parse_usage(value: object) -> tuple[TokenUsage, dict[str, Any]]:
     usage = _mapping(value)
-    input_details = _optional_mapping(usage.get("input_tokens_details"))
-    output_details = _optional_mapping(usage.get("output_tokens_details"))
-    return TokenUsage(
-        input_tokens=_optional_nonnegative_int(usage.get("input_tokens")),
-        output_tokens=_optional_nonnegative_int(usage.get("output_tokens")),
-        total_tokens=_optional_nonnegative_int(usage.get("total_tokens")),
-        cached_input_tokens=_optional_nonnegative_int(input_details.get("cached_tokens")),
-        reasoning_tokens=_optional_nonnegative_int(output_details.get("reasoning_tokens")),
+    total_input = _required_nonnegative_int(usage.get("total_input_tokens"))
+    cached = _required_nonnegative_int(usage.get("total_cached_tokens"))
+    visible_output = _required_nonnegative_int(usage.get("total_output_tokens"))
+    thought = _required_nonnegative_int(usage.get("total_thought_tokens"))
+    _required_nonnegative_int(usage.get("total_tool_use_tokens"))
+    total = _required_nonnegative_int(usage.get("total_tokens"))
+    if cached > total_input or total != total_input + visible_output + thought:
+        raise ValueError("Gemini usage counters do not reconcile")
+    return (
+        TokenUsage(
+            input_tokens=total_input - cached,
+            output_tokens=visible_output + thought,
+            total_tokens=total,
+            cached_input_tokens=cached,
+            reasoning_tokens=thought,
+        ),
+        deepcopy(dict(usage)),
     )
+
+
+def _required_nonnegative_int(value: object) -> int:
+    if not isinstance(value, int) or isinstance(value, bool) or value < 0:
+        raise ValueError("Gemini usage counters must be non-negative integers")
+    return value
 
 
 def _retry_delay(headers: Mapping[str, str]) -> float:
@@ -388,14 +380,6 @@ def _optional_mapping(value: object) -> Mapping[str, Any]:
     return {} if value is None else _mapping(value)
 
 
-def _optional_nonnegative_int(value: object) -> int | None:
-    if value is None:
-        return None
-    if not isinstance(value, int) or isinstance(value, bool) or value < 0:
-        raise ValueError("usage counters must be non-negative integers")
-    return value
-
-
 def _canonical_json(value: object) -> str:
     return json.dumps(
         value,
@@ -407,9 +391,9 @@ def _canonical_json(value: object) -> str:
 
 
 __all__ = [
-    "OPENAI_RESPONSES_ADAPTER_REVISION",
-    "OPENAI_RESPONSES_MODEL",
-    "OPENAI_RESPONSES_SAMPLING",
-    "OpenAIResponsesProvider",
-    "openai_credential_ready",
+    "GEMINI_INTERACTIONS_ADAPTER_REVISION",
+    "GEMINI_INTERACTIONS_MODEL",
+    "GEMINI_INTERACTIONS_SAMPLING",
+    "GeminiInteractionsProvider",
+    "gemini_credential_ready",
 ]

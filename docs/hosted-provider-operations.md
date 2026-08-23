@@ -41,3 +41,35 @@ then records a normalized infrastructure error rather than a scientific zero.
 If readiness says the credential is missing, restart the Studio from a shell where the variable
 is present. If the smoke reports an adapter error, verify model access and the exact identifier;
 do not replace `gpt-5.6-sol` with a moving alias.
+
+## Gemini Interactions
+
+The native adapter requests stable `gemini-3.7-flash` through
+`POST https://generativelanguage.googleapis.com/v1beta/interactions` using adapter revision
+`gemini-interactions/1`. It does not use Google's OpenAI compatibility route.
+
+Set the credential only in the process launch environment:
+
+```bash
+export GEMINI_API_KEY='...'
+.venv/bin/python -m studio
+```
+
+Readiness exposes only whether that variable is configured. Run the fixed, non-held-out canary
+through the loopback application:
+
+```bash
+curl -X POST http://127.0.0.1:8000/api/hosted-smokes/gemini
+```
+
+Requests use `store=false`, non-streaming Interactions, medium thinking, the canonical output,
+turn, tool, action, and episode budgets, and bundle-declared function tools only. Every returned
+thought and function-call step must retain a non-empty thought signature. The adapter replays the
+original input and all signed steps unchanged, then appends a call-ID- and name-linked structured
+`function_result`.
+
+Canonical evidence records requested and returned model identity, adapter and request identity,
+normalized accounting, the untouched native usage object, signed reasoning lineage, canonical
+actions, deterministic Runtime results, and normalized adapter or inference failures. Missing
+signatures, usage mismatches, malformed calls, provider blocks, and reflected credential material
+fail outside scientific scoring. Do not substitute `gemini-flash-latest` or another moving alias.

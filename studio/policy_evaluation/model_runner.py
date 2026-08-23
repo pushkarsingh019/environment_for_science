@@ -328,6 +328,7 @@ class ModelResponseMetadata(_FrozenModel):
     runtime_instance_id: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
     provider_request_id: str | None = Field(default=None, min_length=1, max_length=512)
     service_tier: str | None = Field(default=None, min_length=1, max_length=512)
+    provider_usage: dict[str, Any] | None = None
 
     @field_validator("system_fingerprint", "provider_request_id", "service_tier")
     @classmethod

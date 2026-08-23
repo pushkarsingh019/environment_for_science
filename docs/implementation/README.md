@@ -4,14 +4,14 @@ Source specification: [Science Environment Studio executable prototype specifica
 
 ## Progress
 
-- Completed: **8 / 13**
+- Completed: **9 / 13**
 - In progress: **None**
-- Ready now: **09, 10**
+- Ready now: **10**
 - A ticket counts as complete only after its acceptance criteria, tests, review, and commit pass.
 
 ## Current checkpoint
 
-Tickets 01 through 08 are complete. One local command builds and serves the Scientist Console
+Tickets 01 through 09 are complete. One local command builds and serves the Scientist Console
 with the loopback-only deterministic Environment Runtime. The console runs and replays the
 targeted EEG recovery episodes and now provides a scientifically recognizable EEG
 diagnostic preflight over a configurable schematic whole-cap Apparatus and distinct
@@ -111,9 +111,17 @@ rate limits, output limits, and credential reflection without paid calls. The co
 only credential readiness and labels GPT as a hosted reference; a fixed loopback canary becomes
 available when `OPENAI_API_KEY` is supplied solely in the launch environment.
 
+The native Gemini Interactions adapter requests stable `gemini-3.7-flash`, not an OpenAI
+compatibility or moving-latest route. Storage-disabled requests replay the original input, every
+signed thought and function-call step, and each linked structured function result. Canonical
+traces retain native usage alongside normalized accounting, provider request identity, signed
+opaque lineage, and unchanged Runtime evidence. Missing signatures, malformed calls, usage
+mismatches, retries, limits, provider failures, and credential reflection are fixture-tested.
+The console labels Gemini as a hosted reference and exposes readiness only; a fixed canary becomes
+available when `GEMINI_API_KEY` is supplied only to the Studio process.
+
 ## Frontier
 
-- [09: Evaluate Gemini through Interactions](issues/09-evaluate-gemini-through-interactions.md) — can start immediately
 - [10: Train, save, reload, and evaluate a bounded Gemma adapter](issues/10-train-save-reload-and-evaluate-a-bounded-gemma-adapter.md) — can start immediately
 
 ## Dependency order
@@ -126,7 +134,7 @@ available when `OPENAI_API_KEY` is supplied solely in the launch environment.
 6. [Evaluate EEG through Verifiers and local base Gemma](issues/06-evaluate-eeg-through-verifiers-and-local-base-gemma.md) — complete
 7. [Prove mesoscope portability through the same compiler](issues/07-prove-mesoscope-portability-through-the-same-compiler.md) — complete
 8. [Evaluate GPT through OpenAI Responses](issues/08-evaluate-gpt-through-openai-responses.md) — complete
-9. [Evaluate Gemini through Interactions](issues/09-evaluate-gemini-through-interactions.md) — ready
+9. [Evaluate Gemini through Interactions](issues/09-evaluate-gemini-through-interactions.md) — complete
 10. [Train, save, reload, and evaluate a bounded Gemma adapter](issues/10-train-save-reload-and-evaluate-a-bounded-gemma-adapter.md) — ready
 11. [Train Gemma on the EEG curriculum](issues/11-train-gemma-on-the-eeg-curriculum.md) — blocked by 10
 12. [Compare all models in the Scientist Console](issues/12-compare-all-models-in-the-scientist-console.md) — blocked by 07, 08, 09, and 11

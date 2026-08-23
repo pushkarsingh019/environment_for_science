@@ -504,6 +504,7 @@ export interface EvaluationResponseRecord {
     runtime_instance_id: string | null;
     provider_request_id: string | null;
     service_tier: string | null;
+    provider_usage: JsonObject | null;
   } | null;
 }
 
@@ -692,7 +693,7 @@ export interface MesoscopePortabilityReport {
   results: MesoscopePortabilityResult[];
 }
 
-export interface HostedProviderReadiness {
+export interface OpenAIProviderReadiness {
   provider: "openai";
   route: "responses";
   requested_model: "gpt-5.6-sol";
@@ -701,8 +702,18 @@ export interface HostedProviderReadiness {
   status: "configured" | "missing_credential";
 }
 
+export interface GeminiProviderReadiness {
+  provider: "gemini";
+  route: "interactions";
+  requested_model: "gemini-3.7-flash";
+  adapter_revision: "gemini-interactions/1";
+  credential_configured: boolean;
+  status: "configured" | "missing_credential";
+}
+
 export interface ProviderReadinessSummary {
-  openai: HostedProviderReadiness;
+  openai: OpenAIProviderReadiness;
+  gemini: GeminiProviderReadiness;
 }
 
 export interface MesoscopePortabilityReplay {

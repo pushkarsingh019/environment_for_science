@@ -44,6 +44,13 @@ from studio.policy_evaluation.coordinator import (
     EvaluationSnapshot,
     EvaluationSummary,
 )
+from studio.policy_evaluation.gemini_interactions import (
+    GEMINI_INTERACTIONS_ADAPTER_REVISION,
+    GEMINI_INTERACTIONS_MODEL,
+    GEMINI_INTERACTIONS_SAMPLING,
+    GeminiInteractionsProvider,
+    gemini_credential_ready,
+)
 from studio.policy_evaluation.local_gemma import LocalGemmaChatProvider
 from studio.policy_evaluation.mesoscope_portability import (
     MesoscopePortabilityReplay,
@@ -255,7 +262,7 @@ class ReplayResponse(_StrictModel):
     replay: ReplayReport
 
 
-class HostedProviderReadiness(_StrictModel):
+class OpenAIProviderReadiness(_StrictModel):
     provider: Literal["openai"]
     route: Literal["responses"]
     requested_model: Literal["gpt-5.6-sol"]
@@ -264,8 +271,18 @@ class HostedProviderReadiness(_StrictModel):
     status: Literal["configured", "missing_credential"]
 
 
+class GeminiProviderReadiness(_StrictModel):
+    provider: Literal["gemini"]
+    route: Literal["interactions"]
+    requested_model: Literal["gemini-3.7-flash"]
+    adapter_revision: Literal["gemini-interactions/1"]
+    credential_configured: bool
+    status: Literal["configured", "missing_credential"]
+
+
 class ProviderReadinessSummary(_StrictModel):
-    openai: HostedProviderReadiness
+    openai: OpenAIProviderReadiness
+    gemini: GeminiProviderReadiness
 
 
 class LaunchEvaluationRequest(BaseModel):
@@ -532,6 +549,37 @@ def create_app(
         return evaluation_coordinator.replay(evaluation_id, attempt_id)
 
     @app.post(
+        "/api/hosted-smokes/gemini",
+        response_model=EvaluationAttempt,
+    )
+    def run_gemini_smoke() -> EvaluationAttempt:
+        if not gemini_credential_ready(os.environ):
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="The Gemini credential is not configured.",
+            )
+        scenario_set = load_development_scenario_set()
+        smoke_bundle = scenario_set.environment_bundle
+        runner = CanonicalModelRunner(
+            bundle=smoke_bundle,
+            runtime_bridge=EvaluationRuntimeBridge(smoke_bundle),
+            provider=GeminiInteractionsProvider.from_environment(os.environ),
+            max_turns=_EVALUATION_MAX_TURNS,
+            max_tool_calls=_EVALUATION_MAX_TOOL_CALLS,
+            sampling=GEMINI_INTERACTIONS_SAMPLING,
+            profile="hosted-reference-smoke-v1",
+        )
+        return runner.run(
+            scenario_id=scenario_set.scenario_ids[0],
+            objective=CANONICAL_OBJECTIVE,
+            model=ModelIdentity(
+                provider="gemini-interactions",
+                requested_model=GEMINI_INTERACTIONS_MODEL,
+                adapter_revision=GEMINI_INTERACTIONS_ADAPTER_REVISION,
+            ),
+        )
+
+    @app.post(
         "/api/hosted-smokes/openai",
         response_model=EvaluationAttempt,
     )
@@ -568,15 +616,26 @@ def create_app(
     )
     def get_provider_readiness() -> ProviderReadinessSummary:
         configured = openai_credential_ready(os.environ)
+        gemini_configured = gemini_credential_ready(os.environ)
         return ProviderReadinessSummary(
-            openai=HostedProviderReadiness(
+            openai=OpenAIProviderReadiness(
                 provider="openai",
                 route="responses",
                 requested_model=OPENAI_RESPONSES_MODEL,
                 adapter_revision=OPENAI_RESPONSES_ADAPTER_REVISION,
                 credential_configured=configured,
                 status="configured" if configured else "missing_credential",
-            )
+            ),
+            gemini=GeminiProviderReadiness(
+                provider="gemini",
+                route="interactions",
+                requested_model=GEMINI_INTERACTIONS_MODEL,
+                adapter_revision=GEMINI_INTERACTIONS_ADAPTER_REVISION,
+                credential_configured=gemini_configured,
+                status=(
+                    "configured" if gemini_configured else "missing_credential"
+                ),
+            ),
         )
 
     @app.get(
