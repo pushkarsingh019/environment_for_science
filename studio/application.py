@@ -35,6 +35,19 @@ from environments.eeg.presentation import (
 from environments.mesoscope.presentation import MesoscopeHandoffVisualization
 from studio.authoring import DraftRepositoryError, DraftSnapshot
 from studio.bundle import EnvironmentBundle
+from studio.curriculum_jobs import (
+    CurriculumJobError,
+    CurriculumTrainingJob,
+    CurriculumTrainingJobRepository,
+)
+from studio.model_comparison import (
+    ComparisonIndexError,
+    ComparisonReplay,
+    FixtureState,
+    ModelComparisonRepository,
+    ModelComparisonResult,
+    ModelRole,
+)
 from studio.policy_evaluation.coordinator import (
     EvaluationCoordinator,
     EvaluationCoordinatorError,
@@ -267,6 +280,19 @@ class ReplayResponse(_StrictModel):
     replay: ReplayReport
 
 
+class DemoResetSummary(_StrictModel):
+    reset_version: Literal["science-demo-reset/1"]
+    status: Literal["reset"]
+    draft_revision: int = Field(ge=1)
+    draft_digest: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
+    comparison_fixture_state: Literal["successful"]
+    seeded_scenarios_restored: Literal[True]
+    immutable_training_jobs_preserved: int = Field(ge=0)
+    immutable_real_comparisons_preserved: int = Field(ge=0)
+    immutable_artifacts_deleted: Literal[0]
+    summary: str = Field(min_length=1)
+
+
 class OpenAIProviderReadiness(_StrictModel):
     provider: Literal["openai"]
     route: Literal["responses"]
@@ -337,6 +363,12 @@ def create_app(
     )
     training_jobs = TrainingAcceptanceJobService(
         resolved_artifact_root / "training"
+    )
+    curriculum_jobs = CurriculumTrainingJobRepository(
+        resolved_artifact_root / "training/curriculum"
+    )
+    model_comparisons = ModelComparisonRepository(
+        resolved_artifact_root / "comparisons"
     )
     studio_lock = RLock()
     bundle = studio.source_bundle
@@ -465,6 +497,40 @@ def create_app(
         status_code = status_codes[error_code]
         return JSONResponse(status_code=status_code, content={"detail": detail})
 
+    @app.exception_handler(CurriculumJobError)
+    async def curriculum_job_error(
+        _request: Request,
+        error: CurriculumJobError,
+    ) -> JSONResponse:
+        status_code = {
+            "not_found": status.HTTP_404_NOT_FOUND,
+            "conflict": status.HTTP_409_CONFLICT,
+            "storage": status.HTTP_500_INTERNAL_SERVER_ERROR,
+        }[error.code]
+        detail = (
+            "The curriculum training index could not complete the operation."
+            if error.code == "storage"
+            else str(error)
+        )
+        return JSONResponse(status_code=status_code, content={"detail": detail})
+
+    @app.exception_handler(ComparisonIndexError)
+    async def comparison_index_error(
+        _request: Request,
+        error: ComparisonIndexError,
+    ) -> JSONResponse:
+        status_code = (
+            status.HTTP_404_NOT_FOUND
+            if error.code == "not_found"
+            else status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+        detail = (
+            str(error)
+            if error.code == "not_found"
+            else "The model comparison index could not complete the operation."
+        )
+        return JSONResponse(status_code=status_code, content={"detail": detail})
+
     @app.exception_handler(TrainingJobError)
     async def training_job_error(
         _request: Request,
@@ -572,6 +638,88 @@ def create_app(
         attempt_id: str,
     ) -> EvaluationReplay:
         return evaluation_coordinator.replay(evaluation_id, attempt_id)
+
+    @app.post(
+        "/api/demo/reset",
+        response_model=DemoResetSummary,
+    )
+    def reset_demo() -> DemoResetSummary:
+        with studio_lock:
+            current = studio.current_draft()
+            draft = studio.restore_seed(expected_revision=current.revision)
+            model_comparisons.reset_demo()
+            jobs_preserved = len(training_jobs.list()) + len(curriculum_jobs.list())
+            real_comparisons_preserved = model_comparisons.real_result_count()
+        return DemoResetSummary(
+            reset_version="science-demo-reset/1",
+            status="reset",
+            draft_revision=draft.revision,
+            draft_digest=draft.content_digest,
+            comparison_fixture_state="successful",
+            seeded_scenarios_restored=True,
+            immutable_training_jobs_preserved=jobs_preserved,
+            immutable_real_comparisons_preserved=real_comparisons_preserved,
+            immutable_artifacts_deleted=0,
+            summary=(
+                "Seeded draft, scenarios, and offline demonstration state were "
+                "restored. Immutable real artifacts were preserved."
+            ),
+        )
+
+    @app.get(
+        "/api/model-comparison",
+        response_model=ModelComparisonResult,
+    )
+    def current_model_comparison() -> ModelComparisonResult:
+        return model_comparisons.current()
+
+    @app.post(
+        "/api/model-comparison/fixtures/{fixture_state}",
+        response_model=ModelComparisonResult,
+    )
+    def select_model_comparison_fixture(
+        fixture_state: FixtureState,
+    ) -> ModelComparisonResult:
+        return model_comparisons.select_fixture(fixture_state)
+
+    @app.post(
+        "/api/model-comparison/reset",
+        response_model=ModelComparisonResult,
+    )
+    def reset_model_comparison_demo() -> ModelComparisonResult:
+        return model_comparisons.reset_demo()
+
+    @app.get(
+        "/api/model-comparison/replays/{model_role}/{scenario_id}",
+        response_model=ComparisonReplay,
+    )
+    def replay_model_comparison(
+        model_role: ModelRole,
+        scenario_id: str,
+    ) -> ComparisonReplay:
+        return model_comparisons.replay(model_role, scenario_id)
+
+    @app.post(
+        "/api/training/curriculum-jobs",
+        response_model=CurriculumTrainingJob,
+        status_code=status.HTTP_202_ACCEPTED,
+    )
+    def launch_curriculum_training_job() -> CurriculumTrainingJob:
+        return curriculum_jobs.launch()
+
+    @app.get(
+        "/api/training/curriculum-jobs",
+        response_model=tuple[CurriculumTrainingJob, ...],
+    )
+    def list_curriculum_training_jobs() -> tuple[CurriculumTrainingJob, ...]:
+        return curriculum_jobs.list()
+
+    @app.post(
+        "/api/training/curriculum-jobs/{job_id}/begin",
+        response_model=CurriculumTrainingJob,
+    )
+    def begin_curriculum_training_job(job_id: str) -> CurriculumTrainingJob:
+        return curriculum_jobs.begin(job_id)
 
     @app.post(
         "/api/training/acceptance-jobs",

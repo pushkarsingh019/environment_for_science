@@ -10,8 +10,10 @@ handoff. The project doesn't connect to or control physical apparatus.
 ## Project status
 
 The product, domain, interface, runtime, evaluation, and training decisions are complete.
-Tickets 01 through 05 of 13 are complete and runnable end to end; eight tickets remain.
-Ticket 06 is now unblocked.
+Tickets 01 through 09 of 13 are complete. Tickets 10–13 are in progress: real E4B bounded
+training passes on the approved training workstation, the full immutable curriculum run is active,
+and the comparison/resettable-demo software passes focused tests. Real second-workstation and
+held-out imports, full suites, and final review remain required before closure.
 
 Read these documents before you implement a ticket:
 
@@ -24,12 +26,13 @@ Read these documents before you implement a ticket:
    product decisions and supporting research.
 5. [`DESIGN.md`](DESIGN.md) supplies visual tokens. It doesn't define the page layout.
 
-The next implementation target is
-[ticket 06: Evaluate EEG through Verifiers and local base Gemma](docs/implementation/issues/06-evaluate-eeg-through-verifiers-and-local-base-gemma.md).
+The active implementation frontier is tracked in
+[`docs/implementation/README.md`](docs/implementation/README.md); fixture or log-only evidence
+never closes a real training or comparison ticket.
 
 ## Implementation checkpoint
 
-Tickets 01 through 05 provide:
+The implemented and in-progress product provides:
 
 - An extensible Environment Bundle v1 validator with nested JSON Schema checks.
 - A seeded synthetic EEG marker-recovery bundle and apparatus module.
@@ -68,7 +71,20 @@ Tickets 01 through 05 provide:
 - Desktop and mobile browser coverage that permanently labels the handoff synthetic, sealed,
   disconnected from hardware, and free of physical or operational controls.
 
-The repository also retains the disposable Gemma training-path probe under
+The repository also provides:
+
+- A deterministic Environment-to-Verifiers compiler reused unchanged for EEG and a separate
+  mesoscope platform-generality track.
+- Native, storage-disabled OpenAI Responses and Gemini Interactions reference adapters with
+  explicit missing-credential readiness and seeded fixtures.
+- Durable bounded-acceptance and full-curriculum training jobs that coordinate only approved GPU
+  workstations and never start model compute on the local computer.
+- Fail-closed native artifact import, immutable held-out ledgers, paired bootstrap analysis, and
+  a four-model console with explicit provider, adapter, and scientific failure states.
+- Five labeled offline comparison states, constituent replay receipts, and a central demo reset
+  that preserves immutable real artifacts.
+
+The repository retains the disposable Gemma training-path probe under
 `probes/gemma-training-path/`; it is not product runtime code.
 
 ## Set up a development checkout
@@ -106,6 +122,10 @@ the deterministic Runtime:
 ```bash
 .venv/bin/python -m studio
 ```
+
+The command reports whether optional OpenAI and Gemini credentials are configured and always
+states that Gemma compute is workstation-only. Missing hosted credentials do not block the seeded
+offline demo and no credential value is printed.
 
 Open `http://127.0.0.1:8000`. The application binds only to loopback and exposes synthetic
 actions only. The persistent draft and frozen/run indexes are stored in

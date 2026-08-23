@@ -1,6 +1,15 @@
 import { useEffect, useState } from "react";
-import { evaluationApi, portabilityApi, providerApi, trainingApi } from "../api";
+import {
+  comparisonApi,
+  evaluationApi,
+  portabilityApi,
+  providerApi,
+  trainingApi,
+} from "../api";
 import type {
+  ComparisonFixtureState,
+  ComparisonReplay,
+  CurriculumTrainingJob,
   EvaluationAttemptSummary,
   EvaluationInteraction,
   EvaluationReplay,
@@ -8,6 +17,7 @@ import type {
   EvaluationStatus,
   EvaluationSummary,
   MesoscopePortabilityReplay,
+  ModelComparisonResult,
   MesoscopePortabilityReport,
   ProviderReadinessSummary,
   TraceEvent,
@@ -812,6 +822,301 @@ function HostedReferenceReadiness() {
   );
 }
 
+const COMPARISON_FIXTURES: Array<{
+  value: ComparisonFixtureState;
+  label: string;
+}> = [
+  { value: "successful", label: "Supported improvement" },
+  { value: "inconclusive", label: "Inconclusive" },
+  { value: "regressed", label: "Regressed" },
+  { value: "partially_unavailable", label: "Hosted model unavailable" },
+  { value: "adapter_error", label: "Adapter error" },
+];
+
+function ModelComparisonPanel() {
+  const [comparison, setComparison] = useState<ModelComparisonResult | null>(null);
+  const [replay, setReplay] = useState<ComparisonReplay | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    comparisonApi.current()
+      .then((result) => { if (active) setComparison(result); })
+      .catch((reason: unknown) => {
+        if (active) setError(safeMessage(reason, "Unable to load model comparison."));
+      });
+    return () => { active = false; };
+  }, []);
+
+  async function chooseFixture(state: ComparisonFixtureState) {
+    setBusy(true);
+    setError(null);
+    setReplay(null);
+    try {
+      setComparison(await comparisonApi.selectFixture(state));
+    } catch (reason) {
+      setError(safeMessage(reason, "Unable to select comparison evidence."));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function openReplay(route: string) {
+    setBusy(true);
+    setError(null);
+    try {
+      setReplay(await comparisonApi.replay(route));
+    } catch (reason) {
+      setError(safeMessage(reason, "Unable to replay that scenario."));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function percent(value: number | null): string {
+    return value === null ? "Not estimable" : `${(value * 100).toFixed(1)}%`;
+  }
+
+  return (
+    <section className="evaluation-card" data-testid="model-comparison-panel">
+      <div className="section-heading-row">
+        <div>
+          <p className="eyebrow">Held-out EEG comparison</p>
+          <h2>Base, trained, and hosted references</h2>
+        </div>
+      </div>
+      {error && <div className="error-banner" role="alert">{error}</div>}
+      {!comparison ? (
+        <p className="evaluation-empty">Loading comparison evidence…</p>
+      ) : (
+        <>
+          {comparison.fixture_notice && (
+            <div className="fixture-banner" data-testid="comparison-fixture-notice">
+              <strong>Offline fixture</strong>
+              <span>{comparison.fixture_notice}</span>
+            </div>
+          )}
+          <div className="run-control-row" aria-label="Offline comparison states">
+            {COMPARISON_FIXTURES.map((fixture) => (
+              <button
+                className="secondary-button"
+                data-testid={`comparison-fixture-${fixture.value}`}
+                disabled={busy || comparison.fixture_state === fixture.value}
+                key={fixture.value}
+                onClick={() => void chooseFixture(fixture.value)}
+                type="button"
+              >
+                {fixture.label}
+              </button>
+            ))}
+          </div>
+
+          <article
+            className="evaluation-response-card"
+            data-testid={`comparison-claim-${comparison.training_claim}`}
+          >
+            <p className="eyebrow">Primary training evidence</p>
+            <strong>
+              {comparison.training_claim === "improved"
+                ? "Improvement supported"
+                : comparison.training_claim === "regressed"
+                  ? "Regression observed"
+                  : comparison.training_claim === "inconclusive"
+                    ? "No supported training win"
+                    : "Training contrast unavailable"}
+            </strong>
+            {comparison.gemma_contrast && (
+              <span>
+                Trained − base success: {percent(comparison.gemma_contrast.trained_minus_base)};
+                95% paired bootstrap interval {percent(comparison.gemma_contrast.interval_low)} to {" "}
+                {percent(comparison.gemma_contrast.interval_high)}.
+              </span>
+            )}
+          </article>
+
+          <div className="evaluation-grid comparison-model-grid">
+            {comparison.models.map((model) => (
+              <article
+                className="evaluation-card comparison-model-card"
+                data-testid={`comparison-model-${model.role}`}
+                key={model.role}
+              >
+                <div className="section-heading-row">
+                  <div>
+                    <p className="eyebrow">
+                      {model.reference_model ? "Reference model" : "Gemma evidence"}
+                    </p>
+                    <h3>{model.label}</h3>
+                  </div>
+                  <span className={`status-chip status-${model.status}`}>
+                    {model.status.replaceAll("_", " ")}
+                  </span>
+                </div>
+                <small>Requested: {model.requested_model}</small>
+                <small>Returned: {model.returned_model ?? "Unavailable"}</small>
+                {model.adapter_identity && <small>Adapter: {model.adapter_identity}</small>}
+                {model.failure ? (
+                  <div className="error-banner" data-testid={`comparison-failure-${model.role}`}>
+                    <strong>{model.failure.category} failure</strong>
+                    <span>{model.failure.summary}</span>
+                  </div>
+                ) : model.metrics ? (
+                  <>
+                    <dl className="evaluation-replay-checks">
+                      <div><dt>Task success</dt><dd>{percent(model.metrics.task_success)}</dd></div>
+                      <div><dt>Verifier score</dt><dd>{percent(model.metrics.verifier_score)}</dd></div>
+                      <div><dt>Abort precision</dt><dd>{percent(model.metrics.abort_precision)}</dd></div>
+                      <div><dt>Abort recall</dt><dd>{percent(model.metrics.abort_recall)}</dd></div>
+                      <div><dt>Mean actions</dt><dd>{model.metrics.mean_action_count.toFixed(1)}</dd></div>
+                      <div><dt>Tool errors</dt><dd>{model.metrics.tool_errors}</dd></div>
+                    </dl>
+                    <details>
+                      <summary>Strata and {model.scenarios.length} constituent scenarios</summary>
+                      <dl className="evaluation-replay-checks">
+                        {Object.entries(model.metrics.strata).map(([name, stratum]) => (
+                          <div key={name}>
+                            <dt>{name}</dt>
+                            <dd>{stratum.count} · {percent(stratum.task_success)}</dd>
+                          </div>
+                        ))}
+                      </dl>
+                      <div className="evaluation-response-list comparison-scenario-list">
+                        {model.scenarios.map((scenario) => (
+                          <button
+                            className="secondary-button"
+                            disabled={busy}
+                            key={scenario.scenario_id}
+                            onClick={() => void openReplay(scenario.replay_route)}
+                            type="button"
+                          >
+                            {scenario.scenario_id} · {scenario.success ? "success" : "not successful"}
+                          </button>
+                        ))}
+                      </div>
+                    </details>
+                  </>
+                ) : null}
+              </article>
+            ))}
+          </div>
+
+          {replay && (
+            <article className="evaluation-response-card" data-testid="comparison-replay">
+              <p className="eyebrow">Canonical replay receipt</p>
+              <strong>{replay.model_role} · {replay.scenario.scenario_id}</strong>
+              <code>{replay.scenario.runtime_trace_digest}</code>
+              <code>{replay.scenario.result_digest}</code>
+              <span>Reproducible from the exact manifest and scoring revision.</span>
+            </article>
+          )}
+
+          <article className="evaluation-card" data-testid="mesoscope-generality-track">
+            <p className="eyebrow">Separate evidence track</p>
+            <h3>{comparison.mesoscope.label}</h3>
+            <p>
+              Compiler portability only. This is not EEG training evidence and does not imply
+              cross-Apparatus learning.
+            </p>
+          </article>
+        </>
+      )}
+    </section>
+  );
+}
+
+function CurriculumTrainingPanel() {
+  const [jobs, setJobs] = useState<CurriculumTrainingJob[]>([]);
+  const [busy, setBusy] = useState(false);
+  const [loaded, setLoaded] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    trainingApi.listCurriculumJobs()
+      .then((items) => {
+        if (active) {
+          setJobs(items);
+          setLoaded(true);
+        }
+      })
+      .catch((reason: unknown) => {
+        if (active) setError(safeMessage(reason, "Unable to load curriculum training."));
+      });
+    return () => { active = false; };
+  }, []);
+
+  function merge(job: CurriculumTrainingJob) {
+    setJobs((current) => [
+      job,
+      ...current.filter((item) => item.job_id !== job.job_id),
+    ]);
+  }
+
+  async function operate(operation: () => Promise<CurriculumTrainingJob>) {
+    setBusy(true);
+    setError(null);
+    try {
+      merge(await operation());
+    } catch (reason) {
+      setError(safeMessage(reason, "The curriculum training operation failed."));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <section className="evaluation-card" data-testid="curriculum-training-panel">
+      <div className="section-heading-row">
+        <div>
+          <p className="eyebrow">Immutable EEG curriculum</p>
+          <h2>Train on 96; diagnose on 32; evaluate on 64</h2>
+        </div>
+        <button
+          className="primary-button compact-button"
+          data-testid="launch-curriculum-training"
+          disabled={busy || !loaded}
+          onClick={() => void operate(() => trainingApi.launchCurriculumJob())}
+          type="button"
+        >
+          Queue curriculum training
+        </button>
+      </div>
+      <p>
+        Training and model inference stay on approved GPU workstations. The held-out split
+        remains sealed until the final adapter and evaluation configuration are fixed.
+      </p>
+      {error && <div className="error-banner" role="alert">{error}</div>}
+      {jobs.length === 0 ? (
+        <p className="evaluation-empty">No full-curriculum job has been queued.</p>
+      ) : (
+        <div className="evaluation-response-list">
+          {jobs.map((job) => (
+            <article data-testid={`curriculum-job-${job.status}`} key={job.job_id}>
+              <div><strong>{trainingStatusLabel(job.status)}</strong><code>{job.job_id}</code></div>
+              <span>{job.message}</span>
+              <small>
+                Frozen split counts: {job.training_scenarios} / {job.development_scenarios} / {job.heldout_scenarios}
+              </small>
+              {job.status === "queued" && (
+                <button
+                  className="secondary-button"
+                  disabled={busy}
+                  onClick={() => void operate(() => trainingApi.beginCurriculumJob(job.job_id))}
+                  type="button"
+                >
+                  Record curriculum start
+                </button>
+              )}
+              {job.result_digest && <code>{job.result_digest}</code>}
+            </article>
+          ))}
+        </div>
+      )}
+    </section>
+  );
+}
+
 function TrainingAcceptancePanel() {
   const [jobs, setJobs] = useState<TrainingAcceptanceJob[]>([]);
   const [busy, setBusy] = useState(false);
@@ -1144,6 +1449,8 @@ function EegEvaluationWorkspace() {
 
       <HostedReferenceReadiness />
       <TrainingAcceptancePanel />
+      <CurriculumTrainingPanel />
+      <ModelComparisonPanel />
 
       <div className="evaluation-grid">
         <EvaluationList

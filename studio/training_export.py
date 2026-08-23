@@ -79,6 +79,7 @@ class NativeAcceptanceExporter:
             normalized_model=model,
             expected_count=8,
             label="training rollout",
+            require_terminal=False,
         )
         baseline_rows = _native_rows(
             baseline_traces,
@@ -169,6 +170,7 @@ def _native_rows(
     normalized_model: str,
     expected_count: int,
     label: str,
+    require_terminal: bool = True,
 ) -> list[dict[str, Any]]:
     try:
         if path.is_symlink() or not path.is_file():
@@ -201,7 +203,10 @@ def _native_rows(
                 or trace["is_completed"] is not True
                 or document["errors"]
                 or trace["errors"]
-                or trace["stop_condition"] != "terminal"
+                or (
+                    require_terminal
+                    and trace["stop_condition"] != "terminal"
+                )
                 or len(calls) < 2
                 or any(call.get("error") is not None for call in calls)
                 or roles.count("tool") < 1

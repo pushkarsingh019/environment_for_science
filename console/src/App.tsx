@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { draftApi, environmentApi } from "./api";
+import { demoApi, draftApi, environmentApi } from "./api";
 import {
   DraftWorkspace,
   FrozenConfigurationPanel,
@@ -568,6 +568,7 @@ export function App() {
   const [draftBusy, setDraftBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [replay, setReplay] = useState<ReplayReport | null>(null);
+  const [resetNotice, setResetNotice] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -736,6 +737,40 @@ export function App() {
     void perform(() => environmentApi.reset(run.run_id));
   }
 
+  async function resetDemo() {
+    setBusy(true);
+    setDraftBusy(true);
+    setError(null);
+    setResetNotice(null);
+    try {
+      const reset = await demoApi.reset();
+      const [loadedCatalog, loadedEnvironment, loadedDraft] = await Promise.all([
+        environmentApi.getCatalog(),
+        environmentApi.getEnvironment(),
+        draftApi.get(),
+      ]);
+      setCatalog(loadedCatalog);
+      setEnvironment(loadedEnvironment);
+      setDraft(loadedDraft);
+      setSelectedAgent(loadedEnvironment.policy_agents[0]?.id ?? "");
+      setSelectedScenario(loadedEnvironment.seeded_examples[0]?.scenario_id ?? "");
+      setFrozen(null);
+      setSealedFrozen(null);
+      setRun(null);
+      setReplay(null);
+      setDraftResult(null);
+      setMode("edit");
+      setResetNotice(
+        `${reset.summary} Preserved ${reset.immutable_training_jobs_preserved} training job(s).`,
+      );
+    } catch (reason) {
+      setError(errorMessage(reason, "Unable to reset the demonstration"));
+    } finally {
+      setBusy(false);
+      setDraftBusy(false);
+    }
+  }
+
   async function replayRun() {
     if (!run) return;
     setBusy(true);
@@ -763,6 +798,15 @@ export function App() {
           <span className="mode-badge">Scientist Console</span>
           <span className="topbar-divider" />
           <span>{mode === "edit" ? "Edit" : mode === "run" ? "Run" : "Evaluate"}</span>
+          <button
+            className="secondary-button compact-button"
+            data-testid="reset-demo"
+            disabled={busy || draftBusy}
+            onClick={() => void resetDemo()}
+            type="button"
+          >
+            Reset demo
+          </button>
         </div>
       </header>
 
@@ -833,6 +877,11 @@ export function App() {
         </div>
 
         {error && <div className="error-banner" role="alert"><strong>Console request failed.</strong> {error}</div>}
+        {resetNotice && (
+          <div className="fixture-banner" data-testid="demo-reset-notice" role="status">
+            {resetNotice}
+          </div>
+        )}
 
         {mode === "evaluate" ? (
           <EvaluationWorkspace environmentKind={environment?.environment_kind} />

@@ -31,6 +31,7 @@ relative, non-symlink paths beneath the import root.
 receipt.json
 acceptance-config.json
 optimization-metrics.json
+evals/training.jsonl
 evals/baseline.jsonl
 evals/reloaded.jsonl
 run/broadcasts/step_0/STABLE
@@ -43,16 +44,20 @@ run/checkpoints/step_1/trainer/<non-empty DCP files>
 ```
 
 `acceptance-config.json` records exact model and revision, BF16 optimization and reduction, one
-step, `proof-final`, and the language-layer-only LoRA target regex from the proof document.
+step, 16,384-token training/evaluation bounds, exact training/development taskset and package
+digests, the mechanics-only `0.001` anti-degeneracy weight, `proof-final`, and the
+language-layer-only LoRA target regex from the proof document.
 `optimization-metrics.json` contains finite numeric `loss`, `gradient_norm`, and `mismatch_kl`.
 No acceptance threshold is invented.
 
-Both evaluation JSONL files contain the same two disjoint acceptance scenario identities. Every
-row has exactly:
+The training JSONL contains eight canonical rollouts from the frozen 96-row training package.
+Both evaluation JSONL files contain the same two disjoint identities from the frozen development
+package. Every normalized row has exactly:
 
 ```json
 {
-  "scenario_id": "acceptance-heldout-001",
+  "scenario_id": "eeg-0553f1f24a3a64fa",
+  "rollout_index": 0,
   "model": "proof-final",
   "ok": true,
   "tool_calls": 2,

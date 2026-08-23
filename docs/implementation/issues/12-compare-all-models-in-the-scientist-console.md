@@ -4,16 +4,31 @@
 
 **Blocked by:** 07: Prove mesoscope portability through the same compiler; 08: Evaluate GPT through OpenAI Responses; 09: Evaluate Gemini through Interactions; 11: Train Gemma on the EEG curriculum
 
-**Status:** ready-for-agent
+**Status:** in-progress — comparison module, fixtures, API, and browser states pass; real trained evidence awaits Ticket 11
 
 - [ ] The results view identifies every requested and returned model, adapter, run, scenario-manifest, Environment Bundle, and scoring revision.
 - [ ] Base and trained Gemma display the paired EEG success difference and 95% bootstrap interval as the primary evidence.
-- [ ] The UI claims improvement only when the approved statistical rule passes.
-- [ ] Task success, verifier score, abort precision/recall, action count, tool errors, and individual/ambiguous/pair/triple strata are visible without overwhelming the default view.
-- [ ] GPT and Gemini are labeled reference models and are not presented as mandatory targets for trained Gemma to beat.
-- [ ] Mesoscope results appear as a separate platform-generality track and do not imply cross-Apparatus training.
+- [x] The UI claims improvement only when the approved statistical rule passes.
+- [x] Task success, verifier score, abort precision/recall, action count, tool errors, and individual/ambiguous/pair/triple strata are visible without overwhelming the default view.
+- [x] GPT and Gemini are labeled reference models and are not presented as mandatory targets for trained Gemma to beat.
+- [x] Mesoscope results appear as a separate platform-generality track and do not imply cross-Apparatus training.
 - [ ] Every aggregate result opens the exact constituent scenarios and canonical replays.
-- [ ] Provider, adapter, inference, and scientific failures remain distinguishable and are not silently converted into zero scientific scores.
-- [ ] Missing hosted-provider credentials produce an explicit readiness state rather than fabricated live results.
-- [ ] Seeded offline result fixtures keep the comparison interface demonstrable without external APIs and are unmistakably labeled as fixtures.
-- [ ] Browser tests cover successful, inconclusive, regressed, partially unavailable, and adapter-error comparison states.
+- [x] Provider, adapter, inference, and scientific failures remain distinguishable and are not silently converted into zero scientific scores.
+- [x] Missing hosted-provider credentials produce an explicit readiness state rather than fabricated live results.
+- [x] Seeded offline result fixtures keep the comparison interface demonstrable without external APIs and are unmistakably labeled as fixtures.
+- [x] Browser tests cover successful, inconclusive, regressed, partially unavailable, and adapter-error comparison states.
+
+## Implementation readiness
+
+The comparison result contract binds requested and returned model identities, adapter and run
+identities, the sealed scenario manifest, Environment Bundle revision, scoring revision, all
+constituent scenario receipts, and replay routes. Base and trained Gemma use the paired bootstrap
+as primary evidence and cannot claim a win unless its positive interval excludes zero. GPT and
+Gemini are visibly reference models; missing credentials or provider evidence remain unavailable
+rather than becoming zero scores. Provider, adapter, and scientific failures are distinct.
+
+The console progressively discloses task success, verifier score, abort precision/recall, mean
+actions, tool errors, and individual/ambiguous/pair/triple strata. Mesoscope remains a separate
+`platform_generality` card. Five clearly labeled offline fixtures and desktop/mobile browser tests
+exercise all required states and canonical replay receipts. The unchecked real-result criteria
+remain dependent on Ticket 11's sealed import; fixture evidence cannot satisfy them.

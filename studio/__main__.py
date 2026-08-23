@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import os
 import subprocess
 from collections.abc import Sequence
 from pathlib import Path
@@ -10,6 +11,29 @@ from pathlib import Path
 import uvicorn
 
 from studio.application import create_app
+
+
+def external_prerequisite_summary(
+    environ: dict[str, str] | None = None,
+) -> tuple[str, ...]:
+    """Describe optional integrations without reading or printing credential values."""
+
+    source = dict(os.environ) if environ is None else environ
+    return (
+        "OpenAI hosted reference: "
+        + (
+            "configured"
+            if source.get("OPENAI_API_KEY", "").strip()
+            else "missing (offline fixture available)"
+        ),
+        "Gemini hosted reference: "
+        + (
+            "configured"
+            if source.get("GEMINI_API_KEY", "").strip()
+            else "missing (offline fixture available)"
+        ),
+        "Gemma compute: approved GPU workstations only; no local model compute",
+    )
 
 
 def main(argv: Sequence[str] | None = None) -> None:
@@ -22,6 +46,9 @@ def main(argv: Sequence[str] | None = None) -> None:
         help="directory for local draft and trace artifacts",
     )
     arguments = parser.parse_args(argv)
+
+    for prerequisite in external_prerequisite_summary():
+        print(prerequisite, flush=True)
 
     repository_root = Path(__file__).resolve().parent.parent
     console_directory = repository_root / "console"

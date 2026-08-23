@@ -716,6 +716,142 @@ export interface ProviderReadinessSummary {
   gemini: GeminiProviderReadiness;
 }
 
+export interface DemoResetSummary {
+  reset_version: "science-demo-reset/1";
+  status: "reset";
+  draft_revision: number;
+  draft_digest: string;
+  comparison_fixture_state: "successful";
+  seeded_scenarios_restored: true;
+  immutable_training_jobs_preserved: number;
+  immutable_real_comparisons_preserved: number;
+  immutable_artifacts_deleted: 0;
+  summary: string;
+}
+
+export type ComparisonFixtureState =
+  | "successful"
+  | "inconclusive"
+  | "regressed"
+  | "partially_unavailable"
+  | "adapter_error";
+
+export type ComparisonModelRole =
+  | "base_gemma"
+  | "trained_gemma"
+  | "openai_reference"
+  | "gemini_reference";
+
+export interface ComparisonScenarioLink {
+  scenario_id: string;
+  run_id: string;
+  runtime_trace_digest: string;
+  result_digest: string;
+  success: boolean;
+  verifier_score: number;
+  replay_route: string;
+}
+
+export interface ComparisonStratum {
+  count: number;
+  task_success: number | null;
+  verifier_score: number | null;
+}
+
+export interface ComparisonMetrics {
+  scenario_count: number;
+  task_success: number;
+  verifier_score: number;
+  abort_precision: number | null;
+  abort_recall: number | null;
+  mean_action_count: number;
+  tool_errors: number;
+  strata: Record<"individual" | "ambiguous" | "pair" | "triple", ComparisonStratum>;
+}
+
+export interface ComparisonModelResult {
+  role: ComparisonModelRole;
+  label: string;
+  reference_model: boolean;
+  requested_model: string;
+  returned_model: string | null;
+  adapter_identity: string | null;
+  run_id: string;
+  status:
+    | "available"
+    | "credential_missing"
+    | "provider_failure"
+    | "adapter_failure"
+    | "scientific_failure";
+  metrics: ComparisonMetrics | null;
+  failure: { category: "credential" | "provider" | "adapter" | "scientific"; summary: string } | null;
+  scenarios: ComparisonScenarioLink[];
+}
+
+export interface PairedBootstrapAnalysis {
+  analysis_version: "eeg-paired-bootstrap/1";
+  seed: number;
+  replicates: number;
+  scenario_count: number;
+  base_successes: number;
+  trained_successes: number;
+  trained_minus_base: number;
+  confidence_level: number;
+  interval_low: number;
+  interval_high: number;
+  conclusion: "improved" | "inconclusive" | "regressed";
+  paired_outcomes_digest: string;
+}
+
+export interface ModelComparisonResult {
+  comparison_version: "scientist-model-comparison/1";
+  comparison_id: string;
+  source: "seeded_offline_fixture" | "real_evaluation";
+  fixture_state: ComparisonFixtureState | null;
+  fixture_notice: string | null;
+  claim_scope: "within_eeg_compositional_generalization";
+  provenance: {
+    scenario_manifest_id: "eeg-curriculum-release-1:held_out";
+    scenario_manifest_digest: string;
+    environment_bundle_id: "eeg-curriculum";
+    environment_bundle_revision: "1.4.0";
+    scoring_revision: "eeg-curriculum-scorer-1";
+  };
+  models: ComparisonModelResult[];
+  gemma_contrast: PairedBootstrapAnalysis | null;
+  training_claim: "improved" | "inconclusive" | "regressed" | "unavailable";
+  mesoscope: {
+    claim_scope: "platform_generality";
+    label: "Separate mesoscope platform-generality evidence";
+    compiler_route: "/api/platform-evidence/mesoscope";
+    replay_route: "/api/platform-evidence/mesoscope/replay";
+    eeg_training_evidence: false;
+  };
+}
+
+export interface ComparisonReplay {
+  replay_version: "scientist-model-comparison-replay/1";
+  source: "seeded_offline_fixture" | "real_evaluation";
+  provenance: ModelComparisonResult["provenance"];
+  model_role: ComparisonModelRole;
+  scenario: ComparisonScenarioLink;
+  reproducible: true;
+}
+
+export interface CurriculumTrainingJob {
+  job_id: string;
+  status: "queued" | "running" | "failed" | "completed";
+  message: string;
+  training_scenarios: 96;
+  development_scenarios: 32;
+  heldout_scenarios: 64;
+  training_package_digest: string;
+  development_package_digest: string;
+  heldout_package_digest: string;
+  result_id: string | null;
+  result_digest: string | null;
+}
+
 export interface TrainingOptimizationMetrics {
   loss: number;
   gradient_norm: number;

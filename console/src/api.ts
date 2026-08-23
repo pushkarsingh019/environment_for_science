@@ -2,9 +2,11 @@ import type {
   ActionPresentation,
   AuthoringAssistantIdentity,
   CanonicalTraceHeader,
+  CurriculumTrainingJob,
   DraftAcquisitionProfile,
   DraftActor,
   DraftApparatus,
+  DemoResetSummary,
   DraftCommandResponse,
   DraftHistory,
   DraftLastChange,
@@ -40,8 +42,15 @@ import type {
   FrozenEnvironment,
   JsonObject,
   JsonValue,
+  ComparisonFixtureState,
+  ComparisonMetrics,
+  ComparisonModelResult,
+  ComparisonReplay,
+  ComparisonScenarioLink,
   MesoscopePortabilityReplay,
   MesoscopePortabilityReport,
+  ModelComparisonResult,
+  PairedBootstrapAnalysis,
   MesoscopePortabilityResult,
   MesoscopeProvenance,
   PolicyAgentIdentity,
@@ -403,6 +412,19 @@ function finiteNumber(value: unknown, path: string): number {
     malformed(path, "be a finite number");
   }
   return value;
+}
+
+function boundedNumber(
+  value: unknown,
+  path: string,
+  minimum: number,
+  maximum: number,
+): number {
+  const parsed = finiteNumber(value, path);
+  if (parsed < minimum || parsed > maximum) {
+    malformed(path, `be between ${minimum} and ${maximum}`);
+  }
+  return parsed;
 }
 
 function oneOf<const Values extends readonly string[]>(
@@ -3229,6 +3251,631 @@ function parseMesoscopePortabilityReplay(value: unknown): MesoscopePortabilityRe
   };
 }
 
+function parseDemoResetSummary(value: unknown): DemoResetSummary {
+  const path = "DemoResetSummary";
+  const record = exactRecord(
+    value,
+    [
+      "reset_version",
+      "status",
+      "draft_revision",
+      "draft_digest",
+      "comparison_fixture_state",
+      "seeded_scenarios_restored",
+      "immutable_training_jobs_preserved",
+      "immutable_real_comparisons_preserved",
+      "immutable_artifacts_deleted",
+      "summary",
+    ],
+    path,
+  );
+  const restored = booleanValue(
+    record.seeded_scenarios_restored,
+    `${path}.seeded_scenarios_restored`,
+  );
+  if (!restored) malformed(`${path}.seeded_scenarios_restored`, "be true");
+  const deleted = integerValue(
+    record.immutable_artifacts_deleted,
+    `${path}.immutable_artifacts_deleted`,
+    0,
+  );
+  if (deleted !== 0) malformed(`${path}.immutable_artifacts_deleted`, "be zero");
+  return {
+    reset_version: oneOf(
+      record.reset_version,
+      ["science-demo-reset/1"] as const,
+      `${path}.reset_version`,
+    ),
+    status: oneOf(record.status, ["reset"] as const, `${path}.status`),
+    draft_revision: integerValue(record.draft_revision, `${path}.draft_revision`, 1),
+    draft_digest: digest(record.draft_digest, `${path}.draft_digest`),
+    comparison_fixture_state: oneOf(
+      record.comparison_fixture_state,
+      ["successful"] as const,
+      `${path}.comparison_fixture_state`,
+    ),
+    seeded_scenarios_restored: true,
+    immutable_training_jobs_preserved: integerValue(
+      record.immutable_training_jobs_preserved,
+      `${path}.immutable_training_jobs_preserved`,
+      0,
+    ),
+    immutable_real_comparisons_preserved: integerValue(
+      record.immutable_real_comparisons_preserved,
+      `${path}.immutable_real_comparisons_preserved`,
+      0,
+    ),
+    immutable_artifacts_deleted: 0,
+    summary: nonEmptyString(record.summary, `${path}.summary`),
+  };
+}
+
+function parseComparisonScenario(
+  value: unknown,
+  path: string,
+): ComparisonScenarioLink {
+  const record = exactRecord(
+    value,
+    [
+      "scenario_id",
+      "run_id",
+      "runtime_trace_digest",
+      "result_digest",
+      "success",
+      "verifier_score",
+      "replay_route",
+    ],
+    path,
+  );
+  const scenarioId = patternedString(
+    record.scenario_id,
+    /^eeg-[0-9a-f]{16}$/,
+    `${path}.scenario_id`,
+  );
+  return {
+    scenario_id: scenarioId,
+    run_id: patternedString(
+      record.run_id,
+      /^[a-z][a-z0-9-]{7,100}$/,
+      `${path}.run_id`,
+    ),
+    runtime_trace_digest: digest(
+      record.runtime_trace_digest,
+      `${path}.runtime_trace_digest`,
+    ),
+    result_digest: digest(record.result_digest, `${path}.result_digest`),
+    success: booleanValue(record.success, `${path}.success`),
+    verifier_score: boundedNumber(
+      record.verifier_score,
+      `${path}.verifier_score`,
+      0,
+      1,
+    ),
+    replay_route: oneOf(
+      record.replay_route,
+      [
+        `/api/model-comparison/replays/base_gemma/${scenarioId}`,
+        `/api/model-comparison/replays/trained_gemma/${scenarioId}`,
+        `/api/model-comparison/replays/openai_reference/${scenarioId}`,
+        `/api/model-comparison/replays/gemini_reference/${scenarioId}`,
+      ] as const,
+      `${path}.replay_route`,
+    ),
+  };
+}
+
+function parseComparisonMetrics(value: unknown, path: string): ComparisonMetrics {
+  const record = exactRecord(
+    value,
+    [
+      "scenario_count",
+      "task_success",
+      "verifier_score",
+      "abort_precision",
+      "abort_recall",
+      "mean_action_count",
+      "tool_errors",
+      "strata",
+    ],
+    path,
+  );
+  const strataRecord = exactRecord(
+    record.strata,
+    ["individual", "ambiguous", "pair", "triple"],
+    `${path}.strata`,
+  );
+  function stratum(name: "individual" | "ambiguous" | "pair" | "triple") {
+    const item = exactRecord(
+      strataRecord[name],
+      ["count", "task_success", "verifier_score"],
+      `${path}.strata.${name}`,
+    );
+    return {
+      count: integerValue(item.count, `${path}.strata.${name}.count`, 0),
+      task_success: item.task_success === null
+        ? null
+        : boundedNumber(item.task_success, `${path}.strata.${name}.task_success`, 0, 1),
+      verifier_score: item.verifier_score === null
+        ? null
+        : boundedNumber(item.verifier_score, `${path}.strata.${name}.verifier_score`, 0, 1),
+    };
+  }
+  function optionalRate(value: unknown, childPath: string) {
+    return value === null ? null : boundedNumber(value, childPath, 0, 1);
+  }
+  return {
+    scenario_count: integerValue(record.scenario_count, `${path}.scenario_count`, 1),
+    task_success: boundedNumber(record.task_success, `${path}.task_success`, 0, 1),
+    verifier_score: boundedNumber(record.verifier_score, `${path}.verifier_score`, 0, 1),
+    abort_precision: optionalRate(record.abort_precision, `${path}.abort_precision`),
+    abort_recall: optionalRate(record.abort_recall, `${path}.abort_recall`),
+    mean_action_count: boundedNumber(
+      record.mean_action_count,
+      `${path}.mean_action_count`,
+      0,
+      Number.MAX_SAFE_INTEGER,
+    ),
+    tool_errors: integerValue(record.tool_errors, `${path}.tool_errors`, 0),
+    strata: {
+      individual: stratum("individual"),
+      ambiguous: stratum("ambiguous"),
+      pair: stratum("pair"),
+      triple: stratum("triple"),
+    },
+  };
+}
+
+function parseComparisonModel(
+  value: unknown,
+  path: string,
+): ComparisonModelResult {
+  const record = exactRecord(
+    value,
+    [
+      "role",
+      "label",
+      "reference_model",
+      "requested_model",
+      "returned_model",
+      "adapter_identity",
+      "run_id",
+      "status",
+      "metrics",
+      "failure",
+      "scenarios",
+    ],
+    path,
+  );
+  const role = oneOf(
+    record.role,
+    ["base_gemma", "trained_gemma", "openai_reference", "gemini_reference"] as const,
+    `${path}.role`,
+  );
+  const status = oneOf(
+    record.status,
+    [
+      "available",
+      "credential_missing",
+      "provider_failure",
+      "adapter_failure",
+      "scientific_failure",
+    ] as const,
+    `${path}.status`,
+  );
+  if (!Array.isArray(record.scenarios)) malformed(`${path}.scenarios`, "be an array");
+  const scenarios = record.scenarios.map((item, index) =>
+    parseComparisonScenario(item, `${path}.scenarios[${index}]`)
+  );
+  const metrics = record.metrics === null
+    ? null
+    : parseComparisonMetrics(record.metrics, `${path}.metrics`);
+  let failure: ComparisonModelResult["failure"] = null;
+  if (record.failure !== null) {
+    const item = exactRecord(
+      record.failure,
+      ["category", "summary"],
+      `${path}.failure`,
+    );
+    failure = {
+      category: oneOf(
+        item.category,
+        ["credential", "provider", "adapter", "scientific"] as const,
+        `${path}.failure.category`,
+      ),
+      summary: nonEmptyString(item.summary, `${path}.failure.summary`),
+    };
+  }
+  if (
+    (status === "available") !== (metrics !== null && failure === null && scenarios.length > 0)
+    || (metrics !== null && metrics.scenario_count !== scenarios.length)
+  ) {
+    malformed(path, "keep failures separate from scientific metrics");
+  }
+  const referenceModel = booleanValue(record.reference_model, `${path}.reference_model`);
+  if (referenceModel !== ["openai_reference", "gemini_reference"].includes(role)) {
+    malformed(`${path}.reference_model`, "match the model role");
+  }
+  return {
+    role,
+    label: nonEmptyString(record.label, `${path}.label`),
+    reference_model: referenceModel,
+    requested_model: nonEmptyString(record.requested_model, `${path}.requested_model`),
+    returned_model: record.returned_model === null
+      ? null
+      : nonEmptyString(record.returned_model, `${path}.returned_model`),
+    adapter_identity: record.adapter_identity === null
+      ? null
+      : nonEmptyString(record.adapter_identity, `${path}.adapter_identity`),
+    run_id: patternedString(
+      record.run_id,
+      /^[a-z][a-z0-9-]{7,100}$/,
+      `${path}.run_id`,
+    ),
+    status,
+    metrics,
+    failure,
+    scenarios,
+  };
+}
+
+function parsePairedBootstrap(
+  value: unknown,
+  path: string,
+): PairedBootstrapAnalysis {
+  const record = exactRecord(
+    value,
+    [
+      "analysis_version",
+      "seed",
+      "replicates",
+      "scenario_count",
+      "base_successes",
+      "trained_successes",
+      "trained_minus_base",
+      "confidence_level",
+      "interval_low",
+      "interval_high",
+      "conclusion",
+      "paired_outcomes_digest",
+    ],
+    path,
+  );
+  const difference = boundedNumber(
+    record.trained_minus_base,
+    `${path}.trained_minus_base`,
+    -1,
+    1,
+  );
+  const low = boundedNumber(record.interval_low, `${path}.interval_low`, -1, 1);
+  const high = boundedNumber(record.interval_high, `${path}.interval_high`, -1, 1);
+  const conclusion = oneOf(
+    record.conclusion,
+    ["improved", "inconclusive", "regressed"] as const,
+    `${path}.conclusion`,
+  );
+  const expected = difference > 0 && low > 0
+    ? "improved"
+    : difference < 0 && high < 0
+      ? "regressed"
+      : "inconclusive";
+  if (conclusion !== expected || low > high) malformed(path, "apply the approved claim rule");
+  return {
+    analysis_version: oneOf(
+      record.analysis_version,
+      ["eeg-paired-bootstrap/1"] as const,
+      `${path}.analysis_version`,
+    ),
+    seed: integerValue(record.seed, `${path}.seed`, 0),
+    replicates: integerValue(record.replicates, `${path}.replicates`, 1),
+    scenario_count: integerValue(record.scenario_count, `${path}.scenario_count`, 2),
+    base_successes: integerValue(record.base_successes, `${path}.base_successes`, 0),
+    trained_successes: integerValue(record.trained_successes, `${path}.trained_successes`, 0),
+    trained_minus_base: difference,
+    confidence_level: boundedNumber(
+      record.confidence_level,
+      `${path}.confidence_level`,
+      0.95,
+      0.95,
+    ),
+    interval_low: low,
+    interval_high: high,
+    conclusion,
+    paired_outcomes_digest: digest(
+      record.paired_outcomes_digest,
+      `${path}.paired_outcomes_digest`,
+    ),
+  };
+}
+
+function parseComparisonProvenance(
+  value: unknown,
+  path: string,
+): ModelComparisonResult["provenance"] {
+  const record = exactRecord(
+    value,
+    [
+      "scenario_manifest_id",
+      "scenario_manifest_digest",
+      "environment_bundle_id",
+      "environment_bundle_revision",
+      "scoring_revision",
+    ],
+    path,
+  );
+  return {
+    scenario_manifest_id: oneOf(
+      record.scenario_manifest_id,
+      ["eeg-curriculum-release-1:held_out"] as const,
+      `${path}.scenario_manifest_id`,
+    ),
+    scenario_manifest_digest: digest(
+      record.scenario_manifest_digest,
+      `${path}.scenario_manifest_digest`,
+    ),
+    environment_bundle_id: oneOf(
+      record.environment_bundle_id,
+      ["eeg-curriculum"] as const,
+      `${path}.environment_bundle_id`,
+    ),
+    environment_bundle_revision: oneOf(
+      record.environment_bundle_revision,
+      ["1.4.0"] as const,
+      `${path}.environment_bundle_revision`,
+    ),
+    scoring_revision: oneOf(
+      record.scoring_revision,
+      ["eeg-curriculum-scorer-1"] as const,
+      `${path}.scoring_revision`,
+    ),
+  };
+}
+
+function parseModelComparison(value: unknown): ModelComparisonResult {
+  const path = "ModelComparisonResult";
+  const record = exactRecord(
+    value,
+    [
+      "comparison_version",
+      "comparison_id",
+      "source",
+      "fixture_state",
+      "fixture_notice",
+      "claim_scope",
+      "provenance",
+      "models",
+      "gemma_contrast",
+      "training_claim",
+      "mesoscope",
+    ],
+    path,
+  );
+  if (!Array.isArray(record.models) || record.models.length !== 4) {
+    malformed(`${path}.models`, "contain the four ordered model roles");
+  }
+  const models = record.models.map((item, index) =>
+    parseComparisonModel(item, `${path}.models[${index}]`)
+  );
+  const expectedRoles = [
+    "base_gemma",
+    "trained_gemma",
+    "openai_reference",
+    "gemini_reference",
+  ];
+  if (models.some((model, index) => model.role !== expectedRoles[index])) {
+    malformed(`${path}.models`, "keep the canonical model ordering");
+  }
+  const source = oneOf(
+    record.source,
+    ["seeded_offline_fixture", "real_evaluation"] as const,
+    `${path}.source`,
+  );
+  const fixtureState = record.fixture_state === null
+    ? null
+    : oneOf(
+        record.fixture_state,
+        [
+          "successful",
+          "inconclusive",
+          "regressed",
+          "partially_unavailable",
+          "adapter_error",
+        ] as const,
+        `${path}.fixture_state`,
+      );
+  const fixtureNotice = record.fixture_notice === null
+    ? null
+    : nonEmptyString(record.fixture_notice, `${path}.fixture_notice`);
+  if ((source === "seeded_offline_fixture") !== (fixtureState !== null && fixtureNotice !== null)) {
+    malformed(path, "label offline fixtures unmistakably");
+  }
+  const contrast = record.gemma_contrast === null
+    ? null
+    : parsePairedBootstrap(record.gemma_contrast, `${path}.gemma_contrast`);
+  const trainingClaim = oneOf(
+    record.training_claim,
+    ["improved", "inconclusive", "regressed", "unavailable"] as const,
+    `${path}.training_claim`,
+  );
+  if (trainingClaim !== (contrast?.conclusion ?? "unavailable")) {
+    malformed(`${path}.training_claim`, "follow the paired bootstrap result");
+  }
+  const mesoscope = exactRecord(
+    record.mesoscope,
+    ["claim_scope", "label", "compiler_route", "replay_route", "eeg_training_evidence"],
+    `${path}.mesoscope`,
+  );
+  return {
+    comparison_version: oneOf(
+      record.comparison_version,
+      ["scientist-model-comparison/1"] as const,
+      `${path}.comparison_version`,
+    ),
+    comparison_id: patternedString(
+      record.comparison_id,
+      /^model-comparison-[a-z0-9-]{8,80}$/,
+      `${path}.comparison_id`,
+    ),
+    source,
+    fixture_state: fixtureState,
+    fixture_notice: fixtureNotice,
+    claim_scope: oneOf(
+      record.claim_scope,
+      ["within_eeg_compositional_generalization"] as const,
+      `${path}.claim_scope`,
+    ),
+    provenance: parseComparisonProvenance(record.provenance, `${path}.provenance`),
+    models,
+    gemma_contrast: contrast,
+    training_claim: trainingClaim,
+    mesoscope: {
+      claim_scope: oneOf(
+        mesoscope.claim_scope,
+        ["platform_generality"] as const,
+        `${path}.mesoscope.claim_scope`,
+      ),
+      label: oneOf(
+        mesoscope.label,
+        ["Separate mesoscope platform-generality evidence"] as const,
+        `${path}.mesoscope.label`,
+      ),
+      compiler_route: oneOf(
+        mesoscope.compiler_route,
+        ["/api/platform-evidence/mesoscope"] as const,
+        `${path}.mesoscope.compiler_route`,
+      ),
+      replay_route: oneOf(
+        mesoscope.replay_route,
+        ["/api/platform-evidence/mesoscope/replay"] as const,
+        `${path}.mesoscope.replay_route`,
+      ),
+      eeg_training_evidence: ((): false => {
+        const parsed = booleanValue(
+          mesoscope.eeg_training_evidence,
+          `${path}.mesoscope.eeg_training_evidence`,
+        );
+        if (parsed) malformed(`${path}.mesoscope.eeg_training_evidence`, "be false");
+        return false;
+      })(),
+    },
+  };
+}
+
+function parseComparisonReplay(value: unknown): ComparisonReplay {
+  const path = "ComparisonReplay";
+  const record = exactRecord(
+    value,
+    ["replay_version", "source", "provenance", "model_role", "scenario", "reproducible"],
+    path,
+  );
+  return {
+    replay_version: oneOf(
+      record.replay_version,
+      ["scientist-model-comparison-replay/1"] as const,
+      `${path}.replay_version`,
+    ),
+    source: oneOf(
+      record.source,
+      ["seeded_offline_fixture", "real_evaluation"] as const,
+      `${path}.source`,
+    ),
+    provenance: parseComparisonProvenance(record.provenance, `${path}.provenance`),
+    model_role: oneOf(
+      record.model_role,
+      ["base_gemma", "trained_gemma", "openai_reference", "gemini_reference"] as const,
+      `${path}.model_role`,
+    ),
+    scenario: parseComparisonScenario(record.scenario, `${path}.scenario`),
+    reproducible: ((): true => {
+      const parsed = booleanValue(record.reproducible, `${path}.reproducible`);
+      if (!parsed) malformed(`${path}.reproducible`, "be true");
+      return true;
+    })(),
+  };
+}
+
+function parseCurriculumTrainingJob(
+  value: unknown,
+  path = "CurriculumTrainingJob",
+): CurriculumTrainingJob {
+  const record = exactRecord(
+    value,
+    [
+      "job_id",
+      "status",
+      "message",
+      "training_scenarios",
+      "development_scenarios",
+      "heldout_scenarios",
+      "training_package_digest",
+      "development_package_digest",
+      "heldout_package_digest",
+      "result_id",
+      "result_digest",
+    ],
+    path,
+  );
+  const status = oneOf(
+    record.status,
+    ["queued", "running", "failed", "completed"] as const,
+    `${path}.status`,
+  );
+  const resultId = record.result_id === null
+    ? null
+    : patternedString(
+        record.result_id,
+        /^eeg-training-result-[a-z0-9]{8,64}$/,
+        `${path}.result_id`,
+      );
+  const resultDigest = record.result_digest === null
+    ? null
+    : digest(record.result_digest, `${path}.result_digest`);
+  if ((status === "completed") !== (resultId !== null && resultDigest !== null)) {
+    malformed(path, "bind result evidence only to completed training");
+  }
+  function exactCount<const Count extends 96 | 32 | 64>(
+    value: unknown,
+    expected: Count,
+    childPath: string,
+  ): Count {
+    const parsed = integerValue(value, childPath, expected);
+    if (parsed !== expected) malformed(childPath, `equal ${expected}`);
+    return expected;
+  }
+  return {
+    job_id: patternedString(
+      record.job_id,
+      /^eeg-training-[a-z0-9]{8,64}$/,
+      `${path}.job_id`,
+    ),
+    status,
+    message: nonEmptyString(record.message, `${path}.message`),
+    training_scenarios: exactCount(record.training_scenarios, 96, `${path}.training_scenarios`),
+    development_scenarios: exactCount(record.development_scenarios, 32, `${path}.development_scenarios`),
+    heldout_scenarios: exactCount(record.heldout_scenarios, 64, `${path}.heldout_scenarios`),
+    training_package_digest: digest(
+      record.training_package_digest,
+      `${path}.training_package_digest`,
+    ),
+    development_package_digest: digest(
+      record.development_package_digest,
+      `${path}.development_package_digest`,
+    ),
+    heldout_package_digest: digest(
+      record.heldout_package_digest,
+      `${path}.heldout_package_digest`,
+    ),
+    result_id: resultId,
+    result_digest: resultDigest,
+  };
+}
+
+function parseCurriculumTrainingJobs(value: unknown): CurriculumTrainingJob[] {
+  if (!Array.isArray(value)) malformed("CurriculumTrainingJob[]", "be an array");
+  return value.map((item, index) =>
+    parseCurriculumTrainingJob(item, `CurriculumTrainingJob[${index}]`)
+  );
+}
+
 function parseTrainingAcceptanceEvidence(
   value: unknown,
   path: string,
@@ -3568,6 +4215,12 @@ async function request<T>(
   }
 }
 
+export const demoApi = {
+  async reset(): Promise<DemoResetSummary> {
+    return request("/api/demo/reset", parseDemoResetSummary, { method: "POST" });
+  },
+};
+
 export const environmentApi = {
   async getCatalog(): Promise<EnvironmentCatalogEntry[]> {
     return request("/api/environments", parseEnvironmentCatalog);
@@ -3643,7 +4296,56 @@ export const environmentApi = {
   },
 };
 
+export const comparisonApi = {
+  async current(): Promise<ModelComparisonResult> {
+    return request("/api/model-comparison", parseModelComparison);
+  },
+
+  async selectFixture(state: ComparisonFixtureState): Promise<ModelComparisonResult> {
+    return request(
+      `/api/model-comparison/fixtures/${encodeURIComponent(state)}`,
+      parseModelComparison,
+      { method: "POST" },
+    );
+  },
+
+  async reset(): Promise<ModelComparisonResult> {
+    return request(
+      "/api/model-comparison/reset",
+      parseModelComparison,
+      { method: "POST" },
+    );
+  },
+
+  async replay(route: string): Promise<ComparisonReplay> {
+    return request(route, parseComparisonReplay);
+  },
+};
+
 export const trainingApi = {
+  async listCurriculumJobs(): Promise<CurriculumTrainingJob[]> {
+    return request(
+      "/api/training/curriculum-jobs",
+      parseCurriculumTrainingJobs,
+    );
+  },
+
+  async launchCurriculumJob(): Promise<CurriculumTrainingJob> {
+    return request(
+      "/api/training/curriculum-jobs",
+      (value) => parseCurriculumTrainingJob(value),
+      { method: "POST" },
+    );
+  },
+
+  async beginCurriculumJob(jobId: string): Promise<CurriculumTrainingJob> {
+    return request(
+      `/api/training/curriculum-jobs/${encodeURIComponent(jobId)}/begin`,
+      (value) => parseCurriculumTrainingJob(value),
+      { method: "POST" },
+    );
+  },
+
   async listAcceptanceJobs(): Promise<TrainingAcceptanceJob[]> {
     return request(
       "/api/training/acceptance-jobs",
