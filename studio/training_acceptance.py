@@ -14,6 +14,11 @@ from typing import Any, Final, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+from environments.eeg.curriculum import (
+    load_development_scenario_set,
+    load_training_scenario_set,
+)
+
 PRIMARY_MODEL: Final = "google/gemma-4-E4B-it"
 PRIMARY_MODEL_REVISION: Final = "ee0ef6023621cff504d758262d4e04895a5af4a2"
 FALLBACK_MODEL: Final = "google/gemma-4-E2B-it"
@@ -30,7 +35,20 @@ STACK_PINS: Final = {
     "transformers_version": "5.6.2",
     "pytorch_version": "2.11.0+cu128",
     "vllm_version": "0.26.0+cu129",
+    "vllm_router_version": "0.2.0",
+    "prime_lock_digest": (
+        "44e72f78397f38e5165ed948042818b87b11f79a6cb8037ac0fd7ff92334e535"
+    ),
+    "compatibility_patch_digest": (
+        "5212b67327cba8bc208432c70e33f56334e0aea702202bee9c2e93decbc016f3"
+    ),
 }
+_TRAINING_PACKAGE_DIGEST: Final = (
+    "sha256:8b99d39bd0b05ba81c5f36bc463416c9b979c22d96ec9d42101c8d140651986c"
+)
+_DEVELOPMENT_PACKAGE_DIGEST: Final = (
+    "sha256:1997bf9ff6f2c56a63928ef1392564f7c8cc6b29484b82b2baf43fb31e1d0197"
+)
 _DIGEST = re.compile(r"^sha256:[0-9a-f]{64}$")
 _JOB_ID = re.compile(r"^training-acceptance-[a-z0-9]{8,64}$")
 _LANGUAGE_TENSOR_PREFIX = "model.language_model.layers."
@@ -88,6 +106,8 @@ class TrainingAcceptanceEvidence(_FrozenModel):
     initial_adapter_digest: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
     final_adapter_digest: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
     reloaded_served_identity: Literal["proof-final"]
+    training_scenario_ids: tuple[str, ...] = Field(min_length=1)
+    training_trace_digests: tuple[str, ...] = Field(min_length=8)
     heldout_scenario_ids: tuple[str, ...] = Field(min_length=2)
     baseline_trace_digests: tuple[str, ...] = Field(min_length=2)
     reloaded_trace_digests: tuple[str, ...] = Field(min_length=2)
@@ -195,6 +215,7 @@ class AcceptanceArtifactVerifier:
                 "run",
                 "metrics",
                 "configuration",
+                "training_traces",
                 "baseline_traces",
                 "reloaded_traces",
             },
@@ -225,6 +246,13 @@ class AcceptanceArtifactVerifier:
                 "reduction_dtype",
                 "lora_target_regex",
                 "max_steps",
+                "training_sequence_length",
+                "evaluation_context_length",
+                "training_taskset_digest",
+                "development_taskset_digest",
+                "training_package_digest",
+                "development_package_digest",
+                "mechanical_jitter_weight",
                 "served_adapter",
             },
             "acceptance configuration",
@@ -234,6 +262,14 @@ class AcceptanceArtifactVerifier:
             receipt["configuration_digest"], "configuration"
         ):
             raise AcceptanceArtifactError("configuration digest does not match")
+        _required_digest(
+            configuration["training_taskset_digest"],
+            "training taskset",
+        )
+        _required_digest(
+            configuration["development_taskset_digest"],
+            "development taskset",
+        )
         if (
             configuration["model"] != model
             or configuration["model_revision"] != model_revision
@@ -241,6 +277,13 @@ class AcceptanceArtifactVerifier:
             or configuration["reduction_dtype"] != "bfloat16"
             or configuration["lora_target_regex"] != LORA_TARGET_REGEX
             or configuration["max_steps"] != 1
+            or configuration["training_sequence_length"] != 16_384
+            or configuration["evaluation_context_length"] != 16_384
+            or configuration["training_package_digest"]
+            != _TRAINING_PACKAGE_DIGEST
+            or configuration["development_package_digest"]
+            != _DEVELOPMENT_PACKAGE_DIGEST
+            or configuration["mechanical_jitter_weight"] != 0.001
             or configuration["served_adapter"] != FINAL_SERVED_ADAPTER
         ):
             raise AcceptanceArtifactError("acceptance configuration is not approved")
@@ -268,6 +311,23 @@ class AcceptanceArtifactVerifier:
         if not checkpoint_files:
             raise AcceptanceArtifactError("resumable trainer checkpoint is missing")
 
+        training = self._trace_rows(
+            self._relative(root, paths["training_traces"]),
+            expected_model=model,
+            label="training rollout",
+            minimum_rows=8,
+        )
+        if len(training) != 8:
+            raise AcceptanceArtifactError("training rollout traces are incomplete")
+        training_ids = tuple(dict.fromkeys(row["scenario_id"] for row in training))
+        approved_training = load_training_scenario_set()
+        if (
+            not set(training_ids).issubset(approved_training.scenario_ids)
+            or approved_training.identity.package_digest
+            != configuration["training_package_digest"]
+        ):
+            raise AcceptanceArtifactError("training traces are outside the frozen split")
+
         baseline = self._trace_rows(
             self._relative(root, paths["baseline_traces"]),
             expected_model=model,
@@ -280,7 +340,14 @@ class AcceptanceArtifactVerifier:
         )
         baseline_ids = tuple(row["scenario_id"] for row in baseline)
         reloaded_ids = tuple(row["scenario_id"] for row in reloaded)
-        if baseline_ids != reloaded_ids or len(set(baseline_ids)) != len(baseline_ids):
+        development = load_development_scenario_set()
+        if (
+            baseline_ids != reloaded_ids
+            or len(set(baseline_ids)) != len(baseline_ids)
+            or not set(baseline_ids).issubset(development.scenario_ids)
+            or development.identity.package_digest
+            != configuration["development_package_digest"]
+        ):
             raise AcceptanceArtifactError("held-out acceptance scenarios do not match")
 
         return TrainingAcceptanceEvidence(
@@ -305,6 +372,10 @@ class AcceptanceArtifactVerifier:
                 final_directory / "adapter_model.safetensors"
             ),
             reloaded_served_identity=FINAL_SERVED_ADAPTER,
+            training_scenario_ids=training_ids,
+            training_trace_digests=tuple(
+                row["runtime_trace_digest"] for row in training
+            ),
             heldout_scenario_ids=baseline_ids,
             baseline_trace_digests=tuple(
                 row["runtime_trace_digest"] for row in baseline
@@ -342,6 +413,7 @@ class AcceptanceArtifactVerifier:
         *,
         expected_model: str,
         label: str,
+        minimum_rows: int = 2,
     ) -> tuple[dict[str, Any], ...]:
         try:
             rows = tuple(
@@ -351,10 +423,11 @@ class AcceptanceArtifactVerifier:
             )
         except OSError as error:
             raise AcceptanceArtifactError(f"{label} traces are missing") from error
-        if len(rows) < 2 or any(not isinstance(row, dict) for row in rows):
+        if len(rows) < minimum_rows or any(not isinstance(row, dict) for row in rows):
             raise AcceptanceArtifactError(f"{label} traces are incomplete")
         required = {
             "scenario_id",
+            "rollout_index",
             "model",
             "ok",
             "tool_calls",
@@ -366,7 +439,11 @@ class AcceptanceArtifactVerifier:
             _exact_keys(row, required, f"{label} trace")
             if (
                 not isinstance(row["scenario_id"], str)
-                or not row["scenario_id"]
+                or re.fullmatch(r"eeg-[0-9a-f]{16}", row["scenario_id"])
+                is None
+                or not isinstance(row["rollout_index"], int)
+                or isinstance(row["rollout_index"], bool)
+                or row["rollout_index"] < 0
                 or row["model"] != expected_model
                 or row["ok"] is not True
                 or not isinstance(row["tool_calls"], int)
@@ -377,6 +454,9 @@ class AcceptanceArtifactVerifier:
                 raise AcceptanceArtifactError(f"{label} did not complete tool loops")
             _required_digest(row["runtime_trace_digest"], label)
             _required_digest(row["result_digest"], label)
+        slots = {(row["scenario_id"], row["rollout_index"]) for row in rows}
+        if len(slots) != len(rows):
+            raise AcceptanceArtifactError(f"{label} trace slots are duplicated")
         return rows
 
     def _nonempty_regular_files(self, directory: Path) -> tuple[Path, ...]:

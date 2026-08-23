@@ -90,6 +90,8 @@ checks and the product-owned acceptance checks can be required in one invocation
 
 ## Current external gate
 
-No approved workstation target, key path, or explicit model-download approval is present in the
-Studio process environment. Until those are supplied and a real imported tree passes, Ticket 10
-must remain in progress and decision ticket 03 remains open.
+The approved training workstation and E4B download are authorized, and the real one-step EEG run
+passes. Ticket 10 remains in progress until the second approved workstation is idle, independently
+loads the saved adapter under `proof-final`, completes the same disjoint tool loops, and contributes
+a distinct sanitized hardware receipt to an imported tree. Existing unrelated GPU work is never
+terminated or silently shared around this gate.

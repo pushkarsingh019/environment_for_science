@@ -2,8 +2,9 @@
 
 Date: 2026-08-22
 Ticket: `03-prove-the-gemma-4-training-path`
-Status: **Open.** CPU/source compatibility is proved. No checkpoint has been
-trained on a GPU.
+Status: **GPU compatibility proved on 2026-08-23.** The exact E4B snapshot completed
+both the disposable mechanical smoke and a product-owned EEG one-step acceptance run.
+Ticket 10 remains open only for its separate two-workstation import requirement.
 
 ## Decision
 
@@ -71,20 +72,27 @@ held-out eval.
 - The default file monitor persists episode/trace JSONL including messages,
   tools, model calls, rewards, timing, token IDs, masks, and log probabilities.
 
-### Still requires CUDA compute
+### Proved with CUDA compute
 
-- HF Gemma 4 forward/backward, fully sharded data parallel version 2 (FSDP2),
-  activation checkpoint/offload, and Flash Attention 2 (FA2) on the target
-  SM120 card.
-- Co-residency of one full E4B vLLM policy plus the truncated two-layer E4B
-  trainer on one 96 GB GPU.
-- Real vLLM token-in log probabilities matching trainer log probabilities
-  closely enough for a finite Kullback-Leibler (KL) divergence measurement.
-- Runtime adapter loading for the exact Gemma key layout emitted by prime-rl.
-- One actual optimizer step, changed adapter tensors, DCP save, PEFT save,
-  unload/reload, and held-out evaluation.
-- Full-layer E4B training, 31B training, training quality, or scientific-task
-  improvement. None is claimed here.
+- HF Gemma 4 forward/backward, FSDP2, BF16 reduction, and Flash Attention 2 ran on
+  an approved Linux x86_64 SM120 workstation with the pinned E4B snapshot.
+- The complete E4B vLLM policy and truncated two-layer trainer co-resided on one
+  96 GB card over loopback-only transport.
+- Real token-in log probabilities produced finite optimization metrics. The EEG
+  acceptance step recorded loss `0.2082010805606842`, gradient norm `0.091796875`,
+  and mismatch KL `23.28827476501465`; these are observations, not thresholds.
+- DCP state contained two non-empty files. Both PEFT broadcasts contained 28
+  language-layer tensors, and 14 tensors changed after the optimizer step.
+- A fresh `proof-final` reload completed both disjoint EEG development scenarios;
+  their baseline and reloaded runs reached canonical terminals with tool loops,
+  Runtime evidence, and no provider, adapter, tool, or trace errors.
+
+### Still not claimed
+
+- Full-layer E4B training, 31B training, curriculum-level quality, or scientific-task
+  improvement. Those remain Ticket 11 concerns.
+- Independent reload on the second approved workstation. That remains the final
+  external seam for Ticket 10 rather than being inferred from the one-card smoke.
 
 ## Exact stack
 
@@ -163,6 +171,20 @@ This matters specifically for training. The vLLM `--tool-call-parser gemma4`
 handles chat-completions evaluation, but prime-rl training calls the token-in
 endpoint and parses completion tokens client-side through `renderers`. An
 engine parser cannot repair a missing training renderer.
+
+### Audited bounded compatibility patch
+
+The first real GPU run exposed two deterministic prime-rl seams that the earlier
+meta-model probe could not execute. Dense Gemma 4 declares nullable MoE fields;
+the eager packing-cost expression multiplied `None` even though the model has zero
+MoE layers. The two-layer debug load also needed Transformers' existing
+`ignore_mismatched_sizes` path because Gemma 4 sizes two per-layer coupling tensors
+from the configured layer count. The checked patch fixes only those bounded seams,
+is stored at
+`probes/gemma-training-path/patches/prime-rl-gemma4-bounded-compatibility.patch`,
+and has SHA-256
+`5212b67327cba8bc208432c70e33f56334e0aea702202bee9c2e93decbc016f3`.
+The prime-rl base revision remains unchanged and is recorded alongside the patch.
 
 ## Checkpoint choice
 
@@ -420,6 +442,14 @@ changes. Use the existing uv directly.
 ```bash
 cd "$PRIME"
 timeout 30m uv sync --locked --package prime-rl --extra flash-attn
+# Standalone inference requires the router already pinned in uv.lock, while the
+# disaggregated extra would install unrelated transport packages.
+timeout 5m uv pip install --no-deps \
+  'vllm-router @ https://github.com/PrimeIntellect-ai/router/releases/download/v0.2.0/vllm_router-0.2.0-cp38-abi3-manylinux_2_28_x86_64.whl'
+git -C "$PRIME" apply \
+  "$PROJECT/probes/gemma-training-path/patches/prime-rl-gemma4-bounded-compatibility.patch"
+test "$(git -C "$PRIME" diff -- src/prime_rl/trainer/batch.py src/prime_rl/trainer/model.py | sha256sum | cut -d' ' -f1)" = \
+  5212b67327cba8bc208432c70e33f56334e0aea702202bee9c2e93decbc016f3
 timeout 5m uv pip install --no-deps \
   -e "$PROJECT/probes/gemma-training-path/taskset"
 uv run --no-sync python - <<'PY'

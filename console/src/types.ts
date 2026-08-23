@@ -740,6 +740,8 @@ export interface TrainingAcceptanceEvidence {
   initial_adapter_digest: string;
   final_adapter_digest: string;
   reloaded_served_identity: "proof-final";
+  training_scenario_ids: string[];
+  training_trace_digests: string[];
   heldout_scenario_ids: string[];
   baseline_trace_digests: string[];
   reloaded_trace_digests: string[];

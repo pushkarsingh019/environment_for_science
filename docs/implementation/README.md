@@ -126,9 +126,10 @@ verifier checks exact stack/model pins, two distinct sanitized workstation recei
 language-only LoRA configuration, finite optimization metrics, non-empty DCP state, stable PEFT
 artifacts, changed tensor bytes, fresh reload identity, and held-out tool-loop trace digests. The
 existing disposable probe can require the product verifier in the same pass. Ticket 10 remains
-open until an operator supplies approved key-only workstation details and explicit E4B download
-approval, runs the real bounded CUDA sequence, and imports passing artifacts; fixture or log-only
-evidence cannot close it.
+open until the already-passing E4B/EEG run is independently reloaded on the second approved
+workstation and its two-workstation evidence tree is imported; fixture or log-only evidence cannot
+close it. The training workstation has already produced finite metrics, resumable DCP state, 14
+changed adapter tensors, and error-free baseline/reloaded canonical EEG tool loops.
 
 ## Frontier
 

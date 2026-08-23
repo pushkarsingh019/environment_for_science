@@ -165,6 +165,7 @@ def test_generated_native_package_is_syntax_valid_and_endpoint_free(tmp_path: Pa
     assert separator == "@"
     assert revision == receipt.verifiers_revision
     assert '"mcp==1.28.1"' in pyproject
+    assert "allow-direct-references = true" in pyproject
 
     dependency_receipt = json.loads(
         (

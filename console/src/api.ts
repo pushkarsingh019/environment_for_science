@@ -3253,6 +3253,8 @@ function parseTrainingAcceptanceEvidence(
       "initial_adapter_digest",
       "final_adapter_digest",
       "reloaded_served_identity",
+      "training_scenario_ids",
+      "training_trace_digests",
       "heldout_scenario_ids",
       "baseline_trace_digests",
       "reloaded_trace_digests",
@@ -3270,9 +3272,13 @@ function parseTrainingAcceptanceEvidence(
     ["loss", "gradient_norm", "mismatch_kl"],
     `${path}.optimization_metrics`,
   );
-  function digestArray(value: unknown, childPath: string): string[] {
-    if (!Array.isArray(value) || value.length < 2) {
-      malformed(childPath, "contain at least two trace digests");
+  function digestArray(
+    value: unknown,
+    childPath: string,
+    minimum = 2,
+  ): string[] {
+    if (!Array.isArray(value) || value.length < minimum) {
+      malformed(childPath, `contain at least ${minimum} trace digests`);
     }
     return value.map((item, index) => digest(item, `${childPath}[${index}]`));
   }
@@ -3345,6 +3351,19 @@ function parseTrainingAcceptanceEvidence(
       record.reloaded_served_identity,
       ["proof-final"] as const,
       `${path}.reloaded_served_identity`,
+    ),
+    training_scenario_ids: (() => {
+      if (!Array.isArray(record.training_scenario_ids) || record.training_scenario_ids.length < 1) {
+        malformed(`${path}.training_scenario_ids`, "contain training scenarios");
+      }
+      return record.training_scenario_ids.map((item, index) =>
+        patternedString(item, /^eeg-[0-9a-f]{16}$/, `${path}.training_scenario_ids[${index}]`)
+      );
+    })(),
+    training_trace_digests: digestArray(
+      record.training_trace_digests,
+      `${path}.training_trace_digests`,
+      8,
     ),
     heldout_scenario_ids: record.heldout_scenario_ids.map((item, index) =>
       nonEmptyString(item, `${path}.heldout_scenario_ids[${index}]`)

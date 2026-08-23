@@ -10,6 +10,7 @@ from pathlib import Path
 import pytest
 
 from studio.training_acceptance import (
+    STACK_PINS,
     AcceptanceArtifactError,
     AcceptanceArtifactVerifier,
     TrainingAcceptanceEvidence,
@@ -75,7 +76,31 @@ def _acceptance_tree(root: Path) -> Path:
         root / "optimization-metrics.json",
         {"loss": 1.25, "gradient_norm": 0.75, "mismatch_kl": 0.02},
     )
-    scenario_ids = ("acceptance-heldout-001", "acceptance-heldout-002")
+    training_scenario_id = "eeg-04b947fbdffb3768"
+    training_rows = [
+        {
+            "scenario_id": training_scenario_id,
+            "rollout_index": rollout_index,
+            "model": "google/gemma-4-E4B-it",
+            "ok": True,
+            "tool_calls": 2,
+            "trace_error": None,
+            "runtime_trace_digest": _digest(
+                f"training-{training_scenario_id}-{rollout_index}".encode()
+            ),
+            "result_digest": _digest(
+                f"training-result-{training_scenario_id}-{rollout_index}".encode()
+            ),
+        }
+        for rollout_index in range(8)
+    ]
+    (traces / "training.jsonl").write_text(
+        "".join(
+            json.dumps(row, sort_keys=True, separators=(",", ":")) + "\n"
+            for row in training_rows
+        )
+    )
+    scenario_ids = ("eeg-0ba779dfa73fc9db", "eeg-0553f1f24a3a64fa")
     for name, model in (
         ("baseline", "google/gemma-4-E4B-it"),
         ("reloaded", "proof-final"),
@@ -83,6 +108,7 @@ def _acceptance_tree(root: Path) -> Path:
         rows = [
             {
                 "scenario_id": scenario_id,
+                "rollout_index": 0,
                 "model": model,
                 "ok": True,
                 "tool_calls": 2,
@@ -108,6 +134,17 @@ def _acceptance_tree(root: Path) -> Path:
             "(q_proj|k_proj|v_proj|o_proj|gate_proj|up_proj|down_proj)$"
         ),
         "max_steps": 1,
+        "training_sequence_length": 16_384,
+        "evaluation_context_length": 16_384,
+        "training_taskset_digest": _digest(b"training-taskset"),
+        "development_taskset_digest": _digest(b"development-taskset"),
+        "training_package_digest": (
+            "sha256:8b99d39bd0b05ba81c5f36bc463416c9b979c22d96ec9d42101c8d140651986c"
+        ),
+        "development_package_digest": (
+            "sha256:1997bf9ff6f2c56a63928ef1392564f7c8cc6b29484b82b2baf43fb31e1d0197"
+        ),
+        "mechanical_jitter_weight": 0.001,
         "served_adapter": "proof-final",
     }
     config_bytes = json.dumps(config, sort_keys=True, separators=(",", ":")).encode()
@@ -117,14 +154,7 @@ def _acceptance_tree(root: Path) -> Path:
         {
             "receipt_version": "science-gemma-acceptance-receipt/1",
             "job_id": "training-acceptance-test0001",
-            "stack": {
-                "prime_rl_revision": "1e756307ae7b29c31fd202e6fac9afd7e23db18b",
-                "verifiers_revision": "4bcb48e55a35c199d9d2f9722060fda627306aa3",
-                "renderer_revision": "f770dcaa362e3a6a13a96f039741b3b84ca4114e",
-                "transformers_version": "5.6.2",
-                "pytorch_version": "2.11.0+cu128",
-                "vllm_version": "0.26.0+cu129",
-            },
+            "stack": dict(STACK_PINS),
             "model": "google/gemma-4-E4B-it",
             "model_revision": "ee0ef6023621cff504d758262d4e04895a5af4a2",
             "fallback": {"used": False, "reason": None},
@@ -138,6 +168,7 @@ def _acceptance_tree(root: Path) -> Path:
                 "run": "run",
                 "metrics": "optimization-metrics.json",
                 "configuration": "acceptance-config.json",
+                "training_traces": "evals/training.jsonl",
                 "baseline_traces": "evals/baseline.jsonl",
                 "reloaded_traces": "evals/reloaded.jsonl",
             },
@@ -164,9 +195,11 @@ def test_verifier_proves_step_checkpoint_changed_adapter_reload_and_tool_loops(
     assert evidence.adapter_tensor_count == 1
     assert evidence.checkpoint_files == 1
     assert evidence.reloaded_served_identity == "proof-final"
+    assert evidence.training_scenario_ids == ("eeg-04b947fbdffb3768",)
+    assert len(evidence.training_trace_digests) == 8
     assert evidence.heldout_scenario_ids == (
-        "acceptance-heldout-001",
-        "acceptance-heldout-002",
+        "eeg-0ba779dfa73fc9db",
+        "eeg-0553f1f24a3a64fa",
     )
     assert evidence.artifact_digest.startswith("sha256:")
     assert "/" not in evidence.training_hardware_id.removeprefix("sha256:")
