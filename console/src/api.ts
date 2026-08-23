@@ -57,6 +57,8 @@ import type {
   TraceAction,
   TraceEvent,
   TraceTransition,
+  TrainingAcceptanceEvidence,
+  TrainingAcceptanceJob,
   VerifierResult,
 } from "./types";
 
@@ -3227,6 +3229,189 @@ function parseMesoscopePortabilityReplay(value: unknown): MesoscopePortabilityRe
   };
 }
 
+function parseTrainingAcceptanceEvidence(
+  value: unknown,
+  path: string,
+): TrainingAcceptanceEvidence {
+  const record = exactRecord(
+    value,
+    [
+      "evidence_version",
+      "job_id",
+      "status",
+      "model",
+      "model_revision",
+      "fallback_used",
+      "stack",
+      "configuration_digest",
+      "training_hardware_id",
+      "inference_hardware_id",
+      "optimization_metrics",
+      "adapter_tensor_count",
+      "changed_adapter_tensors",
+      "checkpoint_files",
+      "initial_adapter_digest",
+      "final_adapter_digest",
+      "reloaded_served_identity",
+      "heldout_scenario_ids",
+      "baseline_trace_digests",
+      "reloaded_trace_digests",
+      "artifact_digest",
+    ],
+    path,
+  );
+  const stackValue = jsonObject(record.stack, `${path}.stack`);
+  const stack: Record<string, string> = {};
+  for (const [key, value] of Object.entries(stackValue)) {
+    stack[key] = nonEmptyString(value, `${path}.stack.${key}`);
+  }
+  const metrics = exactRecord(
+    record.optimization_metrics,
+    ["loss", "gradient_norm", "mismatch_kl"],
+    `${path}.optimization_metrics`,
+  );
+  function digestArray(value: unknown, childPath: string): string[] {
+    if (!Array.isArray(value) || value.length < 2) {
+      malformed(childPath, "contain at least two trace digests");
+    }
+    return value.map((item, index) => digest(item, `${childPath}[${index}]`));
+  }
+  if (!Array.isArray(record.heldout_scenario_ids) || record.heldout_scenario_ids.length < 2) {
+    malformed(`${path}.heldout_scenario_ids`, "contain held-out acceptance scenarios");
+  }
+  return {
+    evidence_version: oneOf(
+      record.evidence_version,
+      ["science-gemma-acceptance-evidence/1"] as const,
+      `${path}.evidence_version`,
+    ),
+    job_id: patternedString(
+      record.job_id,
+      /^training-acceptance-[a-z0-9]{8,64}$/,
+      `${path}.job_id`,
+    ),
+    status: oneOf(record.status, ["verified"] as const, `${path}.status`),
+    model: oneOf(
+      record.model,
+      ["google/gemma-4-E4B-it", "google/gemma-4-E2B-it"] as const,
+      `${path}.model`,
+    ),
+    model_revision: nonEmptyString(record.model_revision, `${path}.model_revision`),
+    fallback_used: booleanValue(record.fallback_used, `${path}.fallback_used`),
+    stack,
+    configuration_digest: digest(
+      record.configuration_digest,
+      `${path}.configuration_digest`,
+    ),
+    training_hardware_id: digest(
+      record.training_hardware_id,
+      `${path}.training_hardware_id`,
+    ),
+    inference_hardware_id: digest(
+      record.inference_hardware_id,
+      `${path}.inference_hardware_id`,
+    ),
+    optimization_metrics: {
+      loss: finiteNumber(metrics.loss, `${path}.optimization_metrics.loss`),
+      gradient_norm: finiteNumber(
+        metrics.gradient_norm,
+        `${path}.optimization_metrics.gradient_norm`,
+      ),
+      mismatch_kl: finiteNumber(
+        metrics.mismatch_kl,
+        `${path}.optimization_metrics.mismatch_kl`,
+      ),
+    },
+    adapter_tensor_count: integerValue(
+      record.adapter_tensor_count,
+      `${path}.adapter_tensor_count`,
+      1,
+    ),
+    changed_adapter_tensors: integerValue(
+      record.changed_adapter_tensors,
+      `${path}.changed_adapter_tensors`,
+      1,
+    ),
+    checkpoint_files: integerValue(record.checkpoint_files, `${path}.checkpoint_files`, 1),
+    initial_adapter_digest: digest(
+      record.initial_adapter_digest,
+      `${path}.initial_adapter_digest`,
+    ),
+    final_adapter_digest: digest(
+      record.final_adapter_digest,
+      `${path}.final_adapter_digest`,
+    ),
+    reloaded_served_identity: oneOf(
+      record.reloaded_served_identity,
+      ["proof-final"] as const,
+      `${path}.reloaded_served_identity`,
+    ),
+    heldout_scenario_ids: record.heldout_scenario_ids.map((item, index) =>
+      nonEmptyString(item, `${path}.heldout_scenario_ids[${index}]`)
+    ),
+    baseline_trace_digests: digestArray(
+      record.baseline_trace_digests,
+      `${path}.baseline_trace_digests`,
+    ),
+    reloaded_trace_digests: digestArray(
+      record.reloaded_trace_digests,
+      `${path}.reloaded_trace_digests`,
+    ),
+    artifact_digest: digest(record.artifact_digest, `${path}.artifact_digest`),
+  };
+}
+
+function parseTrainingAcceptanceJob(
+  value: unknown,
+  path = "TrainingAcceptanceJob",
+): TrainingAcceptanceJob {
+  const record = exactRecord(
+    value,
+    ["job_id", "status", "message", "artifact_reference", "evidence"],
+    path,
+  );
+  const jobId = patternedString(
+    record.job_id,
+    /^training-acceptance-[a-z0-9]{8,64}$/,
+    `${path}.job_id`,
+  );
+  const status = oneOf(
+    record.status,
+    ["queued", "running", "failed", "completed"] as const,
+    `${path}.status`,
+  );
+  const evidence = record.evidence === null
+    ? null
+    : parseTrainingAcceptanceEvidence(record.evidence, `${path}.evidence`);
+  if (
+    (status === "completed") !== (evidence !== null)
+    || (evidence !== null && evidence.job_id !== jobId)
+  ) {
+    malformed(path, "bind verified evidence only to its completed job");
+  }
+  const artifactReference = nonEmptyString(
+    record.artifact_reference,
+    `${path}.artifact_reference`,
+  );
+  if (artifactReference !== `training-acceptance-imports/${jobId}`) {
+    malformed(`${path}.artifact_reference`, "use the fixed sanitized import reference");
+  }
+  return {
+    job_id: jobId,
+    status,
+    message: nonEmptyString(record.message, `${path}.message`),
+    artifact_reference: artifactReference,
+    evidence,
+  };
+}
+
+function parseTrainingAcceptanceJobs(value: unknown): TrainingAcceptanceJob[] {
+  if (!Array.isArray(value)) malformed("TrainingAcceptanceJob[]", "be an array");
+  return value.map((item, index) =>
+    parseTrainingAcceptanceJob(item, `TrainingAcceptanceJob[${index}]`)
+  );
+}
+
 function parseProviderReadiness(value: unknown): ProviderReadinessSummary {
   const path = "ProviderReadinessSummary";
   const record = exactRecord(value, ["openai", "gemini"], path);
@@ -3436,6 +3621,47 @@ export const environmentApi = {
     return request(`/api/runs/${runId}/replay`, parseReplayResponse, {
       method: "POST",
     });
+  },
+};
+
+export const trainingApi = {
+  async listAcceptanceJobs(): Promise<TrainingAcceptanceJob[]> {
+    return request(
+      "/api/training/acceptance-jobs",
+      parseTrainingAcceptanceJobs,
+    );
+  },
+
+  async launchAcceptanceJob(): Promise<TrainingAcceptanceJob> {
+    return request(
+      "/api/training/acceptance-jobs",
+      (value) => parseTrainingAcceptanceJob(value),
+      { method: "POST" },
+    );
+  },
+
+  async beginAcceptanceJob(jobId: string): Promise<TrainingAcceptanceJob> {
+    return request(
+      `/api/training/acceptance-jobs/${encodeURIComponent(jobId)}/begin`,
+      (value) => parseTrainingAcceptanceJob(value),
+      { method: "POST" },
+    );
+  },
+
+  async verifyAcceptanceJob(jobId: string): Promise<TrainingAcceptanceJob> {
+    return request(
+      `/api/training/acceptance-jobs/${encodeURIComponent(jobId)}/verify`,
+      (value) => parseTrainingAcceptanceJob(value),
+      { method: "POST" },
+    );
+  },
+
+  async retryAcceptanceJob(jobId: string): Promise<TrainingAcceptanceJob> {
+    return request(
+      `/api/training/acceptance-jobs/${encodeURIComponent(jobId)}/retry`,
+      (value) => parseTrainingAcceptanceJob(value),
+      { method: "POST" },
+    );
   },
 };
 

@@ -18,6 +18,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--baseline-model")
     parser.add_argument("--final-model", default="proof-final")
     parser.add_argument("--expected-eval-episodes", type=int, default=4)
+    parser.add_argument("--product-acceptance-root", type=Path)
     return parser.parse_args()
 
 
@@ -172,6 +173,13 @@ def main() -> None:
         "baseline": baseline,
         "reloaded": reloaded,
     }
+    if args.product_acceptance_root is not None:
+        from studio.training_acceptance import AcceptanceArtifactVerifier
+
+        evidence = AcceptanceArtifactVerifier().verify(
+            args.product_acceptance_root
+        )
+        report["product_acceptance"] = evidence.model_dump(mode="json")
     print(json.dumps(report, indent=2, sort_keys=True))
 
 

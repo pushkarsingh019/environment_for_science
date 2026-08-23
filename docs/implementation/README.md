@@ -5,8 +5,8 @@ Source specification: [Science Environment Studio executable prototype specifica
 ## Progress
 
 - Completed: **9 / 13**
-- In progress: **None**
-- Ready now: **10**
+- In progress: **10** — awaiting approved-workstation execution and verified real artifacts
+- Ready now: **None**
 - A ticket counts as complete only after its acceptance criteria, tests, review, and commit pass.
 
 ## Current checkpoint
@@ -120,9 +120,19 @@ mismatches, retries, limits, provider failures, and credential reflection are fi
 The console labels Gemini as a hosted reference and exposes readiness only; a fixed canary becomes
 available when `GEMINI_API_KEY` is supplied only to the Studio process.
 
+The bounded training-acceptance route is implemented without adding Mac-side model compute. Jobs
+persist queued, running, failed, retried, and completed states in ordinary language. A fail-closed
+verifier checks exact stack/model pins, two distinct sanitized workstation receipts, BF16 and
+language-only LoRA configuration, finite optimization metrics, non-empty DCP state, stable PEFT
+artifacts, changed tensor bytes, fresh reload identity, and held-out tool-loop trace digests. The
+existing disposable probe can require the product verifier in the same pass. Ticket 10 remains
+open until an operator supplies approved key-only workstation details and explicit E4B download
+approval, runs the real bounded CUDA sequence, and imports passing artifacts; fixture or log-only
+evidence cannot close it.
+
 ## Frontier
 
-- [10: Train, save, reload, and evaluate a bounded Gemma adapter](issues/10-train-save-reload-and-evaluate-a-bounded-gemma-adapter.md) — can start immediately
+- [10: Train, save, reload, and evaluate a bounded Gemma adapter](issues/10-train-save-reload-and-evaluate-a-bounded-gemma-adapter.md) — software ready; blocked on approved-workstation execution evidence
 
 ## Dependency order
 

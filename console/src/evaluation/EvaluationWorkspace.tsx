@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { evaluationApi, portabilityApi, providerApi } from "../api";
+import { evaluationApi, portabilityApi, providerApi, trainingApi } from "../api";
 import type {
   EvaluationAttemptSummary,
   EvaluationInteraction,
@@ -11,6 +11,7 @@ import type {
   MesoscopePortabilityReport,
   ProviderReadinessSummary,
   TraceEvent,
+  TrainingAcceptanceJob,
 } from "../types";
 
 const POLL_INTERVAL_MS = 750;
@@ -27,6 +28,15 @@ function statusLabel(status: EvaluationStatus): string {
     running: "Running",
     completed: "Completed",
     interrupted: "Interrupted",
+  }[status];
+}
+
+function trainingStatusLabel(status: TrainingAcceptanceJob["status"]): string {
+  return {
+    queued: "Queued",
+    running: "Running",
+    failed: "Failed",
+    completed: "Completed",
   }[status];
 }
 
@@ -802,6 +812,141 @@ function HostedReferenceReadiness() {
   );
 }
 
+function TrainingAcceptancePanel() {
+  const [jobs, setJobs] = useState<TrainingAcceptanceJob[]>([]);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    trainingApi.listAcceptanceJobs()
+      .then((loaded) => {
+        if (active) setJobs(loaded);
+      })
+      .catch((reason: unknown) => {
+        if (active) setError(safeMessage(reason, "Unable to load training jobs."));
+      });
+    return () => { active = false; };
+  }, []);
+
+  function merge(job: TrainingAcceptanceJob) {
+    setJobs((current) => [
+      job,
+      ...current.filter((item) => item.job_id !== job.job_id),
+    ]);
+  }
+
+  async function operate(operation: () => Promise<TrainingAcceptanceJob>) {
+    setBusy(true);
+    setError(null);
+    try {
+      merge(await operation());
+    } catch (reason) {
+      setError(safeMessage(reason, "The training job operation failed."));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <section className="evaluation-card" data-testid="training-acceptance-panel">
+      <div className="section-heading-row">
+        <div>
+          <p className="eyebrow">Bounded Gemma acceptance</p>
+          <h2>Save, reload, and verify on workstations</h2>
+        </div>
+        <button
+          className="primary-button compact-button"
+          data-testid="launch-training-acceptance"
+          disabled={busy}
+          onClick={() => void operate(() => trainingApi.launchAcceptanceJob())}
+          type="button"
+        >
+          Queue acceptance job
+        </button>
+      </div>
+      <p>
+        The console coordinates evidence only. Model inference and optimization run on
+        the two approved GPU workstations, never on this computer.
+      </p>
+      {error && <div className="error-banner" role="alert">{error}</div>}
+      {jobs.length === 0 ? (
+        <p className="evaluation-empty">No bounded acceptance job has been queued.</p>
+      ) : (
+        <div className="evaluation-response-list">
+          {jobs.map((job) => (
+            <article data-testid={`training-job-${job.status}`} key={job.job_id}>
+              <div>
+                <strong>{trainingStatusLabel(job.status)}</strong>
+                <code>{job.job_id}</code>
+              </div>
+              <span>{job.message}</span>
+              <small>Sanitized artifact reference: {job.artifact_reference}</small>
+              <div className="run-control-row">
+                {job.status === "queued" && (
+                  <button
+                    className="secondary-button"
+                    disabled={busy}
+                    onClick={() => void operate(() => trainingApi.beginAcceptanceJob(job.job_id))}
+                    type="button"
+                  >
+                    Record workstation start
+                  </button>
+                )}
+                {job.status === "running" && (
+                  <button
+                    className="secondary-button"
+                    disabled={busy}
+                    onClick={() => void operate(() => trainingApi.verifyAcceptanceJob(job.job_id))}
+                    type="button"
+                  >
+                    Verify imported evidence
+                  </button>
+                )}
+                {job.status === "failed" && (
+                  <button
+                    className="secondary-button"
+                    disabled={busy}
+                    onClick={() => void operate(() => trainingApi.retryAcceptanceJob(job.job_id))}
+                    type="button"
+                  >
+                    Retry after replacing evidence
+                  </button>
+                )}
+              </div>
+              {job.evidence && (
+                <details data-testid="training-acceptance-evidence">
+                  <summary>Inspect verified adapter and reload evidence</summary>
+                  <dl className="evaluation-replay-checks">
+                    <div><dt>Model</dt><dd>{job.evidence.model}</dd></div>
+                    <div>
+                      <dt>Changed tensors</dt>
+                      <dd>{job.evidence.changed_adapter_tensors}</dd>
+                    </div>
+                    <div>
+                      <dt>Finite loss / gradient / KL</dt>
+                      <dd>
+                        {job.evidence.optimization_metrics.loss} / {" "}
+                        {job.evidence.optimization_metrics.gradient_norm} / {" "}
+                        {job.evidence.optimization_metrics.mismatch_kl}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt>Reload identity</dt>
+                      <dd>{job.evidence.reloaded_served_identity}</dd>
+                    </div>
+                  </dl>
+                  <code>{job.evidence.artifact_digest}</code>
+                </details>
+              )}
+            </article>
+          ))}
+        </div>
+      )}
+    </section>
+  );
+}
+
 function EegEvaluationWorkspace() {
   const [evaluations, setEvaluations] = useState<EvaluationSummary[]>([]);
   const [selected, setSelected] = useState<EvaluationSnapshot | null>(null);
@@ -998,6 +1143,7 @@ function EegEvaluationWorkspace() {
       )}
 
       <HostedReferenceReadiness />
+      <TrainingAcceptancePanel />
 
       <div className="evaluation-grid">
         <EvaluationList

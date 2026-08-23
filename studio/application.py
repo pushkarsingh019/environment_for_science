@@ -85,6 +85,11 @@ from studio.service import (
     ScienceStudio,
     SealedEnvironment,
 )
+from studio.training_jobs import (
+    TrainingAcceptanceJob,
+    TrainingAcceptanceJobService,
+    TrainingJobError,
+)
 
 PublicDraftOperation = Literal["seed", "edit", "undo", "redo", "restore_seed"]
 _EVALUATION_MAX_TURNS = 64
@@ -330,6 +335,9 @@ def create_app(
     mesoscope_portability = MesoscopePortabilityService(
         resolved_artifact_root / "platform-evidence"
     )
+    training_jobs = TrainingAcceptanceJobService(
+        resolved_artifact_root / "training"
+    )
     studio_lock = RLock()
     bundle = studio.source_bundle
 
@@ -457,6 +465,23 @@ def create_app(
         status_code = status_codes[error_code]
         return JSONResponse(status_code=status_code, content={"detail": detail})
 
+    @app.exception_handler(TrainingJobError)
+    async def training_job_error(
+        _request: Request,
+        error: TrainingJobError,
+    ) -> JSONResponse:
+        status_code = {
+            "not_found": status.HTTP_404_NOT_FOUND,
+            "conflict": status.HTTP_409_CONFLICT,
+            "storage": status.HTTP_500_INTERNAL_SERVER_ERROR,
+        }[error.code]
+        detail = (
+            "The training acceptance index could not complete the operation."
+            if error.code == "storage"
+            else str(error)
+        )
+        return JSONResponse(status_code=status_code, content={"detail": detail})
+
     @app.exception_handler(EegAuthoringValidationError)
     async def eeg_authoring_validation_error(
         _request: Request,
@@ -547,6 +572,49 @@ def create_app(
         attempt_id: str,
     ) -> EvaluationReplay:
         return evaluation_coordinator.replay(evaluation_id, attempt_id)
+
+    @app.post(
+        "/api/training/acceptance-jobs",
+        response_model=TrainingAcceptanceJob,
+        status_code=status.HTTP_202_ACCEPTED,
+    )
+    def launch_training_acceptance_job() -> TrainingAcceptanceJob:
+        return training_jobs.launch()
+
+    @app.get(
+        "/api/training/acceptance-jobs",
+        response_model=tuple[TrainingAcceptanceJob, ...],
+    )
+    def list_training_acceptance_jobs() -> tuple[TrainingAcceptanceJob, ...]:
+        return training_jobs.list()
+
+    @app.get(
+        "/api/training/acceptance-jobs/{job_id}",
+        response_model=TrainingAcceptanceJob,
+    )
+    def load_training_acceptance_job(job_id: str) -> TrainingAcceptanceJob:
+        return training_jobs.load(job_id)
+
+    @app.post(
+        "/api/training/acceptance-jobs/{job_id}/begin",
+        response_model=TrainingAcceptanceJob,
+    )
+    def begin_training_acceptance_job(job_id: str) -> TrainingAcceptanceJob:
+        return training_jobs.begin(job_id)
+
+    @app.post(
+        "/api/training/acceptance-jobs/{job_id}/verify",
+        response_model=TrainingAcceptanceJob,
+    )
+    def verify_training_acceptance_job(job_id: str) -> TrainingAcceptanceJob:
+        return training_jobs.verify(job_id)
+
+    @app.post(
+        "/api/training/acceptance-jobs/{job_id}/retry",
+        response_model=TrainingAcceptanceJob,
+    )
+    def retry_training_acceptance_job(job_id: str) -> TrainingAcceptanceJob:
+        return training_jobs.retry(job_id)
 
     @app.post(
         "/api/hosted-smokes/gemini",

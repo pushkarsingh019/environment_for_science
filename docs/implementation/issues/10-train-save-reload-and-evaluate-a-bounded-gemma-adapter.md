@@ -4,7 +4,7 @@
 
 **Blocked by:** 06: Evaluate EEG through Verifiers and local base Gemma
 
-**Status:** ready-for-agent
+**Status:** in-progress — software and fail-closed artifact verification are ready; real approved-workstation evidence is required
 
 - [ ] The run uses the pinned prime-rl, Verifiers, Transformers, PyTorch, vLLM, and audited Gemma-compatible renderer revisions.
 - [ ] The exact Gemma E4B checkpoint revision is used; E2B is attempted only as the recorded bounded fallback after a genuine E4B resource failure.
@@ -18,3 +18,17 @@
 - [ ] The Scientist Console shows queued, running, failed, and completed acceptance-job states in ordinary language and links to sanitized artifacts and traces.
 - [ ] Revisions, model identity, configuration digest, hardware identity, and artifact digests are recorded without credentials or private host details.
 - [ ] Passing evidence is sufficient to resolve decision ticket 03; logs alone are not accepted as proof.
+
+## Implementation readiness
+
+The console now persists queued, running, failed, retried, and completed acceptance jobs without
+starting local compute. The product verifier independently checks exact stack and model pins,
+E4B-first fallback evidence, BF16 and language-only LoRA configuration, finite optimization
+metrics, non-empty DCP state, stable PEFT artifacts, changed safetensor bytes, distinct sanitized
+workstation receipts, fresh `proof-final` reload identity, and matched held-out multi-turn Runtime
+trace rows. The disposable probe can require this product evidence in the same verification pass.
+
+The remaining gate is intentionally external: supply approved key-only workstation connection
+details and explicit approval for the pinned E4B download, run the bounded CUDA sequence, and
+import evidence that passes the verifier. See
+[the bounded acceptance operator procedure](../../gemma-acceptance-operations.md).

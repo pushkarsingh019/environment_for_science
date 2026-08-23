@@ -716,6 +716,44 @@ export interface ProviderReadinessSummary {
   gemini: GeminiProviderReadiness;
 }
 
+export interface TrainingOptimizationMetrics {
+  loss: number;
+  gradient_norm: number;
+  mismatch_kl: number;
+}
+
+export interface TrainingAcceptanceEvidence {
+  evidence_version: "science-gemma-acceptance-evidence/1";
+  job_id: string;
+  status: "verified";
+  model: "google/gemma-4-E4B-it" | "google/gemma-4-E2B-it";
+  model_revision: string;
+  fallback_used: boolean;
+  stack: Record<string, string>;
+  configuration_digest: string;
+  training_hardware_id: string;
+  inference_hardware_id: string;
+  optimization_metrics: TrainingOptimizationMetrics;
+  adapter_tensor_count: number;
+  changed_adapter_tensors: number;
+  checkpoint_files: number;
+  initial_adapter_digest: string;
+  final_adapter_digest: string;
+  reloaded_served_identity: "proof-final";
+  heldout_scenario_ids: string[];
+  baseline_trace_digests: string[];
+  reloaded_trace_digests: string[];
+  artifact_digest: string;
+}
+
+export interface TrainingAcceptanceJob {
+  job_id: string;
+  status: "queued" | "running" | "failed" | "completed";
+  message: string;
+  artifact_reference: string;
+  evidence: TrainingAcceptanceEvidence | null;
+}
+
 export interface MesoscopePortabilityReplay {
   replay_id: "valid-handoff" | "quarantine-handoff";
   source_trace_digest: string;
