@@ -45,6 +45,7 @@ import type {
   MesoscopePortabilityResult,
   MesoscopeProvenance,
   PolicyAgentIdentity,
+  ProviderReadinessSummary,
   ReplayReport,
   ReplayResponse,
   RouteNodePresentation,
@@ -1849,12 +1850,19 @@ function parseEvaluationMessage(
       "provider_tool_call_id",
       "tool_call_ordinal",
       "tool_name",
+      "provider_state",
     ],
     path,
   );
   if (!Array.isArray(record.tool_calls)) {
     malformed(`${path}.tool_calls`, "be an array");
   }
+  if (!Array.isArray(record.provider_state)) {
+    malformed(`${path}.provider_state`, "be an array");
+  }
+  const providerState = record.provider_state.map((item, index) =>
+    jsonObject(item, `${path}.provider_state[${index}]`)
+  );
   const role = oneOf(
     record.role,
     ["user", "assistant", "tool"] as const,
@@ -1902,13 +1910,15 @@ function parseEvaluationMessage(
         && toolCallOrdinal !== null
         && toolName !== null
         && toolCalls.length === 0
+        && providerState.length === 0
       : responseId === null
         && responseTurn === null
         && toolCallId === null
         && providerToolCallId === null
         && toolCallOrdinal === null
         && toolName === null
-        && toolCalls.length === 0;
+        && toolCalls.length === 0
+        && providerState.length === 0;
   if (!validRoleShape) malformed(path, "match its declared interaction role");
   if (
     role === "tool"
@@ -1926,6 +1936,7 @@ function parseEvaluationMessage(
     provider_tool_call_id: providerToolCallId,
     tool_call_ordinal: toolCallOrdinal,
     tool_name: toolName,
+    provider_state: providerState,
   };
 }
 
@@ -1981,6 +1992,8 @@ function parseEvaluationResponseRecord(
         "finish_reason",
         "system_fingerprint",
         "runtime_instance_id",
+        "provider_request_id",
+        "service_tier",
       ],
       `${path}.metadata`,
     );
@@ -2006,6 +2019,18 @@ function parseEvaluationResponseRecord(
         : rawSha256Digest(
             metadataRecord.runtime_instance_id,
             `${path}.metadata.runtime_instance_id`,
+          ),
+      provider_request_id: metadataRecord.provider_request_id === null
+        ? null
+        : nonEmptyString(
+            metadataRecord.provider_request_id,
+            `${path}.metadata.provider_request_id`,
+          ),
+      service_tier: metadataRecord.service_tier === null
+        ? null
+        : nonEmptyString(
+            metadataRecord.service_tier,
+            `${path}.metadata.service_tier`,
           ),
     };
   }
@@ -3195,6 +3220,53 @@ function parseMesoscopePortabilityReplay(value: unknown): MesoscopePortabilityRe
   };
 }
 
+function parseProviderReadiness(value: unknown): ProviderReadinessSummary {
+  const path = "ProviderReadinessSummary";
+  const record = exactRecord(value, ["openai"], path);
+  const openai = exactRecord(
+    record.openai,
+    [
+      "provider",
+      "route",
+      "requested_model",
+      "adapter_revision",
+      "credential_configured",
+      "status",
+    ],
+    `${path}.openai`,
+  );
+  const configured = booleanValue(
+    openai.credential_configured,
+    `${path}.openai.credential_configured`,
+  );
+  const status = oneOf(
+    openai.status,
+    ["configured", "missing_credential"] as const,
+    `${path}.openai.status`,
+  );
+  if (configured !== (status === "configured")) {
+    malformed(`${path}.openai`, "bind status to credential readiness");
+  }
+  return {
+    openai: {
+      provider: oneOf(openai.provider, ["openai"] as const, `${path}.openai.provider`),
+      route: oneOf(openai.route, ["responses"] as const, `${path}.openai.route`),
+      requested_model: oneOf(
+        openai.requested_model,
+        ["gpt-5.6-sol"] as const,
+        `${path}.openai.requested_model`,
+      ),
+      adapter_revision: oneOf(
+        openai.adapter_revision,
+        ["openai-responses/1"] as const,
+        `${path}.openai.adapter_revision`,
+      ),
+      credential_configured: configured,
+      status,
+    },
+  };
+}
+
 function errorDetail(value: unknown): string | undefined {
   if (!isRecord(value)) return undefined;
   return typeof value.detail === "string" && value.detail.length > 0
@@ -3309,6 +3381,12 @@ export const environmentApi = {
     return request(`/api/runs/${runId}/replay`, parseReplayResponse, {
       method: "POST",
     });
+  },
+};
+
+export const providerApi = {
+  async readiness(): Promise<ProviderReadinessSummary> {
+    return request("/api/provider-readiness", parseProviderReadiness);
   },
 };
 

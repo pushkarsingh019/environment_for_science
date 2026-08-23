@@ -53,7 +53,10 @@ class _FrozenModel(BaseModel):
 _SAFE_IDENTIFIER = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._/@:+-]{0,511}$")
 _IP_ENDPOINT = re.compile(r"^[0-9]{1,3}(?:\.[0-9]{1,3}){3}(?::[0-9]+)?(?:/|$)")
 ModelProviderKind = Literal["local-openai-compatible", "openai-responses", "gemini-interactions"]
-EvaluationProfile = Literal["base-gemma-development-v1"]
+EvaluationProfile = Literal[
+    "base-gemma-development-v1",
+    "hosted-reference-smoke-v1",
+]
 
 BASE_GEMMA_MODEL = "google/gemma-4-E4B-it"
 BASE_GEMMA_CHECKPOINT_REVISION = "ee0ef6023621cff504d758262d4e04895a5af4a2"
@@ -125,6 +128,7 @@ class ModelMessage(_FrozenModel):
     provider_tool_call_id: str | None = Field(default=None, min_length=1)
     tool_call_ordinal: int | None = Field(default=None, ge=1)
     tool_name: str | None = Field(default=None, min_length=1)
+    provider_state: tuple[dict[str, Any], ...] = ()
 
     @field_validator(
         "response_id",
@@ -159,6 +163,7 @@ class ModelMessage(_FrozenModel):
                 or self.tool_call_ordinal is None
                 or self.tool_name is None
                 or self.tool_calls
+                or self.provider_state
             ):
                 raise ValueError("tool messages require one result identity")
             if not isinstance(self.content, dict):
@@ -171,6 +176,7 @@ class ModelMessage(_FrozenModel):
             or self.provider_tool_call_id is not None
             or self.tool_call_ordinal is not None
             or self.tool_name is not None
+            or self.provider_state
         ):
             raise ValueError("user messages cannot contain tool lineage")
         elif not isinstance(self.content, dict):
@@ -189,6 +195,7 @@ class ModelMessage(_FrozenModel):
         tool_calls: tuple[ModelToolCall, ...] = (),
         response_id: str | None = None,
         response_turn: int | None = None,
+        provider_state: tuple[dict[str, Any], ...] = (),
     ) -> ModelMessage:
         return cls(
             role="assistant",
@@ -196,6 +203,7 @@ class ModelMessage(_FrozenModel):
             response_id=response_id,
             response_turn=response_turn,
             tool_calls=tool_calls,
+            provider_state=tuple(deepcopy(provider_state)),
         )
 
     @classmethod
@@ -232,10 +240,13 @@ class ModelTool(_FrozenModel):
 
 
 class ModelSamplingSettings(_FrozenModel):
-    """One explicit scored local-Gemma sampling contract."""
+    """One explicit provider-appropriate sampling contract."""
 
-    profile: Literal["base-gemma-development-chat-v1"] = "base-gemma-development-chat-v1"
-    temperature: float = 0.0
+    profile: Literal[
+        "base-gemma-development-chat-v1",
+        "hosted-reference-medium-v1",
+    ] = "base-gemma-development-chat-v1"
+    temperature: float | None = 0.0
     max_output_tokens: int = 2048
     tool_choice: Literal["auto"] = "auto"
     top_p: None = None
@@ -245,7 +256,13 @@ class ModelSamplingSettings(_FrozenModel):
 
     @model_validator(mode="after")
     def validate_exact_scored_profile(self) -> ModelSamplingSettings:
-        if self.temperature != 0.0 or self.max_output_tokens != 2048:
+        valid_temperature = (
+            self.profile == "base-gemma-development-chat-v1"
+            and self.temperature == 0.0
+            or self.profile == "hosted-reference-medium-v1"
+            and self.temperature is None
+        )
+        if not valid_temperature or self.max_output_tokens != 2048:
             raise ValueError("sampling settings do not match the approved scored profile")
         return self
 
@@ -309,8 +326,10 @@ class ModelResponseMetadata(_FrozenModel):
     finish_reason: Literal["stop", "tool_calls", "length"]
     system_fingerprint: str | None = Field(default=None, min_length=1, max_length=512)
     runtime_instance_id: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
+    provider_request_id: str | None = Field(default=None, min_length=1, max_length=512)
+    service_tier: str | None = Field(default=None, min_length=1, max_length=512)
 
-    @field_validator("system_fingerprint")
+    @field_validator("system_fingerprint", "provider_request_id", "service_tier")
     @classmethod
     def reject_transport_fingerprint(cls, value: str | None) -> str | None:
         return _validated_safe_identifier(value) if value is not None else None
@@ -1183,6 +1202,7 @@ class CanonicalModelRunner:
                 tool_calls=canonical_calls,
                 response_id=response.response_id,
                 response_turn=turn,
+                provider_state=response.message.provider_state,
             )
             messages.append(canonical_message)
             responses.append(

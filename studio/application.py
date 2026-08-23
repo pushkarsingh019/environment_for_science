@@ -19,6 +19,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 from starlette.middleware.base import RequestResponseEndpoint
 from starlette.responses import Response
 
+from environments.eeg._curriculum_contract import CANONICAL_OBJECTIVE
 from environments.eeg.authoring import (
     EegApparatusCapability,
     EegAuthoringState,
@@ -26,6 +27,7 @@ from environments.eeg.authoring import (
     EegDescriptiveNote,
     EegProcedureConfiguration,
 )
+from environments.eeg.curriculum import load_development_scenario_set
 from environments.eeg.presentation import (
     EegOnsetRouteVisualization,
     EegPreflightVisualization,
@@ -48,7 +50,18 @@ from studio.policy_evaluation.mesoscope_portability import (
     MesoscopePortabilityReport,
     MesoscopePortabilityService,
 )
-from studio.policy_evaluation.model_runner import CanonicalModelRunner
+from studio.policy_evaluation.model_runner import (
+    CanonicalModelRunner,
+    EvaluationAttempt,
+    ModelIdentity,
+)
+from studio.policy_evaluation.openai_responses import (
+    OPENAI_RESPONSES_ADAPTER_REVISION,
+    OPENAI_RESPONSES_MODEL,
+    OPENAI_RESPONSES_SAMPLING,
+    OpenAIResponsesProvider,
+    openai_credential_ready,
+)
 from studio.policy_evaluation.runtime_bridge import EvaluationRuntimeBridge
 from studio.runtime import (
     EnvironmentAction,
@@ -240,6 +253,19 @@ class CommandResponse(_StrictModel):
 class ReplayResponse(_StrictModel):
     snapshot: RunSnapshot
     replay: ReplayReport
+
+
+class HostedProviderReadiness(_StrictModel):
+    provider: Literal["openai"]
+    route: Literal["responses"]
+    requested_model: Literal["gpt-5.6-sol"]
+    adapter_revision: Literal["openai-responses/1"]
+    credential_configured: bool
+    status: Literal["configured", "missing_credential"]
+
+
+class ProviderReadinessSummary(_StrictModel):
+    openai: HostedProviderReadiness
 
 
 class LaunchEvaluationRequest(BaseModel):
@@ -504,6 +530,54 @@ def create_app(
         attempt_id: str,
     ) -> EvaluationReplay:
         return evaluation_coordinator.replay(evaluation_id, attempt_id)
+
+    @app.post(
+        "/api/hosted-smokes/openai",
+        response_model=EvaluationAttempt,
+    )
+    def run_openai_smoke() -> EvaluationAttempt:
+        if not openai_credential_ready(os.environ):
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="The OpenAI credential is not configured.",
+            )
+        scenario_set = load_development_scenario_set()
+        smoke_bundle = scenario_set.environment_bundle
+        runner = CanonicalModelRunner(
+            bundle=smoke_bundle,
+            runtime_bridge=EvaluationRuntimeBridge(smoke_bundle),
+            provider=OpenAIResponsesProvider.from_environment(os.environ),
+            max_turns=_EVALUATION_MAX_TURNS,
+            max_tool_calls=_EVALUATION_MAX_TOOL_CALLS,
+            sampling=OPENAI_RESPONSES_SAMPLING,
+            profile="hosted-reference-smoke-v1",
+        )
+        return runner.run(
+            scenario_id=scenario_set.scenario_ids[0],
+            objective=CANONICAL_OBJECTIVE,
+            model=ModelIdentity(
+                provider="openai-responses",
+                requested_model=OPENAI_RESPONSES_MODEL,
+                adapter_revision=OPENAI_RESPONSES_ADAPTER_REVISION,
+            ),
+        )
+
+    @app.get(
+        "/api/provider-readiness",
+        response_model=ProviderReadinessSummary,
+    )
+    def get_provider_readiness() -> ProviderReadinessSummary:
+        configured = openai_credential_ready(os.environ)
+        return ProviderReadinessSummary(
+            openai=HostedProviderReadiness(
+                provider="openai",
+                route="responses",
+                requested_model=OPENAI_RESPONSES_MODEL,
+                adapter_revision=OPENAI_RESPONSES_ADAPTER_REVISION,
+                credential_configured=configured,
+                status="configured" if configured else "missing_credential",
+            )
+        )
 
     @app.get(
         "/api/platform-evidence/mesoscope",

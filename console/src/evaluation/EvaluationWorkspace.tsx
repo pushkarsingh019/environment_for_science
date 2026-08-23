@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { evaluationApi, portabilityApi } from "../api";
+import { evaluationApi, portabilityApi, providerApi } from "../api";
 import type {
   EvaluationAttemptSummary,
   EvaluationInteraction,
@@ -9,6 +9,7 @@ import type {
   EvaluationSummary,
   MesoscopePortabilityReplay,
   MesoscopePortabilityReport,
+  ProviderReadinessSummary,
   TraceEvent,
 } from "../types";
 
@@ -729,6 +730,53 @@ function MesoscopePortabilityWorkspace() {
   );
 }
 
+function HostedReferenceReadiness() {
+  const [readiness, setReadiness] = useState<ProviderReadinessSummary | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    providerApi.readiness()
+      .then((loaded) => {
+        if (active) setReadiness(loaded);
+      })
+      .catch(() => {
+        if (active) setReadiness(null);
+      });
+    return () => { active = false; };
+  }, []);
+
+  const openai = readiness?.openai;
+  return (
+    <section className="evaluation-card" data-testid="hosted-reference-readiness">
+      <div className="section-heading-row">
+        <div>
+          <p className="eyebrow">Hosted reference readiness</p>
+          <h2>OpenAI Responses</h2>
+        </div>
+        <span className={`evaluation-status ${openai?.credential_configured
+          ? "is-completed"
+          : "is-interrupted"}`}>
+          {openai?.credential_configured ? "Configured" : "Missing credential"}
+        </span>
+      </div>
+      <p>
+        GPT is a separately labeled hosted reference under the same canonical tools,
+        budgets, Runtime transitions, and deterministic Verifier.
+      </p>
+      <dl className="evaluation-replay-checks">
+        <div><dt>Exact model</dt><dd>{openai?.requested_model ?? "gpt-5.6-sol"}</dd></div>
+        <div><dt>Route</dt><dd>Responses · stateless · storage disabled</dd></div>
+      </dl>
+      {!openai?.credential_configured && (
+        <p className="identity-note">
+          Set OPENAI_API_KEY in the launch environment to enable a live smoke run.
+          No secret value is read into this view.
+        </p>
+      )}
+    </section>
+  );
+}
+
 function EegEvaluationWorkspace() {
   const [evaluations, setEvaluations] = useState<EvaluationSummary[]>([]);
   const [selected, setSelected] = useState<EvaluationSnapshot | null>(null);
@@ -923,6 +971,8 @@ function EegEvaluationWorkspace() {
           <strong>Evaluation request failed.</strong> {error ?? pollError}
         </div>
       )}
+
+      <HostedReferenceReadiness />
 
       <div className="evaluation-grid">
         <EvaluationList

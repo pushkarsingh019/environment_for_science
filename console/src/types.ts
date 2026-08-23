@@ -481,6 +481,7 @@ export interface EvaluationMessage {
   provider_tool_call_id: string | null;
   tool_call_ordinal: number | null;
   tool_name: string | null;
+  provider_state: JsonObject[];
 }
 
 export interface EvaluationTokenUsage {
@@ -501,6 +502,8 @@ export interface EvaluationResponseRecord {
     finish_reason: "stop" | "tool_calls" | "length";
     system_fingerprint: string | null;
     runtime_instance_id: string | null;
+    provider_request_id: string | null;
+    service_tier: string | null;
   } | null;
 }
 
@@ -687,6 +690,19 @@ export interface MesoscopePortabilityReport {
     artifacts: Array<{ path: string; digest: string; size_bytes: number }>;
   };
   results: MesoscopePortabilityResult[];
+}
+
+export interface HostedProviderReadiness {
+  provider: "openai";
+  route: "responses";
+  requested_model: "gpt-5.6-sol";
+  adapter_revision: "openai-responses/1";
+  credential_configured: boolean;
+  status: "configured" | "missing_credential";
+}
+
+export interface ProviderReadinessSummary {
+  openai: HostedProviderReadiness;
 }
 
 export interface MesoscopePortabilityReplay {
