@@ -2,14 +2,22 @@
 
 from __future__ import annotations
 
+import os
+import secrets
+from contextlib import suppress
 from pathlib import Path
 from threading import RLock
 from typing import Literal
+from urllib.parse import urlsplit
 
-from fastapi import FastAPI, HTTPException, Request, status
+from fastapi import BackgroundTasks, FastAPI, HTTPException, Request, status
+from fastapi.exception_handlers import request_validation_exception_handler
+from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, ConfigDict, Field, field_validator
+from starlette.middleware.base import RequestResponseEndpoint
+from starlette.responses import Response
 
 from environments.eeg.authoring import (
     EegApparatusCapability,
@@ -24,6 +32,19 @@ from environments.eeg.presentation import (
 )
 from environments.mesoscope.presentation import MesoscopeHandoffVisualization
 from studio.authoring import DraftRepositoryError, DraftSnapshot
+from studio.bundle import EnvironmentBundle
+from studio.policy_evaluation.coordinator import (
+    EvaluationCoordinator,
+    EvaluationCoordinatorError,
+    EvaluationReplay,
+    EvaluationRunner,
+    EvaluationRunnerFactory,
+    EvaluationSnapshot,
+    EvaluationSummary,
+)
+from studio.policy_evaluation.local_gemma import LocalGemmaChatProvider
+from studio.policy_evaluation.model_runner import CanonicalModelRunner
+from studio.policy_evaluation.runtime_bridge import EvaluationRuntimeBridge
 from studio.runtime import (
     EnvironmentAction,
     PolicyAgentIdentity,
@@ -41,6 +62,13 @@ from studio.service import (
 )
 
 PublicDraftOperation = Literal["seed", "edit", "undo", "redo", "restore_seed"]
+_EVALUATION_MAX_TURNS = 64
+_EVALUATION_MAX_TOOL_CALLS = 64
+_LOCAL_SESSION_COOKIE = "science_studio_session"
+_SAFE_HTTP_METHODS = {"GET", "HEAD", "OPTIONS"}
+_TRUSTED_LOCAL_HOSTS = {"127.0.0.1", "::1", "localhost"}
+_IN_PROCESS_TEST_HOST = "testserver"
+_IN_PROCESS_TEST_CLIENT = "testclient"
 
 
 class _StrictModel(BaseModel):
@@ -87,9 +115,7 @@ class EnvironmentSummary(_StrictModel):
     simulation_label: str
     actions: tuple[ActionPresentation, ...]
     visualization: (
-        EegOnsetRouteVisualization
-        | EegPreflightVisualization
-        | MesoscopeHandoffVisualization
+        EegOnsetRouteVisualization | EegPreflightVisualization | MesoscopeHandoffVisualization
     )
     validation: EnvironmentValidationSummary
     hidden_state_exposed: Literal[False]
@@ -211,15 +237,48 @@ class ReplayResponse(_StrictModel):
     replay: ReplayReport
 
 
+class LaunchEvaluationRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True, strict=True)
+
+    profile: Literal["base-gemma-development-v1"]
+
+
+def _production_evaluation_runner(bundle: EnvironmentBundle) -> EvaluationRunner:
+    """Compose local inference without putting its private route in app state DTOs."""
+    return CanonicalModelRunner(
+        bundle=bundle,
+        runtime_bridge=EvaluationRuntimeBridge(bundle),
+        provider=LocalGemmaChatProvider.from_environment(os.environ),
+        max_turns=_EVALUATION_MAX_TURNS,
+        max_tool_calls=_EVALUATION_MAX_TOOL_CALLS,
+    )
+
+
+def _execute_evaluation_safely(
+    coordinator: EvaluationCoordinator,
+    evaluation_id: str,
+) -> None:
+    """Leave durable interrupted progress instead of leaking a background failure."""
+    with suppress(EvaluationCoordinatorError):
+        coordinator.execute(evaluation_id)
+
+
 def create_app(
     console_dist: Path | None = None,
     artifact_root: Path | None = None,
+    evaluation_runner_factory: EvaluationRunnerFactory | None = None,
 ) -> FastAPI:
     """Create a local application with persistent drafts and isolated runtimes."""
-    resolved_artifact_root = artifact_root or (
-        Path(__file__).resolve().parent.parent / "artifacts"
-    )
+    resolved_artifact_root = artifact_root or (Path(__file__).resolve().parent.parent / "artifacts")
     studio = ScienceStudio(resolved_artifact_root)
+    evaluation_coordinator = EvaluationCoordinator(
+        artifact_root=resolved_artifact_root / "evaluations",
+        runner_factory=(
+            evaluation_runner_factory
+            if evaluation_runner_factory is not None
+            else _production_evaluation_runner
+        ),
+    )
     studio_lock = RLock()
     bundle = studio.source_bundle
 
@@ -229,6 +288,85 @@ def create_app(
         redoc_url=None,
         openapi_url=None,
     )
+    local_session_token = secrets.token_urlsafe(32)
+
+    @app.middleware("http")
+    async def local_request_boundary(
+        request: Request,
+        call_next: RequestResponseEndpoint,
+    ) -> Response:
+        host_values = request.headers.getlist("host")
+        client_host = request.client.host if request.client is not None else None
+        if len(host_values) != 1 or not _trusted_local_host_header(
+            host_values[0],
+            client_host=client_host,
+        ):
+            return JSONResponse(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                content={"detail": "The local request host is invalid."},
+            )
+
+        is_api = request.url.path == "/api" or request.url.path.startswith("/api/")
+        origin = request.headers.get("origin")
+        fetch_site = request.headers.get("sec-fetch-site")
+        normalized_fetch_site = fetch_site.casefold() if fetch_site is not None else None
+        if is_api and (
+            (origin is not None and not _same_local_origin(origin, host_values[0]))
+            or normalized_fetch_site in {"cross-site", "same-site"}
+        ):
+            return JSONResponse(
+                status_code=status.HTTP_403_FORBIDDEN,
+                content={"detail": "The local request origin is invalid."},
+            )
+
+        browser_mutation = (
+            is_api
+            and request.method not in _SAFE_HTTP_METHODS
+            and (origin is not None or normalized_fetch_site is not None)
+        )
+        if browser_mutation and (
+            normalized_fetch_site not in {None, "same-origin"}
+            or not secrets.compare_digest(
+                request.cookies.get(_LOCAL_SESSION_COOKIE, ""),
+                local_session_token,
+            )
+        ):
+            return JSONResponse(
+                status_code=status.HTTP_403_FORBIDDEN,
+                content={"detail": "The local browser session is invalid."},
+            )
+
+        response = await call_next(request)
+        if is_api:
+            response.headers.setdefault("Cache-Control", "no-store")
+            if (
+                request.method in _SAFE_HTTP_METHODS
+                and not secrets.compare_digest(
+                    request.cookies.get(_LOCAL_SESSION_COOKIE, ""),
+                    local_session_token,
+                )
+            ):
+                response.set_cookie(
+                    key=_LOCAL_SESSION_COOKIE,
+                    value=local_session_token,
+                    httponly=True,
+                    samesite="strict",
+                    secure=False,
+                    path="/",
+                )
+        return response
+
+    @app.exception_handler(RequestValidationError)
+    async def request_validation_error(
+        request: Request,
+        error: RequestValidationError,
+    ) -> JSONResponse:
+        if request.url.path == "/api/evaluations":
+            return JSONResponse(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                content={"detail": "The evaluation request is invalid."},
+            )
+        return await request_validation_exception_handler(request, error)
 
     @app.exception_handler(RuntimeContractError)
     async def runtime_contract_error(
@@ -278,9 +416,86 @@ def create_app(
             content={"detail": str(error)},
         )
 
+    @app.exception_handler(EvaluationCoordinatorError)
+    async def evaluation_coordinator_error(
+        _request: Request,
+        error: EvaluationCoordinatorError,
+    ) -> JSONResponse:
+        status_code = {
+            "invalid": status.HTTP_422_UNPROCESSABLE_ENTITY,
+            "not_found": status.HTTP_404_NOT_FOUND,
+            "conflict": status.HTTP_409_CONFLICT,
+            "internal": status.HTTP_500_INTERNAL_SERVER_ERROR,
+        }[error.code]
+        detail = (
+            "The local evaluation could not complete the operation."
+            if error.code == "internal"
+            else str(error)
+        )
+        return JSONResponse(status_code=status_code, content={"detail": detail})
+
     @app.get("/api/environment", response_model=EnvironmentSummary)
     def get_environment() -> EnvironmentSummary:
         return _environment_summary(studio, bundle.bundle_id)
+
+    @app.post(
+        "/api/evaluations",
+        response_model=EvaluationSnapshot,
+        status_code=status.HTTP_202_ACCEPTED,
+    )
+    def launch_evaluation(
+        request: LaunchEvaluationRequest,
+        background_tasks: BackgroundTasks,
+    ) -> EvaluationSnapshot:
+        snapshot = evaluation_coordinator.launch(profile=request.profile)
+        background_tasks.add_task(
+            _execute_evaluation_safely,
+            evaluation_coordinator,
+            snapshot.evaluation_id,
+        )
+        return snapshot
+
+    @app.get(
+        "/api/evaluations",
+        response_model=tuple[EvaluationSummary, ...],
+    )
+    def list_evaluations() -> tuple[EvaluationSummary, ...]:
+        return evaluation_coordinator.list()
+
+    @app.get(
+        "/api/evaluations/{evaluation_id}",
+        response_model=EvaluationSnapshot,
+    )
+    def load_evaluation(evaluation_id: str) -> EvaluationSnapshot:
+        return evaluation_coordinator.load(evaluation_id)
+
+    @app.post(
+        "/api/evaluations/{evaluation_id}/resume",
+        response_model=EvaluationSnapshot,
+        status_code=status.HTTP_202_ACCEPTED,
+    )
+    def resume_evaluation(
+        evaluation_id: str,
+        background_tasks: BackgroundTasks,
+    ) -> EvaluationSnapshot:
+        snapshot = evaluation_coordinator.load(evaluation_id)
+        if snapshot.status in ("queued", "interrupted"):
+            background_tasks.add_task(
+                _execute_evaluation_safely,
+                evaluation_coordinator,
+                snapshot.evaluation_id,
+            )
+        return snapshot
+
+    @app.post(
+        "/api/evaluations/{evaluation_id}/attempts/{attempt_id}/replay",
+        response_model=EvaluationReplay,
+    )
+    def replay_evaluation_attempt(
+        evaluation_id: str,
+        attempt_id: str,
+    ) -> EvaluationReplay:
+        return evaluation_coordinator.replay(evaluation_id, attempt_id)
 
     @app.get(
         "/api/environments",
@@ -306,9 +521,7 @@ def create_app(
     )
     def freeze_seeded_environment(environment_id: str) -> SealedEnvironmentSummary:
         with studio_lock:
-            return _sealed_environment_summary(
-                studio.freeze_seeded_environment(environment_id)
-            )
+            return _sealed_environment_summary(studio.freeze_seeded_environment(environment_id))
 
     @app.get("/api/draft", response_model=DraftSummary)
     def get_draft() -> DraftSummary:
@@ -440,6 +653,50 @@ def create_app(
         )
 
     return app
+
+
+def _trusted_local_host_header(value: str, *, client_host: str | None) -> bool:
+    if not value or any(character.isspace() for character in value):
+        return False
+    try:
+        parsed = urlsplit(f"//{value}")
+        port = parsed.port
+    except ValueError:
+        return False
+    hostname = parsed.hostname.casefold() if parsed.hostname is not None else None
+    trusted_in_process_test = (
+        hostname == _IN_PROCESS_TEST_HOST and client_host == _IN_PROCESS_TEST_CLIENT
+    )
+    return bool(
+        hostname is not None
+        and (hostname in _TRUSTED_LOCAL_HOSTS or trusted_in_process_test)
+        and parsed.username is None
+        and parsed.password is None
+        and not parsed.path
+        and not parsed.query
+        and not parsed.fragment
+        and (port is None or 1 <= port <= 65535)
+    )
+
+
+def _same_local_origin(origin: str, host: str) -> bool:
+    try:
+        parsed = urlsplit(origin)
+        port = parsed.port
+    except ValueError:
+        return False
+    return bool(
+        parsed.scheme == "http"
+        and parsed.netloc.casefold() == host.casefold()
+        and parsed.hostname is not None
+        and parsed.hostname.casefold() in _TRUSTED_LOCAL_HOSTS
+        and parsed.username is None
+        and parsed.password is None
+        and parsed.path in {"", "/"}
+        and not parsed.query
+        and not parsed.fragment
+        and (port is None or 1 <= port <= 65535)
+    )
 
 
 def _draft_summary(snapshot: DraftSnapshot, studio: ScienceStudio) -> DraftSummary:

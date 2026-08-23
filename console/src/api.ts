@@ -16,6 +16,27 @@ import type {
   EnvironmentDraft,
   EnvironmentSummary,
   EnvironmentValidationSummary,
+  EvaluationAttemptSummary,
+  EvaluationCalibration,
+  EvaluationCalibrationLevel,
+  EvaluationInfrastructureError,
+  EvaluationInteraction,
+  EvaluationLocalGemmaAttestation,
+  EvaluationMessage,
+  EvaluationModelIdentity,
+  EvaluationPlan,
+  EvaluationProgress,
+  EvaluationReplay,
+  EvaluationReplayReport,
+  EvaluationResponseRecord,
+  EvaluationRuntimeExecution,
+  EvaluationRuntimeDistribution,
+  EvaluationSnapshot,
+  EvaluationStatus,
+  EvaluationSummary,
+  EvaluationTokenUsage,
+  EvaluationToolCall,
+  EvaluationToolResult,
   FrozenEnvironment,
   JsonObject,
   JsonValue,
@@ -38,6 +59,7 @@ import type {
 type UncheckedRecord = Record<string, unknown>;
 
 const SHA256_DIGEST = /^sha256:[0-9a-f]{64}$/;
+const RAW_SHA256_DIGEST = /^[0-9a-f]{64}$/;
 const COMPATIBLE_EXTENSION_KEY = /^(?:future|x)_[a-z0-9]+(?:_[a-z0-9]+)*$/;
 
 function malformed(path: string, expectation: string): never {
@@ -416,6 +438,18 @@ function jsonObject(value: unknown, path: string): JsonObject {
       jsonValue(item, `${path}.${key}`),
     ]),
   );
+}
+
+function canonicalJsonValue(value: unknown): string {
+  if (Array.isArray(value)) {
+    return `[${value.map(canonicalJsonValue).join(",")}]`;
+  }
+  if (isRecord(value)) {
+    return `{${Object.keys(value).sort().map((key) => (
+      `${JSON.stringify(key)}:${canonicalJsonValue(value[key])}`
+    )).join(",")}}`;
+  }
+  return JSON.stringify(value);
 }
 
 function stringArray(value: unknown, path: string): string[] {
@@ -1231,6 +1265,1736 @@ function parseReplayResponse(value: unknown): ReplayResponse {
   };
 }
 
+function patternedString(value: unknown, pattern: RegExp, path: string): string {
+  const parsed = nonEmptyString(value, path);
+  if (!pattern.test(parsed)) malformed(path, `match ${pattern.source}`);
+  return parsed;
+}
+
+function parseEvaluationStatus(value: unknown, path: string): EvaluationStatus {
+  return oneOf(
+    value,
+    ["queued", "running", "completed", "interrupted"] as const,
+    path,
+  );
+}
+
+function parseEvaluationModel(
+  value: unknown,
+  path: string,
+): EvaluationModelIdentity {
+  const record = exactRecord(
+    value,
+    ["provider", "requested_model", "adapter_revision"],
+    path,
+  );
+  return {
+    provider: oneOf(
+      record.provider,
+      ["local-openai-compatible"] as const,
+      `${path}.provider`,
+    ),
+    requested_model: oneOf(
+      record.requested_model,
+      ["google/gemma-4-E4B-it"] as const,
+      `${path}.requested_model`,
+    ),
+    adapter_revision: oneOf(
+      record.adapter_revision,
+      ["local-gemma-openai-chat/1"] as const,
+      `${path}.adapter_revision`,
+    ),
+  };
+}
+
+function parseEvaluationProgress(
+  value: unknown,
+  path: string,
+): EvaluationProgress {
+  const record = exactRecord(
+    value,
+    [
+      "phase",
+      "message",
+      "completed_scenarios",
+      "total_scenarios",
+      "scientific_successes",
+      "scientific_failures",
+      "infrastructure_errors",
+    ],
+    path,
+  );
+  const parsed = {
+    phase: parseEvaluationStatus(record.phase, `${path}.phase`),
+    message: nonEmptyString(record.message, `${path}.message`),
+    completed_scenarios: integerValue(
+      record.completed_scenarios,
+      `${path}.completed_scenarios`,
+      0,
+    ),
+    total_scenarios: integerValue(
+      record.total_scenarios,
+      `${path}.total_scenarios`,
+      1,
+    ),
+    scientific_successes: integerValue(
+      record.scientific_successes,
+      `${path}.scientific_successes`,
+      0,
+    ),
+    scientific_failures: integerValue(
+      record.scientific_failures,
+      `${path}.scientific_failures`,
+      0,
+    ),
+    infrastructure_errors: integerValue(
+      record.infrastructure_errors,
+      `${path}.infrastructure_errors`,
+      0,
+    ),
+  };
+  const outcomes = parsed.scientific_successes
+    + parsed.scientific_failures
+    + parsed.infrastructure_errors;
+  if (
+    outcomes !== parsed.completed_scenarios
+    || parsed.completed_scenarios > parsed.total_scenarios
+  ) {
+    malformed(path, "contain internally consistent outcome counts");
+  }
+  return parsed;
+}
+
+function parseEvaluationCalibrationLevel(
+  value: unknown,
+  path: string,
+): EvaluationCalibrationLevel {
+  const record = exactRecord(
+    value,
+    [
+      "level",
+      "label",
+      "total_scenarios",
+      "completed_scenarios",
+      "scientific_successes",
+      "scientific_failures",
+      "infrastructure_errors",
+      "has_success_and_failure",
+    ],
+    path,
+  );
+  const parsedLevel = integerValue(record.level, `${path}.level`, 0);
+  if (![0, 1, 2, 3, 4, 5].includes(parsedLevel)) {
+    malformed(`${path}.level`, "be an approved difficulty level");
+  }
+  const level = parsedLevel as EvaluationCalibrationLevel["level"];
+  const totalScenarios = integerValue(
+    record.total_scenarios,
+    `${path}.total_scenarios`,
+    1,
+  );
+  const completedScenarios = integerValue(
+    record.completed_scenarios,
+    `${path}.completed_scenarios`,
+    0,
+  );
+  const scientificSuccesses = integerValue(
+    record.scientific_successes,
+    `${path}.scientific_successes`,
+    0,
+  );
+  const scientificFailures = integerValue(
+    record.scientific_failures,
+    `${path}.scientific_failures`,
+    0,
+  );
+  const infrastructureErrors = integerValue(
+    record.infrastructure_errors,
+    `${path}.infrastructure_errors`,
+    0,
+  );
+  const mixed = booleanValue(
+    record.has_success_and_failure,
+    `${path}.has_success_and_failure`,
+  );
+  if (
+    scientificSuccesses + scientificFailures + infrastructureErrors
+      !== completedScenarios
+    || completedScenarios > totalScenarios
+    || mixed !== (scientificSuccesses > 0 && scientificFailures > 0)
+  ) {
+    malformed(path, "contain internally consistent level outcomes");
+  }
+  return {
+    level,
+    label: nonEmptyString(record.label, `${path}.label`),
+    total_scenarios: totalScenarios,
+    completed_scenarios: completedScenarios,
+    scientific_successes: scientificSuccesses,
+    scientific_failures: scientificFailures,
+    infrastructure_errors: infrastructureErrors,
+    has_success_and_failure: mixed,
+  };
+}
+
+function parseEvaluationCalibration(
+  value: unknown,
+  path: string,
+): EvaluationCalibration {
+  const record = exactRecord(
+    value,
+    [
+      "status",
+      "summary",
+      "scientific_accuracy",
+      "target_accuracy_minimum",
+      "target_accuracy_maximum",
+      "overall_accuracy_in_target",
+      "levels_1_and_2_mixed",
+      "no_infrastructure_errors",
+      "authenticated_local_runtime",
+      "levels",
+    ],
+    path,
+  );
+  if (!Array.isArray(record.levels)) malformed(`${path}.levels`, "be an array");
+  const levels = record.levels.map((item, index) =>
+    parseEvaluationCalibrationLevel(item, `${path}.levels[${index}]`)
+  );
+  if (
+    levels.length !== 6
+    || levels.some((level, index) => level.level !== index)
+  ) {
+    malformed(`${path}.levels`, "contain the six ordered difficulty levels");
+  }
+  const minimum = finiteNumber(
+    record.target_accuracy_minimum,
+    `${path}.target_accuracy_minimum`,
+  );
+  const maximum = finiteNumber(
+    record.target_accuracy_maximum,
+    `${path}.target_accuracy_maximum`,
+  );
+  if (minimum !== 0.2 || maximum !== 0.7) {
+    malformed(path, "retain the approved 20% to 70% accuracy band");
+  }
+  const scientificAccuracy = record.scientific_accuracy === null
+    ? null
+    : finiteNumber(record.scientific_accuracy, `${path}.scientific_accuracy`);
+  if (
+    scientificAccuracy !== null
+    && (scientificAccuracy < 0 || scientificAccuracy > 1)
+  ) {
+    malformed(`${path}.scientific_accuracy`, "be between zero and one");
+  }
+  const overallInTarget = booleanValue(
+    record.overall_accuracy_in_target,
+    `${path}.overall_accuracy_in_target`,
+  );
+  const levelsMixed = booleanValue(
+    record.levels_1_and_2_mixed,
+    `${path}.levels_1_and_2_mixed`,
+  );
+  const noInfrastructure = booleanValue(
+    record.no_infrastructure_errors,
+    `${path}.no_infrastructure_errors`,
+  );
+  const authenticatedRuntime = booleanValue(
+    record.authenticated_local_runtime,
+    `${path}.authenticated_local_runtime`,
+  );
+  const calibrationStatus = oneOf(
+    record.status,
+    ["pending", "ready", "not_ready"] as const,
+    `${path}.status`,
+  );
+  const levelsComplete = levels.every(
+    (level) => level.completed_scenarios === level.total_scenarios,
+  );
+  const finalizedNoInfrastructure = levelsComplete
+    && levels.every((level) => level.infrastructure_errors === 0);
+  const ready = levelsComplete
+    && overallInTarget
+    && levelsMixed
+    && noInfrastructure
+    && authenticatedRuntime;
+  if (
+    overallInTarget !== (
+      scientificAccuracy !== null
+      && scientificAccuracy >= minimum
+      && scientificAccuracy <= maximum
+    )
+    || levelsMixed !== (
+      levels[1].has_success_and_failure && levels[2].has_success_and_failure
+    )
+    || (calibrationStatus === "pending" && (
+      noInfrastructure || authenticatedRuntime
+    ))
+    || (calibrationStatus !== "pending"
+      && noInfrastructure !== finalizedNoInfrastructure)
+    || (authenticatedRuntime && !levelsComplete)
+    || (calibrationStatus === "ready" && !ready)
+    || (calibrationStatus === "not_ready" && (!levelsComplete || ready))
+  ) {
+    malformed(path, "contain internally consistent readiness evidence");
+  }
+  return {
+    status: calibrationStatus,
+    summary: nonEmptyString(record.summary, `${path}.summary`),
+    scientific_accuracy: scientificAccuracy,
+    target_accuracy_minimum: 0.2,
+    target_accuracy_maximum: 0.7,
+    overall_accuracy_in_target: overallInTarget,
+    levels_1_and_2_mixed: levelsMixed,
+    no_infrastructure_errors: noInfrastructure,
+    authenticated_local_runtime: authenticatedRuntime,
+    levels,
+  };
+}
+
+function parseEvaluationAttempt(
+  value: unknown,
+  path: string,
+): EvaluationAttemptSummary {
+  const record = exactRecord(
+    value,
+    [
+      "attempt_id",
+      "ordinal",
+      "scenario_id",
+      "disposition",
+      "summary",
+      "interaction_digest",
+      "runtime_trace_digest",
+      "result_digest",
+    ],
+    path,
+  );
+  const disposition = oneOf(
+    record.disposition,
+    [
+      "scientific_success",
+      "scientific_failure",
+      "infrastructure_error",
+    ] as const,
+    `${path}.disposition`,
+  );
+  const resultDigest = record.result_digest === null
+    ? null
+    : digest(record.result_digest, `${path}.result_digest`);
+  if ((disposition === "infrastructure_error") !== (resultDigest === null)) {
+    malformed(path, "separate infrastructure attempts from scientific results");
+  }
+  return {
+    attempt_id: patternedString(
+      record.attempt_id,
+      /^attempt-[0-9]{4}$/,
+      `${path}.attempt_id`,
+    ),
+    ordinal: integerValue(record.ordinal, `${path}.ordinal`, 0),
+    scenario_id: nonEmptyString(record.scenario_id, `${path}.scenario_id`),
+    disposition,
+    summary: nonEmptyString(record.summary, `${path}.summary`),
+    interaction_digest: digest(
+      record.interaction_digest,
+      `${path}.interaction_digest`,
+    ),
+    runtime_trace_digest: digest(
+      record.runtime_trace_digest,
+      `${path}.runtime_trace_digest`,
+    ),
+    result_digest: resultDigest,
+  };
+}
+
+function parseEvaluationPlan(value: unknown, path: string): EvaluationPlan {
+  const record = exactRecord(
+    value,
+    [
+      "plan_revision",
+      "profile",
+      "environment_id",
+      "bundle_revision",
+      "bundle_digest",
+      "split",
+      "curriculum_package_digest",
+      "model",
+      "model_revision",
+      "objective",
+      "scenario_ids",
+    ],
+    path,
+  );
+  const scenarioIds = stringArray(record.scenario_ids, `${path}.scenario_ids`);
+  if (scenarioIds.length !== 32 || new Set(scenarioIds).size !== 32) {
+    malformed(`${path}.scenario_ids`, "contain 32 unique development identities");
+  }
+  return {
+    plan_revision: oneOf(
+      record.plan_revision,
+      ["science-environment-evaluation-plan/1"] as const,
+      `${path}.plan_revision`,
+    ),
+    profile: oneOf(
+      record.profile,
+      ["base-gemma-development-v1"] as const,
+      `${path}.profile`,
+    ),
+    environment_id: nonEmptyString(record.environment_id, `${path}.environment_id`),
+    bundle_revision: nonEmptyString(
+      record.bundle_revision,
+      `${path}.bundle_revision`,
+    ),
+    bundle_digest: digest(record.bundle_digest, `${path}.bundle_digest`),
+    split: oneOf(record.split, ["development"] as const, `${path}.split`),
+    curriculum_package_digest: digest(
+      record.curriculum_package_digest,
+      `${path}.curriculum_package_digest`,
+    ),
+    model: parseEvaluationModel(record.model, `${path}.model`),
+    model_revision: oneOf(
+      record.model_revision,
+      ["ee0ef6023621cff504d758262d4e04895a5af4a2"] as const,
+      `${path}.model_revision`,
+    ),
+    objective: nonEmptyString(record.objective, `${path}.objective`),
+    scenario_ids: scenarioIds,
+  };
+}
+
+function parseEvaluationSummary(value: unknown, path: string): EvaluationSummary {
+  const record = exactRecord(
+    value,
+    ["evaluation_id", "profile", "model", "status", "progress"],
+    path,
+  );
+  return {
+    evaluation_id: patternedString(
+      record.evaluation_id,
+      /^evaluation-[0-9a-f]{32}$/,
+      `${path}.evaluation_id`,
+    ),
+    profile: oneOf(
+      record.profile,
+      ["base-gemma-development-v1"] as const,
+      `${path}.profile`,
+    ),
+    model: parseEvaluationModel(record.model, `${path}.model`),
+    status: parseEvaluationStatus(record.status, `${path}.status`),
+    progress: parseEvaluationProgress(record.progress, `${path}.progress`),
+  };
+}
+
+function parseEvaluationSummaries(value: unknown): EvaluationSummary[] {
+  if (!Array.isArray(value)) malformed("EvaluationSummary[]", "be an array");
+  return value.map((item, index) =>
+    parseEvaluationSummary(item, `EvaluationSummary[${index}]`)
+  );
+}
+
+export function decodeEvaluationSnapshot(value: unknown): EvaluationSnapshot {
+  const path = "EvaluationSnapshot";
+  const record = exactRecord(
+    value,
+    ["evaluation_id", "status", "plan", "progress", "calibration", "attempts"],
+    path,
+  );
+  if (!Array.isArray(record.attempts)) malformed(`${path}.attempts`, "be an array");
+  const attempts = record.attempts.map((item, index) =>
+    parseEvaluationAttempt(item, `${path}.attempts[${index}]`)
+  );
+  const progress = parseEvaluationProgress(record.progress, `${path}.progress`);
+  const calibration = parseEvaluationCalibration(
+    record.calibration,
+    `${path}.calibration`,
+  );
+  const status = parseEvaluationStatus(record.status, `${path}.status`);
+  if (attempts.length !== progress.completed_scenarios) {
+    malformed(path, "match attempt rows to completed progress");
+  }
+  const calibrationTotals = calibration.levels.reduce(
+    (totals, level) => ({
+      scenarios: totals.scenarios + level.total_scenarios,
+      completed: totals.completed + level.completed_scenarios,
+      successes: totals.successes + level.scientific_successes,
+      failures: totals.failures + level.scientific_failures,
+      infrastructure: totals.infrastructure + level.infrastructure_errors,
+    }),
+    { scenarios: 0, completed: 0, successes: 0, failures: 0, infrastructure: 0 },
+  );
+  if (
+    calibrationTotals.scenarios !== progress.total_scenarios
+    || calibrationTotals.completed !== progress.completed_scenarios
+    || calibrationTotals.successes !== progress.scientific_successes
+    || calibrationTotals.failures !== progress.scientific_failures
+    || calibrationTotals.infrastructure !== progress.infrastructure_errors
+    || (status === "completed") === (calibration.status === "pending")
+  ) {
+    malformed(path, "bind calibration evidence to evaluation progress");
+  }
+  return {
+    evaluation_id: patternedString(
+      record.evaluation_id,
+      /^evaluation-[0-9a-f]{32}$/,
+      `${path}.evaluation_id`,
+    ),
+    status,
+    plan: parseEvaluationPlan(record.plan, `${path}.plan`),
+    progress,
+    calibration,
+    attempts,
+  };
+}
+
+function parseEvaluationReplayReport(
+  value: unknown,
+  path: string,
+): EvaluationReplayReport {
+  const record = exactRecord(
+    value,
+    [
+      "source_trace_digest",
+      "replay_trace_digest",
+      "trace_matches",
+      "source_result_digest",
+      "replay_result_digest",
+      "result_matches",
+    ],
+    path,
+  );
+  return {
+    source_trace_digest: digest(
+      record.source_trace_digest,
+      `${path}.source_trace_digest`,
+    ),
+    replay_trace_digest: digest(
+      record.replay_trace_digest,
+      `${path}.replay_trace_digest`,
+    ),
+    trace_matches: booleanValue(record.trace_matches, `${path}.trace_matches`),
+    source_result_digest: digest(
+      record.source_result_digest,
+      `${path}.source_result_digest`,
+    ),
+    replay_result_digest: digest(
+      record.replay_result_digest,
+      `${path}.replay_result_digest`,
+    ),
+    result_matches: booleanValue(record.result_matches, `${path}.result_matches`),
+  };
+}
+
+function parseEvaluationInfrastructureError(
+  value: unknown,
+  path: string,
+): EvaluationInfrastructureError {
+  const record = exactRecord(value, ["category", "code", "summary"], path);
+  return {
+    category: oneOf(
+      record.category,
+      ["adapter", "inference", "protocol"] as const,
+      `${path}.category`,
+    ),
+    code: patternedString(
+      record.code,
+      /^[a-z0-9][a-z0-9_.-]*$/,
+      `${path}.code`,
+    ),
+    summary: nonEmptyString(record.summary, `${path}.summary`),
+  };
+}
+
+function parseEvaluationToolCall(
+  value: unknown,
+  path: string,
+): EvaluationToolCall {
+  const record = exactRecord(
+    value,
+    ["call_id", "provider_call_id", "ordinal", "name", "arguments"],
+    path,
+  );
+  const ordinal = integerValue(record.ordinal, `${path}.ordinal`, 1);
+  const callId = nonEmptyString(record.call_id, `${path}.call_id`);
+  if (callId !== `episode-call-${String(ordinal).padStart(6, "0")}`) {
+    malformed(path, "bind its canonical call ID to its ordinal");
+  }
+  return {
+    call_id: callId,
+    provider_call_id: nonEmptyString(
+      record.provider_call_id,
+      `${path}.provider_call_id`,
+    ),
+    ordinal,
+    name: nonEmptyString(record.name, `${path}.name`),
+    arguments: jsonObject(record.arguments, `${path}.arguments`),
+  };
+}
+
+function parseEvaluationMessage(
+  value: unknown,
+  path: string,
+): EvaluationMessage {
+  const record = exactRecord(
+    value,
+    [
+      "role",
+      "content",
+      "response_id",
+      "response_turn",
+      "tool_calls",
+      "tool_call_id",
+      "provider_tool_call_id",
+      "tool_call_ordinal",
+      "tool_name",
+    ],
+    path,
+  );
+  if (!Array.isArray(record.tool_calls)) {
+    malformed(`${path}.tool_calls`, "be an array");
+  }
+  const role = oneOf(
+    record.role,
+    ["user", "assistant", "tool"] as const,
+    `${path}.role`,
+  );
+  const toolCalls = record.tool_calls.map((item, index) =>
+    parseEvaluationToolCall(item, `${path}.tool_calls[${index}]`)
+  );
+  const toolCallId = record.tool_call_id === null
+    ? null
+    : nonEmptyString(record.tool_call_id, `${path}.tool_call_id`);
+  const providerToolCallId = record.provider_tool_call_id === null
+    ? null
+    : nonEmptyString(
+        record.provider_tool_call_id,
+        `${path}.provider_tool_call_id`,
+      );
+  const toolCallOrdinal = record.tool_call_ordinal === null
+    ? null
+    : integerValue(record.tool_call_ordinal, `${path}.tool_call_ordinal`, 1);
+  const toolName = record.tool_name === null
+    ? null
+    : nonEmptyString(record.tool_name, `${path}.tool_name`);
+  const responseId = record.response_id === null
+    ? null
+    : nonEmptyString(record.response_id, `${path}.response_id`);
+  const responseTurn = record.response_turn === null
+    ? null
+    : integerValue(record.response_turn, `${path}.response_turn`, 1);
+  const content = role === "assistant"
+    ? stringValue(record.content, `${path}.content`)
+    : jsonObject(record.content, `${path}.content`);
+  const validRoleShape = role === "assistant"
+    ? responseId !== null
+      && responseTurn !== null
+      && toolCallId === null
+      && providerToolCallId === null
+      && toolCallOrdinal === null
+      && toolName === null
+    : role === "tool"
+      ? responseId === null
+        && responseTurn === null
+        && toolCallId !== null
+        && providerToolCallId !== null
+        && toolCallOrdinal !== null
+        && toolName !== null
+        && toolCalls.length === 0
+      : responseId === null
+        && responseTurn === null
+        && toolCallId === null
+        && providerToolCallId === null
+        && toolCallOrdinal === null
+        && toolName === null
+        && toolCalls.length === 0;
+  if (!validRoleShape) malformed(path, "match its declared interaction role");
+  if (
+    role === "tool"
+    && toolCallId !== `episode-call-${String(toolCallOrdinal).padStart(6, "0")}`
+  ) {
+    malformed(path, "bind its canonical tool message ID to its ordinal");
+  }
+  return {
+    role,
+    content,
+    response_id: responseId,
+    response_turn: responseTurn,
+    tool_calls: toolCalls,
+    tool_call_id: toolCallId,
+    provider_tool_call_id: providerToolCallId,
+    tool_call_ordinal: toolCallOrdinal,
+    tool_name: toolName,
+  };
+}
+
+function optionalTokenCount(value: unknown, path: string): number | null {
+  return value === null ? null : integerValue(value, path, 0);
+}
+
+function parseEvaluationTokenUsage(
+  value: unknown,
+  path: string,
+): EvaluationTokenUsage {
+  const record = exactRecord(
+    value,
+    [
+      "input_tokens",
+      "output_tokens",
+      "total_tokens",
+      "cached_input_tokens",
+      "reasoning_tokens",
+    ],
+    path,
+  );
+  return {
+    input_tokens: optionalTokenCount(record.input_tokens, `${path}.input_tokens`),
+    output_tokens: optionalTokenCount(record.output_tokens, `${path}.output_tokens`),
+    total_tokens: optionalTokenCount(record.total_tokens, `${path}.total_tokens`),
+    cached_input_tokens: optionalTokenCount(
+      record.cached_input_tokens,
+      `${path}.cached_input_tokens`,
+    ),
+    reasoning_tokens: optionalTokenCount(
+      record.reasoning_tokens,
+      `${path}.reasoning_tokens`,
+    ),
+  };
+}
+
+function parseEvaluationResponseRecord(
+  value: unknown,
+  path: string,
+): EvaluationResponseRecord {
+  const record = exactRecord(
+    value,
+    ["turn", "response_id", "returned_model", "usage", "metadata"],
+    path,
+  );
+  let metadata: EvaluationResponseRecord["metadata"] = null;
+  if (record.metadata !== null) {
+    const metadataRecord = exactRecord(
+      record.metadata,
+      [
+        "created_unix_seconds",
+        "finish_reason",
+        "system_fingerprint",
+        "runtime_instance_id",
+      ],
+      `${path}.metadata`,
+    );
+    metadata = {
+      created_unix_seconds: integerValue(
+        metadataRecord.created_unix_seconds,
+        `${path}.metadata.created_unix_seconds`,
+        0,
+      ),
+      finish_reason: oneOf(
+        metadataRecord.finish_reason,
+        ["stop", "tool_calls", "length"] as const,
+        `${path}.metadata.finish_reason`,
+      ),
+      system_fingerprint: metadataRecord.system_fingerprint === null
+        ? null
+        : nonEmptyString(
+            metadataRecord.system_fingerprint,
+            `${path}.metadata.system_fingerprint`,
+          ),
+      runtime_instance_id: metadataRecord.runtime_instance_id === null
+        ? null
+        : rawSha256Digest(
+            metadataRecord.runtime_instance_id,
+            `${path}.metadata.runtime_instance_id`,
+          ),
+    };
+  }
+  return {
+    turn: integerValue(record.turn, `${path}.turn`, 1),
+    response_id: nonEmptyString(record.response_id, `${path}.response_id`),
+    returned_model: nonEmptyString(record.returned_model, `${path}.returned_model`),
+    usage: record.usage === null
+      ? null
+      : parseEvaluationTokenUsage(record.usage, `${path}.usage`),
+    metadata,
+  };
+}
+
+function parseEvaluationToolResult(
+  value: unknown,
+  path: string,
+): EvaluationToolResult {
+  const record = exactRecord(
+    value,
+    [
+      "call_id",
+      "provider_call_id",
+      "ordinal",
+      "name",
+      "status",
+      "observation",
+      "error_code",
+      "execution_id",
+      "cache_hit",
+      "retry_count",
+    ],
+    path,
+  );
+  const ordinal = integerValue(record.ordinal, `${path}.ordinal`, 1);
+  const callId = nonEmptyString(record.call_id, `${path}.call_id`);
+  if (callId !== `episode-call-${String(ordinal).padStart(6, "0")}`) {
+    malformed(path, "bind its canonical result ID to its ordinal");
+  }
+  const status = oneOf(record.status, ["ok", "error"] as const, `${path}.status`);
+  const observation = record.observation === null
+    ? null
+    : jsonObject(record.observation, `${path}.observation`);
+  const errorCode = record.error_code === null
+    ? null
+    : patternedString(
+        record.error_code,
+        /^[a-z0-9][a-z0-9_.-]*$/,
+        `${path}.error_code`,
+      );
+  const executionId = record.execution_id === null
+    ? null
+    : digest(record.execution_id, `${path}.execution_id`);
+  const cacheHit = record.cache_hit === null
+    ? null
+    : booleanValue(record.cache_hit, `${path}.cache_hit`);
+  const retryCount = record.retry_count === null
+    ? null
+    : integerValue(record.retry_count, `${path}.retry_count`, 0);
+  if (
+    (
+      status === "ok"
+      && (
+        observation === null
+        || errorCode !== null
+        || executionId === null
+        || cacheHit === null
+        || retryCount === null
+      )
+    )
+    || (
+      status === "error"
+      && (
+        observation !== null
+        || errorCode === null
+        || executionId !== null
+        || cacheHit !== null
+        || retryCount !== null
+      )
+    )
+  ) {
+    malformed(path, "match its declared tool-result status");
+  }
+  return {
+    call_id: callId,
+    provider_call_id: nonEmptyString(
+      record.provider_call_id,
+      `${path}.provider_call_id`,
+    ),
+    ordinal,
+    name: nonEmptyString(record.name, `${path}.name`),
+    status,
+    observation,
+    error_code: errorCode,
+    execution_id: executionId,
+    cache_hit: cacheHit,
+    retry_count: retryCount,
+  };
+}
+
+function parseEvaluationRuntimeExecution(
+  value: unknown,
+  path: string,
+): EvaluationRuntimeExecution {
+  const record = exactRecord(
+    value,
+    [
+      "call_id",
+      "ordinal",
+      "execution_id",
+      "action",
+      "observation",
+      "resulting_status",
+      "resulting_trace_digest",
+      "cache_hit",
+      "retry_count",
+    ],
+    path,
+  );
+  const ordinal = integerValue(record.ordinal, `${path}.ordinal`, 1);
+  const callId = nonEmptyString(record.call_id, `${path}.call_id`);
+  const cacheHit = booleanValue(record.cache_hit, `${path}.cache_hit`);
+  const retryCount = integerValue(record.retry_count, `${path}.retry_count`, 0);
+  if (
+    callId !== `episode-call-${String(ordinal).padStart(6, "0")}`
+    || cacheHit !== (retryCount > 0)
+  ) {
+    malformed(path, "preserve canonical ordinal and cache-retry evidence");
+  }
+  return {
+    call_id: callId,
+    ordinal,
+    execution_id: digest(record.execution_id, `${path}.execution_id`),
+    action: parseTraceAction(record.action, `${path}.action`),
+    observation: jsonObject(record.observation, `${path}.observation`),
+    resulting_status: oneOf(
+      record.resulting_status,
+      ["active", "awaiting_verification"] as const,
+      `${path}.resulting_status`,
+    ),
+    resulting_trace_digest: digest(
+      record.resulting_trace_digest,
+      `${path}.resulting_trace_digest`,
+    ),
+    cache_hit: cacheHit,
+    retry_count: retryCount,
+  };
+}
+
+const APPROVED_RUNTIME_DISTRIBUTIONS = [
+  {
+    distribution: "jinja2",
+    version: "3.1.6",
+    wheel_sha256: "85ece4451f492d0c13c5dd7c13a64681a86afae63a5f347908daf103ce6d2f67",
+    import_module: "jinja2",
+    import_origin: "jinja2/__init__.py",
+  },
+  {
+    distribution: "safetensors",
+    version: "0.7.0",
+    wheel_sha256: "dac7252938f0696ddea46f5e855dd3138444e82236e3be475f54929f0c510d48",
+    import_module: "safetensors",
+    import_origin: "safetensors/__init__.py",
+  },
+  {
+    distribution: "tokenizers",
+    version: "0.22.2",
+    wheel_sha256: "369cc9fc8cc10cb24143873a0d95438bb8ee257bb80c71989e3ee290e8d72c67",
+    import_module: "tokenizers",
+    import_origin: "tokenizers/__init__.py",
+  },
+  {
+    distribution: "torch",
+    version: "2.11.0+cu129",
+    wheel_sha256: "68b83cb7d7d43bc67c2833c8aebaea6a966f2017c3389885affa3361c258b7e3",
+    import_module: "torch",
+    import_origin: "torch/__init__.py",
+  },
+  {
+    distribution: "transformers",
+    version: "5.6.2",
+    wheel_sha256: "f8d3a1bb96778fed9b8aabfd0dd6e19843e4b0f2bb6b59f32b8a92051b0f348f",
+    import_module: "transformers",
+    import_origin: "transformers/__init__.py",
+  },
+  {
+    distribution: "vllm",
+    version: "0.26.0+cu129",
+    wheel_sha256: "7632856147650da3ed8d1652b1b05ffaadcc62ea8e910fdaa6f8ce055b201ebf",
+    import_module: "vllm",
+    import_origin: "vllm/__init__.py",
+  },
+] as const;
+
+function rawSha256Digest(value: unknown, path: string): string {
+  return patternedString(value, RAW_SHA256_DIGEST, path);
+}
+
+function parseRuntimeDistribution(
+  value: unknown,
+  index: number,
+  path: string,
+): EvaluationRuntimeDistribution {
+  const expected = APPROVED_RUNTIME_DISTRIBUTIONS[index];
+  if (expected === undefined) {
+    malformed(path, "contain the six distributions in approved order");
+  }
+  const record = exactRecord(
+    value,
+    [
+      "distribution",
+      "version",
+      "wheel_sha256",
+      "record_manifest_sha256",
+      "import_module",
+      "import_origin",
+      "import_origin_sha256",
+      "verification",
+    ],
+    `${path}[${index}]`,
+  );
+  const distribution = oneOf(
+    record.distribution,
+    [expected.distribution] as const,
+    `${path}[${index}].distribution`,
+  );
+  const version = nonEmptyString(record.version, `${path}[${index}].version`);
+  const wheelSha256 = rawSha256Digest(
+    record.wheel_sha256,
+    `${path}[${index}].wheel_sha256`,
+  );
+  const importModule = nonEmptyString(
+    record.import_module,
+    `${path}[${index}].import_module`,
+  );
+  const importOrigin = nonEmptyString(
+    record.import_origin,
+    `${path}[${index}].import_origin`,
+  );
+  if (
+    version !== expected.version
+    || wheelSha256 !== expected.wheel_sha256
+    || importModule !== expected.import_module
+    || importOrigin !== expected.import_origin
+  ) {
+    malformed(
+      `${path}[${index}]`,
+      `match the approved ${expected.distribution} version, wheel, and import origin`,
+    );
+  }
+  return {
+    distribution,
+    version,
+    wheel_sha256: wheelSha256,
+    record_manifest_sha256: rawSha256Digest(
+      record.record_manifest_sha256,
+      `${path}[${index}].record_manifest_sha256`,
+    ),
+    import_module: importModule,
+    import_origin: importOrigin,
+    import_origin_sha256: rawSha256Digest(
+      record.import_origin_sha256,
+      `${path}[${index}].import_origin_sha256`,
+    ),
+    verification: oneOf(
+      record.verification,
+      ["wheel-record-sha256+import-origin"] as const,
+      `${path}[${index}].verification`,
+    ),
+  };
+}
+
+function parseProductDistribution(
+  value: unknown,
+  path: string,
+): EvaluationRuntimeDistribution {
+  const record = exactRecord(
+    value,
+    [
+      "distribution",
+      "version",
+      "wheel_sha256",
+      "record_manifest_sha256",
+      "import_module",
+      "import_origin",
+      "import_origin_sha256",
+      "verification",
+    ],
+    path,
+  );
+  return {
+    distribution: oneOf(
+      record.distribution,
+      ["science-environment-studio"] as const,
+      `${path}.distribution`,
+    ),
+    version: oneOf(record.version, ["0.1.0"] as const, `${path}.version`),
+    wheel_sha256: rawSha256Digest(record.wheel_sha256, `${path}.wheel_sha256`),
+    record_manifest_sha256: rawSha256Digest(
+      record.record_manifest_sha256,
+      `${path}.record_manifest_sha256`,
+    ),
+    import_module: oneOf(
+      record.import_module,
+      ["studio.policy_evaluation.gemma_server_bootstrap"] as const,
+      `${path}.import_module`,
+    ),
+    import_origin: oneOf(
+      record.import_origin,
+      ["studio/policy_evaluation/gemma_server_bootstrap.py"] as const,
+      `${path}.import_origin`,
+    ),
+    import_origin_sha256: rawSha256Digest(
+      record.import_origin_sha256,
+      `${path}.import_origin_sha256`,
+    ),
+    verification: oneOf(
+      record.verification,
+      ["wheel-record-sha256+import-origin"] as const,
+      `${path}.verification`,
+    ),
+  };
+}
+
+export function decodeLocalGemmaAttestation(
+  value: unknown,
+  path = "LocalGemmaServerEvidence",
+): EvaluationLocalGemmaAttestation {
+  const record = exactRecord(
+    value,
+    [
+      "attestation_version",
+      "attestation_id",
+      "runtime_instance_id",
+      "trusted_bootstrap_sha256",
+      "challenge_nonce",
+      "generated_at_utc",
+      "runtime_started_at_utc",
+      "served_model",
+      "checkpoint_revision",
+      "checkpoint_weights_sha256",
+      "tokenizer_revision",
+      "tokenizer_manifest_sha256",
+      "renderer_revision",
+      "vllm_version",
+      "vllm_source_revision",
+      "vllm_wheel_sha256",
+      "python_runtime",
+      "runtime_receipt_id",
+      "runtime_distributions",
+      "product_distribution",
+      "python_bytecode_mode",
+      "serving_root_filesystem_mode",
+      "network_scope",
+      "api_key_authentication",
+      "attestation_middleware_revision",
+      "vllm_config",
+      "adapter_revision",
+      "served_adapter",
+      "sampling_profile",
+      "max_episode_seconds",
+      "platform",
+      "accelerator_architecture",
+      "accelerator_count",
+      "cuda_version",
+      "driver_version",
+      "serving_image_digest",
+      "serving_image_digest_provenance",
+      "evidence_scope",
+      "signature",
+      "evidence_digest",
+      "verification_method",
+    ],
+    path,
+  );
+  const generatedAt = nonEmptyString(record.generated_at_utc, `${path}.generated_at_utc`);
+  const runtimeStartedAt = nonEmptyString(
+    record.runtime_started_at_utc,
+    `${path}.runtime_started_at_utc`,
+  );
+  if (
+    !Number.isFinite(Date.parse(generatedAt))
+    || !Number.isFinite(Date.parse(runtimeStartedAt))
+    || Date.parse(generatedAt) < Date.parse(runtimeStartedAt)
+  ) {
+    malformed(path, "contain an ordered runtime attestation timestamp window");
+  }
+  const pythonRecord = exactRecord(
+    record.python_runtime,
+    ["implementation", "version", "abi_tag", "platform"],
+    `${path}.python_runtime`,
+  );
+  if (!Array.isArray(record.runtime_distributions)) {
+    malformed(`${path}.runtime_distributions`, "contain the six distributions in approved order");
+  }
+  if (record.runtime_distributions.length !== APPROVED_RUNTIME_DISTRIBUTIONS.length) {
+    malformed(`${path}.runtime_distributions`, "contain the six distributions in approved order");
+  }
+  if (record.runtime_distributions.some((item, index) => (
+    !isRecord(item)
+    || item.distribution !== APPROVED_RUNTIME_DISTRIBUTIONS[index]?.distribution
+  ))) {
+    malformed(`${path}.runtime_distributions`, "contain the six distributions in approved order");
+  }
+  const runtimeDistributions = record.runtime_distributions.map((item, index) =>
+    parseRuntimeDistribution(item, index, `${path}.runtime_distributions`)
+  );
+  const productDistribution = parseProductDistribution(
+    record.product_distribution,
+    `${path}.product_distribution`,
+  );
+  const configRecord = exactRecord(
+    record.vllm_config,
+    [
+      "dtype",
+      "max_model_len",
+      "tensor_parallel_size",
+      "gpu_memory_utilization",
+      "enforce_eager",
+      "max_num_seqs",
+      "generation_config",
+      "tool_call_parser",
+      "enable_auto_tool_choice",
+      "enable_lora",
+      "disable_log_requests",
+      "limit_mm_per_prompt",
+    ],
+    `${path}.vllm_config`,
+  );
+  const multimodalRecord = exactRecord(
+    configRecord.limit_mm_per_prompt,
+    ["image", "audio", "video"],
+    `${path}.vllm_config.limit_mm_per_prompt`,
+  );
+  const gpuMemoryUtilization = finiteNumber(
+    configRecord.gpu_memory_utilization,
+    `${path}.vllm_config.gpu_memory_utilization`,
+  );
+  if (gpuMemoryUtilization !== 0.35) {
+    malformed(`${path}.vllm_config.gpu_memory_utilization`, "equal 0.35");
+  }
+  const apiKeyAuthentication = booleanValue(
+    record.api_key_authentication,
+    `${path}.api_key_authentication`,
+  );
+  const maxModelLen = integerValue(
+    configRecord.max_model_len,
+    `${path}.vllm_config.max_model_len`,
+  );
+  const tensorParallelSize = integerValue(
+    configRecord.tensor_parallel_size,
+    `${path}.vllm_config.tensor_parallel_size`,
+  );
+  const enforceEager = booleanValue(
+    configRecord.enforce_eager,
+    `${path}.vllm_config.enforce_eager`,
+  );
+  const maxNumSeqs = integerValue(
+    configRecord.max_num_seqs,
+    `${path}.vllm_config.max_num_seqs`,
+  );
+  const enableAutoToolChoice = booleanValue(
+    configRecord.enable_auto_tool_choice,
+    `${path}.vllm_config.enable_auto_tool_choice`,
+  );
+  const enableLora = booleanValue(
+    configRecord.enable_lora,
+    `${path}.vllm_config.enable_lora`,
+  );
+  const disableLogRequests = booleanValue(
+    configRecord.disable_log_requests,
+    `${path}.vllm_config.disable_log_requests`,
+  );
+  const imageLimit = integerValue(
+    multimodalRecord.image,
+    `${path}.vllm_config.limit_mm_per_prompt.image`,
+  );
+  const audioLimit = integerValue(
+    multimodalRecord.audio,
+    `${path}.vllm_config.limit_mm_per_prompt.audio`,
+  );
+  const videoLimit = integerValue(
+    multimodalRecord.video,
+    `${path}.vllm_config.limit_mm_per_prompt.video`,
+  );
+  const maxEpisodeSeconds = integerValue(
+    record.max_episode_seconds,
+    `${path}.max_episode_seconds`,
+  );
+  if (
+    !apiKeyAuthentication
+    || maxModelLen !== 32768
+    || tensorParallelSize !== 1
+    || !enforceEager
+    || maxNumSeqs !== 16
+    || !enableAutoToolChoice
+    || enableLora
+    || !disableLogRequests
+    || imageLimit !== 0
+    || audioLimit !== 0
+    || videoLimit !== 0
+    || maxEpisodeSeconds !== 900
+  ) {
+    malformed(path, "match the approved serving command configuration");
+  }
+  return {
+    attestation_version: oneOf(
+      record.attestation_version,
+      ["science-local-gemma-runtime-attestation/1"] as const,
+      `${path}.attestation_version`,
+    ),
+    attestation_id: nonEmptyString(record.attestation_id, `${path}.attestation_id`),
+    runtime_instance_id: rawSha256Digest(
+      record.runtime_instance_id,
+      `${path}.runtime_instance_id`,
+    ),
+    trusted_bootstrap_sha256: rawSha256Digest(
+      record.trusted_bootstrap_sha256,
+      `${path}.trusted_bootstrap_sha256`,
+    ),
+    challenge_nonce: rawSha256Digest(record.challenge_nonce, `${path}.challenge_nonce`),
+    generated_at_utc: generatedAt,
+    runtime_started_at_utc: runtimeStartedAt,
+    served_model: oneOf(record.served_model, ["google/gemma-4-E4B-it"] as const, `${path}.served_model`),
+    checkpoint_revision: oneOf(record.checkpoint_revision, ["ee0ef6023621cff504d758262d4e04895a5af4a2"] as const, `${path}.checkpoint_revision`),
+    checkpoint_weights_sha256: rawSha256Digest(record.checkpoint_weights_sha256, `${path}.checkpoint_weights_sha256`),
+    tokenizer_revision: oneOf(record.tokenizer_revision, ["ee0ef6023621cff504d758262d4e04895a5af4a2"] as const, `${path}.tokenizer_revision`),
+    tokenizer_manifest_sha256: rawSha256Digest(record.tokenizer_manifest_sha256, `${path}.tokenizer_manifest_sha256`),
+    renderer_revision: oneOf(record.renderer_revision, ["f770dcaa362e3a6a13a96f039741b3b84ca4114e"] as const, `${path}.renderer_revision`),
+    vllm_version: oneOf(record.vllm_version, ["0.26.0+cu129"] as const, `${path}.vllm_version`),
+    vllm_source_revision: oneOf(record.vllm_source_revision, ["568afb3a13806beb53bb2e6bd518269357b237c0"] as const, `${path}.vllm_source_revision`),
+    vllm_wheel_sha256: oneOf(record.vllm_wheel_sha256, ["7632856147650da3ed8d1652b1b05ffaadcc62ea8e910fdaa6f8ce055b201ebf"] as const, `${path}.vllm_wheel_sha256`),
+    python_runtime: {
+      implementation: oneOf(pythonRecord.implementation, ["cpython"] as const, `${path}.python_runtime.implementation`),
+      version: oneOf(pythonRecord.version, ["3.12"] as const, `${path}.python_runtime.version`),
+      abi_tag: oneOf(pythonRecord.abi_tag, ["cp312"] as const, `${path}.python_runtime.abi_tag`),
+      platform: oneOf(pythonRecord.platform, ["linux-x86_64"] as const, `${path}.python_runtime.platform`),
+    },
+    runtime_receipt_id: oneOf(record.runtime_receipt_id, ["science-local-gemma-runtime-cp312-cu129/1"] as const, `${path}.runtime_receipt_id`),
+    runtime_distributions: runtimeDistributions,
+    product_distribution: productDistribution,
+    python_bytecode_mode: oneOf(
+      record.python_bytecode_mode,
+      ["fresh-private-prefix-no-write"] as const,
+      `${path}.python_bytecode_mode`,
+    ),
+    serving_root_filesystem_mode: oneOf(
+      record.serving_root_filesystem_mode,
+      ["kernel-read-only-mount"] as const,
+      `${path}.serving_root_filesystem_mode`,
+    ),
+    network_scope: oneOf(record.network_scope, ["loopback-only"] as const, `${path}.network_scope`),
+    api_key_authentication: true,
+    attestation_middleware_revision: oneOf(record.attestation_middleware_revision, ["science-local-gemma-attestation-middleware/1"] as const, `${path}.attestation_middleware_revision`),
+    vllm_config: {
+      dtype: oneOf(configRecord.dtype, ["bfloat16"] as const, `${path}.vllm_config.dtype`),
+      max_model_len: 32768,
+      tensor_parallel_size: 1,
+      gpu_memory_utilization: gpuMemoryUtilization,
+      enforce_eager: true,
+      max_num_seqs: 16,
+      generation_config: oneOf(configRecord.generation_config, ["vllm"] as const, `${path}.vllm_config.generation_config`),
+      tool_call_parser: oneOf(configRecord.tool_call_parser, ["gemma4"] as const, `${path}.vllm_config.tool_call_parser`),
+      enable_auto_tool_choice: true,
+      enable_lora: false,
+      disable_log_requests: true,
+      limit_mm_per_prompt: {
+        image: 0,
+        audio: 0,
+        video: 0,
+      },
+    },
+    adapter_revision: oneOf(record.adapter_revision, ["local-gemma-openai-chat/1"] as const, `${path}.adapter_revision`),
+    served_adapter: oneOf(record.served_adapter, ["none"] as const, `${path}.served_adapter`),
+    sampling_profile: oneOf(record.sampling_profile, ["base-gemma-development-chat-v1"] as const, `${path}.sampling_profile`),
+    max_episode_seconds: 900,
+    platform: oneOf(record.platform, ["linux-x86_64"] as const, `${path}.platform`),
+    accelerator_architecture: nonEmptyString(record.accelerator_architecture, `${path}.accelerator_architecture`),
+    accelerator_count: integerValue(record.accelerator_count, `${path}.accelerator_count`, 1),
+    cuda_version: nonEmptyString(record.cuda_version, `${path}.cuda_version`),
+    driver_version: nonEmptyString(record.driver_version, `${path}.driver_version`),
+    serving_image_digest: digest(record.serving_image_digest, `${path}.serving_image_digest`),
+    serving_image_digest_provenance: oneOf(record.serving_image_digest_provenance, ["operator-supplied"] as const, `${path}.serving_image_digest_provenance`),
+    evidence_scope: oneOf(record.evidence_scope, ["server-reported-runtime-state"] as const, `${path}.evidence_scope`),
+    signature: rawSha256Digest(record.signature, `${path}.signature`),
+    evidence_digest: digest(record.evidence_digest, `${path}.evidence_digest`),
+    verification_method: oneOf(record.verification_method, ["hmac-sha256-server-challenge"] as const, `${path}.verification_method`),
+  };
+}
+
+function parseEvaluationInteraction(
+  value: unknown,
+  path: string,
+): EvaluationInteraction {
+  const record = exactRecord(
+    value,
+    [
+      "trace_version",
+      "model",
+      "sampling",
+      "budgets",
+      "run",
+      "messages",
+      "responses",
+      "tool_calls",
+      "tool_results",
+      "accepted_actions",
+      "runtime_executions",
+      "runtime_events",
+      "runtime_trace_digest",
+      "infrastructure_error",
+      "interaction_digest",
+    ],
+    path,
+  );
+  const messageValues = record.messages;
+  const responseValues = record.responses;
+  const toolCallValues = record.tool_calls;
+  const toolResultValues = record.tool_results;
+  const acceptedActionValues = record.accepted_actions;
+  const runtimeExecutionValues = record.runtime_executions;
+  const runtimeEventValues = record.runtime_events;
+  if (!Array.isArray(messageValues)) malformed(`${path}.messages`, "be an array");
+  if (!Array.isArray(responseValues)) malformed(`${path}.responses`, "be an array");
+  if (!Array.isArray(toolCallValues)) malformed(`${path}.tool_calls`, "be an array");
+  if (!Array.isArray(toolResultValues)) malformed(`${path}.tool_results`, "be an array");
+  if (!Array.isArray(acceptedActionValues)) {
+    malformed(`${path}.accepted_actions`, "be an array");
+  }
+  if (!Array.isArray(runtimeExecutionValues)) {
+    malformed(`${path}.runtime_executions`, "be an array");
+  }
+  if (!Array.isArray(runtimeEventValues)) {
+    malformed(`${path}.runtime_events`, "be an array");
+  }
+  const messages = messageValues.map((item, index) =>
+    parseEvaluationMessage(item, `${path}.messages[${index}]`)
+  );
+  const responses = responseValues.map((item, index) =>
+    parseEvaluationResponseRecord(item, `${path}.responses[${index}]`)
+  );
+  const toolCalls = toolCallValues.map((item, index) =>
+    parseEvaluationToolCall(item, `${path}.tool_calls[${index}]`)
+  );
+  const toolResults = toolResultValues.map((item, index) =>
+    parseEvaluationToolResult(item, `${path}.tool_results[${index}]`)
+  );
+  const acceptedActions = acceptedActionValues.map((item, index) =>
+    parseTraceAction(item, `${path}.accepted_actions[${index}]`)
+  );
+  const runtimeExecutions = runtimeExecutionValues.map((item, index) =>
+    parseEvaluationRuntimeExecution(item, `${path}.runtime_executions[${index}]`)
+  );
+  const assistantCalls = messages.flatMap((message) =>
+    message.role === "assistant"
+      ? message.tool_calls
+      : []
+  );
+  const callKey = (
+    call: EvaluationToolCall | EvaluationToolResult,
+  ) => JSON.stringify([
+    call.call_id,
+    call.provider_call_id,
+    call.ordinal,
+    call.name,
+  ]);
+  const topLevelCallKeys = toolCalls.map(callKey);
+  const resultKeys = toolResults.map(callKey);
+  const toolMessageKeys = messages.flatMap((message) =>
+    message.role === "tool"
+      ? [JSON.stringify([
+          message.tool_call_id,
+          message.provider_tool_call_id,
+          message.tool_call_ordinal,
+          message.tool_name,
+        ])]
+      : []
+  );
+  if (
+    assistantCalls.length !== toolCalls.length
+    || assistantCalls.some((call, index) => (
+      callKey(call) !== topLevelCallKeys[index]
+      || canonicalJsonValue(call.arguments)
+        !== canonicalJsonValue(toolCalls[index].arguments)
+    ))
+    || JSON.stringify(topLevelCallKeys) !== JSON.stringify(resultKeys)
+    || JSON.stringify(resultKeys) !== JSON.stringify(toolMessageKeys)
+    || new Set(toolCalls.map((call) => call.call_id)).size !== toolCalls.length
+    || new Set(toolCalls.map((call) => call.ordinal)).size !== toolCalls.length
+  ) {
+    malformed(path, "preserve one ordered result for every assistant tool call");
+  }
+  if (
+    messages.length === 0
+    || messages[0].role !== "user"
+    || messages.slice(1).some((message) => message.role === "user")
+  ) {
+    malformed(`${path}.messages`, "contain exactly one initial user turn");
+  }
+  const assistantMessages: EvaluationMessage[] = [];
+  let messageCursor = 1;
+  while (messageCursor < messages.length) {
+    const assistant = messages[messageCursor];
+    if (assistant.role !== "assistant") {
+      malformed(`${path}.messages`, "preserve ordered assistant response turns");
+    }
+    assistantMessages.push(assistant);
+    messageCursor += 1;
+    for (const call of assistant.tool_calls) {
+      const toolMessage = messages[messageCursor];
+      if (
+        toolMessage?.role !== "tool"
+        || toolMessage.tool_call_id !== call.call_id
+        || toolMessage.provider_tool_call_id !== call.provider_call_id
+        || toolMessage.tool_call_ordinal !== call.ordinal
+        || toolMessage.tool_name !== call.name
+      ) {
+        malformed(
+          `${path}.messages`,
+          "place every linked tool result immediately after its assistant call",
+        );
+      }
+      messageCursor += 1;
+    }
+  }
+  const assistantResponseKeys = assistantMessages.map((message) =>
+    JSON.stringify([message.response_turn, message.response_id])
+  );
+  const responseKeys = responses.map((response) =>
+    JSON.stringify([response.turn, response.response_id])
+  );
+  if (
+    JSON.stringify(assistantResponseKeys) !== JSON.stringify(responseKeys)
+    || responses.some((response, index) => response.turn !== index + 1)
+  ) {
+    malformed(path, "bind response records one-to-one to assistant turns");
+  }
+  const toolMessages = messages.filter((message) => message.role === "tool");
+  if (toolMessages.some((message, index) => {
+    const result = toolResults[index];
+    const expected = result.status === "ok"
+      ? { status: "ok", observation: result.observation }
+      : { status: "error", error_code: result.error_code };
+    return canonicalJsonValue(message.content) !== canonicalJsonValue(expected);
+  })) {
+    malformed(path, "bind tool message payloads to canonical execution results");
+  }
+  const successful = toolCalls.flatMap((call, index) => (
+    toolResults[index].status === "ok" ? [[call, toolResults[index]] as const] : []
+  ));
+  if (
+    successful.length !== runtimeExecutions.length
+    || successful.some(([call, result], index) => {
+      const execution = runtimeExecutions[index];
+      return call.call_id !== execution.call_id
+        || call.ordinal !== execution.ordinal
+        || call.name !== execution.action.type
+        || canonicalJsonValue(call.arguments)
+          !== canonicalJsonValue(execution.action.arguments)
+        || result.execution_id !== execution.execution_id
+        || canonicalJsonValue(result.observation)
+          !== canonicalJsonValue(execution.observation)
+        || result.cache_hit !== execution.cache_hit
+        || result.retry_count !== execution.retry_count;
+    })
+    || acceptedActions.length !== runtimeExecutions.length
+    || acceptedActions.some((action, index) => (
+      action.type !== runtimeExecutions[index].action.type
+      || canonicalJsonValue(action.arguments)
+        !== canonicalJsonValue(runtimeExecutions[index].action.arguments)
+    ))
+  ) {
+    malformed(path, "bind successful calls to canonical Runtime executions");
+  }
+  const samplingRecord = exactRecord(
+    record.sampling,
+    [
+      "profile",
+      "temperature",
+      "max_output_tokens",
+      "tool_choice",
+      "top_p",
+      "seed",
+      "streaming",
+      "store",
+    ],
+    `${path}.sampling`,
+  );
+  if (
+    finiteNumber(samplingRecord.temperature, `${path}.sampling.temperature`) !== 0
+    || integerValue(
+      samplingRecord.max_output_tokens,
+      `${path}.sampling.max_output_tokens`,
+      1,
+    ) !== 2048
+    || nullValue(samplingRecord.top_p, `${path}.sampling.top_p`) !== null
+    || nullValue(samplingRecord.seed, `${path}.sampling.seed`) !== null
+    || booleanValue(samplingRecord.streaming, `${path}.sampling.streaming`) !== false
+    || booleanValue(samplingRecord.store, `${path}.sampling.store`) !== false
+  ) {
+    malformed(`${path}.sampling`, "match the fixed deterministic profile");
+  }
+  const budgetsRecord = exactRecord(
+    record.budgets,
+    [
+      "max_turns",
+      "max_tool_calls",
+      "max_provider_tool_calls",
+      "max_episode_seconds",
+    ],
+    `${path}.budgets`,
+  );
+  if (
+    integerValue(
+      budgetsRecord.max_episode_seconds,
+      `${path}.budgets.max_episode_seconds`,
+      1,
+    ) !== 900
+  ) {
+    malformed(`${path}.budgets.max_episode_seconds`, "equal the fixed 900-second limit");
+  }
+  if (
+    integerValue(
+      budgetsRecord.max_provider_tool_calls,
+      `${path}.budgets.max_provider_tool_calls`,
+      1,
+    ) !== 64
+  ) {
+    malformed(`${path}.budgets.max_provider_tool_calls`, "equal the fixed 64-call limit");
+  }
+  const runRecord = exactRecord(
+    record.run,
+    [
+      "profile",
+      "started_at_utc",
+      "completed_at_utc",
+      "local_gemma_attestation",
+    ],
+    `${path}.run`,
+  );
+  const startedAt = nonEmptyString(
+    runRecord.started_at_utc,
+    `${path}.run.started_at_utc`,
+  );
+  const completedAt = nonEmptyString(
+    runRecord.completed_at_utc,
+    `${path}.run.completed_at_utc`,
+  );
+  if (
+    !Number.isFinite(Date.parse(startedAt))
+    || !Number.isFinite(Date.parse(completedAt))
+    || Date.parse(completedAt) < Date.parse(startedAt)
+  ) {
+    malformed(`${path}.run`, "contain an ordered timestamp window");
+  }
+  return {
+    trace_version: oneOf(
+      record.trace_version,
+      ["1.0"] as const,
+      `${path}.trace_version`,
+    ),
+    model: parseEvaluationModel(record.model, `${path}.model`),
+    sampling: {
+      profile: oneOf(
+        samplingRecord.profile,
+        ["base-gemma-development-chat-v1"] as const,
+        `${path}.sampling.profile`,
+      ),
+      temperature: 0,
+      max_output_tokens: 2048,
+      tool_choice: oneOf(
+        samplingRecord.tool_choice,
+        ["auto"] as const,
+        `${path}.sampling.tool_choice`,
+      ),
+      top_p: null,
+      seed: null,
+      streaming: false,
+      store: false,
+    },
+    budgets: {
+      max_turns: integerValue(
+        budgetsRecord.max_turns,
+        `${path}.budgets.max_turns`,
+        1,
+      ),
+      max_tool_calls: integerValue(
+        budgetsRecord.max_tool_calls,
+        `${path}.budgets.max_tool_calls`,
+        1,
+      ),
+      max_provider_tool_calls: 64,
+      max_episode_seconds: 900,
+    },
+    run: {
+      profile: oneOf(
+        runRecord.profile,
+        ["base-gemma-development-v1"] as const,
+        `${path}.run.profile`,
+      ),
+      started_at_utc: startedAt,
+      completed_at_utc: completedAt,
+      local_gemma_attestation: runRecord.local_gemma_attestation === null
+        ? null
+        : decodeLocalGemmaAttestation(
+            runRecord.local_gemma_attestation,
+            `${path}.run.local_gemma_attestation`,
+          ),
+    },
+    messages,
+    responses,
+    tool_calls: toolCalls,
+    tool_results: toolResults,
+    accepted_actions: acceptedActions,
+    runtime_executions: runtimeExecutions,
+    runtime_events: runtimeEventValues.map((item, index) =>
+      parseTraceEvent(item, `${path}.runtime_events[${index}]`)
+    ),
+    runtime_trace_digest: digest(
+      record.runtime_trace_digest,
+      `${path}.runtime_trace_digest`,
+    ),
+    infrastructure_error: record.infrastructure_error === null
+      ? null
+      : parseEvaluationInfrastructureError(
+          record.infrastructure_error,
+          `${path}.infrastructure_error`,
+        ),
+    interaction_digest: digest(
+      record.interaction_digest,
+      `${path}.interaction_digest`,
+    ),
+  };
+}
+
+function parseEvaluationReplay(value: unknown): EvaluationReplay {
+  const path = "EvaluationReplay";
+  const record = exactRecord(
+    value,
+    [
+      "evaluation_id",
+      "attempt",
+      "interaction",
+      "snapshot",
+      "report",
+      "infrastructure_error",
+    ],
+    path,
+  );
+  const attempt = parseEvaluationAttempt(record.attempt, `${path}.attempt`);
+  const interaction = parseEvaluationInteraction(
+    record.interaction,
+    `${path}.interaction`,
+  );
+  const scientific = attempt.disposition !== "infrastructure_error";
+  const snapshot = record.snapshot === null ? null : parseRunSnapshot(record.snapshot);
+  const report = record.report === null
+    ? null
+    : parseEvaluationReplayReport(record.report, `${path}.report`);
+  const infrastructureError = record.infrastructure_error === null
+    ? null
+    : parseEvaluationInfrastructureError(
+        record.infrastructure_error,
+        `${path}.infrastructure_error`,
+      );
+  if (
+    scientific !== (snapshot !== null && report !== null)
+    || scientific === (infrastructureError !== null)
+  ) {
+    malformed(path, "contain exactly one scientific or infrastructure outcome");
+  }
+  const interactionHasInfrastructureError = interaction.infrastructure_error !== null;
+  if (
+    interaction.runtime_trace_digest !== attempt.runtime_trace_digest
+    || interactionHasInfrastructureError !== !scientific
+  ) {
+    malformed(path, "bind interaction evidence to its attempt outcome");
+  }
+  return {
+    evaluation_id: patternedString(
+      record.evaluation_id,
+      /^evaluation-[0-9a-f]{32}$/,
+      `${path}.evaluation_id`,
+    ),
+    attempt,
+    interaction,
+    snapshot,
+    report,
+    infrastructure_error: infrastructureError,
+  };
+}
+
 function errorDetail(value: unknown): string | undefined {
   if (!isRecord(value)) return undefined;
   return typeof value.detail === "string" && value.detail.length > 0
@@ -1345,6 +3109,46 @@ export const environmentApi = {
     return request(`/api/runs/${runId}/replay`, parseReplayResponse, {
       method: "POST",
     });
+  },
+};
+
+export const evaluationApi = {
+  async list(): Promise<EvaluationSummary[]> {
+    return request("/api/evaluations", parseEvaluationSummaries);
+  },
+
+  async launch(): Promise<EvaluationSnapshot> {
+    return request("/api/evaluations", decodeEvaluationSnapshot, {
+      method: "POST",
+      body: JSON.stringify({ profile: "base-gemma-development-v1" }),
+    });
+  },
+
+  async load(evaluationId: string): Promise<EvaluationSnapshot> {
+    return request(
+      `/api/evaluations/${encodeURIComponent(evaluationId)}`,
+      decodeEvaluationSnapshot,
+    );
+  },
+
+  async resume(evaluationId: string): Promise<EvaluationSnapshot> {
+    return request(
+      `/api/evaluations/${encodeURIComponent(evaluationId)}/resume`,
+      decodeEvaluationSnapshot,
+      { method: "POST" },
+    );
+  },
+
+  async replay(
+    evaluationId: string,
+    attemptId: string,
+  ): Promise<EvaluationReplay> {
+    return request(
+      `/api/evaluations/${encodeURIComponent(evaluationId)}/attempts/`
+      + `${encodeURIComponent(attemptId)}/replay`,
+      parseEvaluationReplay,
+      { method: "POST" },
+    );
   },
 };
 

@@ -357,3 +357,304 @@ export interface ReplayResponse {
   snapshot: RunSnapshot;
   replay: ReplayReport;
 }
+
+export type EvaluationStatus = "queued" | "running" | "completed" | "interrupted";
+export type EvaluationDisposition =
+  | "scientific_success"
+  | "scientific_failure"
+  | "infrastructure_error";
+
+export interface EvaluationModelIdentity {
+  provider: "local-openai-compatible";
+  requested_model: "google/gemma-4-E4B-it";
+  adapter_revision: "local-gemma-openai-chat/1";
+}
+
+export interface EvaluationProgress {
+  phase: EvaluationStatus;
+  message: string;
+  completed_scenarios: number;
+  total_scenarios: number;
+  scientific_successes: number;
+  scientific_failures: number;
+  infrastructure_errors: number;
+}
+
+export type EvaluationCalibrationStatus = "pending" | "ready" | "not_ready";
+
+export interface EvaluationCalibrationLevel {
+  level: 0 | 1 | 2 | 3 | 4 | 5;
+  label: string;
+  total_scenarios: number;
+  completed_scenarios: number;
+  scientific_successes: number;
+  scientific_failures: number;
+  infrastructure_errors: number;
+  has_success_and_failure: boolean;
+}
+
+export interface EvaluationCalibration {
+  status: EvaluationCalibrationStatus;
+  summary: string;
+  scientific_accuracy: number | null;
+  target_accuracy_minimum: 0.2;
+  target_accuracy_maximum: 0.7;
+  overall_accuracy_in_target: boolean;
+  levels_1_and_2_mixed: boolean;
+  no_infrastructure_errors: boolean;
+  authenticated_local_runtime: boolean;
+  levels: EvaluationCalibrationLevel[];
+}
+
+export interface EvaluationAttemptSummary {
+  attempt_id: string;
+  ordinal: number;
+  scenario_id: string;
+  disposition: EvaluationDisposition;
+  summary: string;
+  interaction_digest: string;
+  runtime_trace_digest: string;
+  result_digest: string | null;
+}
+
+export interface EvaluationPlan {
+  plan_revision: "science-environment-evaluation-plan/1";
+  profile: "base-gemma-development-v1";
+  environment_id: string;
+  bundle_revision: string;
+  bundle_digest: string;
+  split: "development";
+  curriculum_package_digest: string;
+  model: EvaluationModelIdentity;
+  model_revision: "ee0ef6023621cff504d758262d4e04895a5af4a2";
+  objective: string;
+  scenario_ids: string[];
+}
+
+export interface EvaluationSummary {
+  evaluation_id: string;
+  profile: "base-gemma-development-v1";
+  model: EvaluationModelIdentity;
+  status: EvaluationStatus;
+  progress: EvaluationProgress;
+}
+
+export interface EvaluationSnapshot {
+  evaluation_id: string;
+  status: EvaluationStatus;
+  plan: EvaluationPlan;
+  progress: EvaluationProgress;
+  calibration: EvaluationCalibration;
+  attempts: EvaluationAttemptSummary[];
+}
+
+export interface EvaluationReplayReport {
+  source_trace_digest: string;
+  replay_trace_digest: string;
+  trace_matches: boolean;
+  source_result_digest: string;
+  replay_result_digest: string;
+  result_matches: boolean;
+}
+
+export interface EvaluationInfrastructureError {
+  category: "adapter" | "inference" | "protocol";
+  code: string;
+  summary: string;
+}
+
+export interface EvaluationToolCall {
+  call_id: string;
+  provider_call_id: string;
+  ordinal: number;
+  name: string;
+  arguments: JsonObject;
+}
+
+export interface EvaluationMessage {
+  role: "user" | "assistant" | "tool";
+  content: string | JsonObject;
+  response_id: string | null;
+  response_turn: number | null;
+  tool_calls: EvaluationToolCall[];
+  tool_call_id: string | null;
+  provider_tool_call_id: string | null;
+  tool_call_ordinal: number | null;
+  tool_name: string | null;
+}
+
+export interface EvaluationTokenUsage {
+  input_tokens: number | null;
+  output_tokens: number | null;
+  total_tokens: number | null;
+  cached_input_tokens: number | null;
+  reasoning_tokens: number | null;
+}
+
+export interface EvaluationResponseRecord {
+  turn: number;
+  response_id: string;
+  returned_model: string;
+  usage: EvaluationTokenUsage | null;
+  metadata: {
+    created_unix_seconds: number;
+    finish_reason: "stop" | "tool_calls" | "length";
+    system_fingerprint: string | null;
+    runtime_instance_id: string | null;
+  } | null;
+}
+
+export interface EvaluationToolResult {
+  call_id: string;
+  provider_call_id: string;
+  ordinal: number;
+  name: string;
+  status: "ok" | "error";
+  observation: JsonObject | null;
+  error_code: string | null;
+  execution_id: string | null;
+  cache_hit: boolean | null;
+  retry_count: number | null;
+}
+
+export interface EvaluationRuntimeExecution {
+  call_id: string;
+  ordinal: number;
+  execution_id: string;
+  action: TraceAction;
+  observation: JsonObject;
+  resulting_status: "active" | "awaiting_verification";
+  resulting_trace_digest: string;
+  cache_hit: boolean;
+  retry_count: number;
+}
+
+export interface EvaluationPythonRuntime {
+  implementation: "cpython";
+  version: "3.12";
+  abi_tag: "cp312";
+  platform: "linux-x86_64";
+}
+
+export type EvaluationRuntimeDistributionName =
+  | "jinja2"
+  | "safetensors"
+  | "tokenizers"
+  | "torch"
+  | "transformers"
+  | "vllm"
+  | "science-environment-studio";
+
+export interface EvaluationRuntimeDistribution {
+  distribution: EvaluationRuntimeDistributionName;
+  version: string;
+  wheel_sha256: string;
+  record_manifest_sha256: string;
+  import_module: string;
+  import_origin: string;
+  import_origin_sha256: string;
+  verification: "wheel-record-sha256+import-origin";
+}
+
+export interface EvaluationLocalGemmaAttestation {
+  attestation_version: "science-local-gemma-runtime-attestation/1";
+  attestation_id: string;
+  runtime_instance_id: string;
+  trusted_bootstrap_sha256: string;
+  challenge_nonce: string;
+  generated_at_utc: string;
+  runtime_started_at_utc: string;
+  served_model: "google/gemma-4-E4B-it";
+  checkpoint_revision: "ee0ef6023621cff504d758262d4e04895a5af4a2";
+  checkpoint_weights_sha256: string;
+  tokenizer_revision: "ee0ef6023621cff504d758262d4e04895a5af4a2";
+  tokenizer_manifest_sha256: string;
+  renderer_revision: "f770dcaa362e3a6a13a96f039741b3b84ca4114e";
+  vllm_version: "0.26.0+cu129";
+  vllm_source_revision: "568afb3a13806beb53bb2e6bd518269357b237c0";
+  vllm_wheel_sha256: string;
+  python_runtime: EvaluationPythonRuntime;
+  runtime_receipt_id: "science-local-gemma-runtime-cp312-cu129/1";
+  runtime_distributions: EvaluationRuntimeDistribution[];
+  product_distribution: EvaluationRuntimeDistribution;
+  python_bytecode_mode: "fresh-private-prefix-no-write";
+  serving_root_filesystem_mode: "kernel-read-only-mount";
+  network_scope: "loopback-only";
+  api_key_authentication: true;
+  attestation_middleware_revision: "science-local-gemma-attestation-middleware/1";
+  vllm_config: {
+    dtype: "bfloat16";
+    max_model_len: 32768;
+    tensor_parallel_size: 1;
+    gpu_memory_utilization: 0.35;
+    enforce_eager: true;
+    max_num_seqs: 16;
+    generation_config: "vllm";
+    tool_call_parser: "gemma4";
+    enable_auto_tool_choice: true;
+    enable_lora: false;
+    disable_log_requests: true;
+    limit_mm_per_prompt: { image: 0; audio: 0; video: 0 };
+  };
+  adapter_revision: "local-gemma-openai-chat/1";
+  served_adapter: "none";
+  sampling_profile: "base-gemma-development-chat-v1";
+  max_episode_seconds: 900;
+  platform: "linux-x86_64";
+  accelerator_architecture: string;
+  accelerator_count: number;
+  cuda_version: string;
+  driver_version: string;
+  serving_image_digest: string;
+  serving_image_digest_provenance: "operator-supplied";
+  evidence_scope: "server-reported-runtime-state";
+  signature: string;
+  evidence_digest: string;
+  verification_method: "hmac-sha256-server-challenge";
+}
+
+export interface EvaluationInteraction {
+  trace_version: "1.0";
+  model: EvaluationModelIdentity;
+  sampling: {
+    profile: "base-gemma-development-chat-v1";
+    temperature: 0;
+    max_output_tokens: 2048;
+    tool_choice: "auto";
+    top_p: null;
+    seed: null;
+    streaming: false;
+    store: false;
+  };
+  budgets: {
+    max_turns: number;
+    max_tool_calls: number;
+    max_provider_tool_calls: 64;
+    max_episode_seconds: 900;
+  };
+  run: {
+    profile: "base-gemma-development-v1";
+    started_at_utc: string;
+    completed_at_utc: string;
+    local_gemma_attestation: EvaluationLocalGemmaAttestation | null;
+  };
+  messages: EvaluationMessage[];
+  responses: EvaluationResponseRecord[];
+  tool_calls: EvaluationToolCall[];
+  tool_results: EvaluationToolResult[];
+  accepted_actions: TraceAction[];
+  runtime_executions: EvaluationRuntimeExecution[];
+  runtime_events: TraceEvent[];
+  runtime_trace_digest: string;
+  infrastructure_error: EvaluationInfrastructureError | null;
+  interaction_digest: string;
+}
+
+export interface EvaluationReplay {
+  evaluation_id: string;
+  attempt: EvaluationAttemptSummary;
+  interaction: EvaluationInteraction;
+  snapshot: RunSnapshot | null;
+  report: EvaluationReplayReport | null;
+  infrastructure_error: EvaluationInfrastructureError | null;
+}

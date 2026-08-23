@@ -32,6 +32,26 @@ from studio.bundle import EnvironmentBundle, ScenarioManifest
 RuntimeErrorCode = Literal["invalid", "not_found", "conflict", "internal"]
 TraceMutationOperation = Literal["action", "verify"]
 TerminalDisposition = Literal["recovered", "closed", "aborted", "failed"]
+IncompleteTerminationReason = Literal[
+    "model_ended_before_terminal",
+    "output_budget_exhausted",
+    "turn_budget_exhausted",
+    "tool_call_budget_exhausted",
+]
+_INCOMPLETE_TERMINATION_SUMMARIES: dict[IncompleteTerminationReason, str] = {
+    "model_ended_before_terminal": (
+        "Episode ended incomplete before the model made an explicit terminal decision."
+    ),
+    "output_budget_exhausted": (
+        "Episode ended incomplete after the model exhausted its output-token budget."
+    ),
+    "turn_budget_exhausted": (
+        "Episode ended incomplete after the model exhausted its turn budget."
+    ),
+    "tool_call_budget_exhausted": (
+        "Episode ended incomplete after the model exhausted its tool-call budget."
+    ),
+}
 _RUN_LOCK_STRIPE_COUNT = 64
 
 
@@ -842,7 +862,13 @@ class EnvironmentRuntime:
                         persist=False,
                     )
             if journal.result_digest is not None:
-                self._verify(run_id, persist=False)
+                self._verify(
+                    run_id,
+                    persist=False,
+                    incomplete_termination_reason=(
+                        _incomplete_termination_reason(journal.events)
+                    ),
+                )
             restored = self._snapshot(run_id)
             if (
                 restored.trace_header != journal.header
@@ -905,7 +931,15 @@ class EnvironmentRuntime:
         )
         for action in source_actions:
             self.apply_action(replay_start.run_id, action)
-        replayed = self.verify(replay_start.run_id)
+        termination_reason = _incomplete_termination_reason(source_snapshot.trace)
+        replayed = (
+            self.finalize_incomplete(
+                replay_start.run_id,
+                termination_reason=termination_reason,
+            )
+            if termination_reason is not None
+            else self.verify(replay_start.run_id)
+        )
         if replayed.result_digest is None:
             raise RuntimeContractError(
                 "replay did not produce a verifier result",
@@ -1157,12 +1191,31 @@ class EnvironmentRuntime:
                 prepare_checkpoint=prepare_checkpoint,
             )
 
+    def finalize_incomplete(
+        self,
+        run_id: str,
+        *,
+        termination_reason: IncompleteTerminationReason,
+        prepare_checkpoint: Callable[[PreparedTraceAppend], None] | None = None,
+    ) -> RunSnapshot:
+        """Finalize a bounded episode as a canonical zero-reward scientific failure."""
+        if termination_reason not in _INCOMPLETE_TERMINATION_SUMMARIES:
+            raise RuntimeContractError("unknown incomplete termination reason")
+        with self._run_lock(run_id):
+            return self._verify(
+                run_id,
+                persist=True,
+                prepare_checkpoint=prepare_checkpoint,
+                incomplete_termination_reason=termination_reason,
+            )
+
     def _verify(
         self,
         run_id: str,
         *,
         persist: bool,
         prepare_checkpoint: Callable[[PreparedTraceAppend], None] | None = None,
+        incomplete_termination_reason: IncompleteTerminationReason | None = None,
     ) -> RunSnapshot:
         record = self._run_record(run_id)
         if record.status == "completed":
@@ -1179,25 +1232,41 @@ class EnvironmentRuntime:
                 code="internal",
             )
 
-        outcome = deepcopy(self._environment_module).verify(deepcopy(record.state))
-        result = VerifierResult(
-            verifier_id=str(self._bundle.verifier["id"]),
-            result_version=str(self._bundle.verifier["result_version"]),
-            passed=outcome.passed,
-            terminal_disposition=outcome.terminal_disposition,
-            outcome_category=outcome.outcome_category,
-            summary=outcome.summary,
-            metrics=deepcopy(outcome.metrics),
-            evidence=deepcopy(outcome.evidence),
-            reasons=outcome.reasons,
-        )
+        if incomplete_termination_reason is None:
+            outcome = deepcopy(self._environment_module).verify(deepcopy(record.state))
+            result = VerifierResult(
+                verifier_id=str(self._bundle.verifier["id"]),
+                result_version=str(self._bundle.verifier["result_version"]),
+                passed=outcome.passed,
+                terminal_disposition=outcome.terminal_disposition,
+                outcome_category=outcome.outcome_category,
+                summary=outcome.summary,
+                metrics=deepcopy(outcome.metrics),
+                evidence=deepcopy(outcome.evidence),
+                reasons=outcome.reasons,
+            )
+        else:
+            summary = _INCOMPLETE_TERMINATION_SUMMARIES[
+                incomplete_termination_reason
+            ]
+            zero_metrics = {name: 0.0 for name in self._bundle.metrics}
+            zero_metrics.setdefault("reward", 0.0)
+            result = VerifierResult(
+                verifier_id=str(self._bundle.verifier["id"]),
+                result_version=str(self._bundle.verifier["result_version"]),
+                passed=False,
+                terminal_disposition="failed",
+                outcome_category="incomplete",
+                summary=summary,
+                metrics=zero_metrics,
+                evidence={"termination_reason": incomplete_termination_reason},
+                reasons=(summary,),
+            )
         result_payload = result.model_dump(mode="json", exclude_none=True)
         source_trace_digest = self._trace_digest(record)
-        result_digest = _digest(
-            {
-                "result": result_payload,
-                "source_trace_digest": source_trace_digest,
-            }
+        result_digest = canonical_verifier_result_digest(
+            result,
+            source_trace_digest=source_trace_digest,
         )
         verifier_event = TraceEvent(
             sequence=len(record.trace) + 1,
@@ -1334,11 +1403,9 @@ def _validated_journal_records(
             raise ValueError("canonical journal has no verifier result")
         verifier = VerifierResult.model_validate(verifier_document)
         source_trace_digest = _trace_digest(header_record.payload, events[:-1])
-        result_digest = _digest(
-            {
-                "result": verifier.model_dump(mode="json"),
-                "source_trace_digest": source_trace_digest,
-            }
+        result_digest = canonical_verifier_result_digest(
+            verifier,
+            source_trace_digest=source_trace_digest,
         )
         if result_digest != result.result_digest:
             raise ValueError("canonical journal result digest does not match")
@@ -1439,6 +1506,73 @@ def _trace_digest(
     )
 
 
+def canonical_verifier_result_digest(
+    result: VerifierResult,
+    *,
+    source_trace_digest: str,
+) -> str:
+    """Digest one typed verifier result in the Runtime's canonical domain."""
+
+    return _digest(
+        {
+            "result": result.model_dump(mode="json", exclude_none=True),
+            "source_trace_digest": source_trace_digest,
+        }
+    )
+
+
+def validate_completed_run_snapshot(snapshot: RunSnapshot) -> None:
+    """Validate a detached completed snapshot against canonical Runtime evidence."""
+
+    if (
+        snapshot.status != "completed"
+        or snapshot.verifier_result is None
+        or snapshot.result_digest is None
+        or not snapshot.trace
+        or snapshot.trace[-1].type != "verifier"
+        or snapshot.trace[-1].verifier is None
+        or any(event.type == "verifier" for event in snapshot.trace[:-1])
+        or any(
+            event.sequence != sequence
+            for sequence, event in enumerate(snapshot.trace, start=1)
+        )
+    ):
+        raise RuntimeContractError(
+            "completed run has an invalid canonical verifier boundary",
+            code="internal",
+        )
+    final_event = snapshot.trace[-1]
+    event_result = VerifierResult.model_validate(final_event.verifier)
+    event_document = event_result.model_dump(mode="json", exclude_none=True)
+    if (
+        final_event.verifier != event_document
+        or final_event.summary != event_result.summary
+        or snapshot.verifier_result != event_result
+    ):
+        raise RuntimeContractError(
+            "completed run verifier result does not match its canonical trace",
+            code="internal",
+        )
+    if _trace_digest(snapshot.trace_header, list(snapshot.trace)) != snapshot.trace_digest:
+        raise RuntimeContractError(
+            "completed run trace digest does not match its canonical trace",
+            code="internal",
+        )
+    source_trace_digest = _trace_digest(
+        snapshot.trace_header,
+        list(snapshot.trace[:-1]),
+    )
+    expected_result_digest = canonical_verifier_result_digest(
+        event_result,
+        source_trace_digest=source_trace_digest,
+    )
+    if expected_result_digest != snapshot.result_digest:
+        raise RuntimeContractError(
+            "completed run result digest does not match its canonical verifier result",
+            code="internal",
+        )
+
+
 def canonical_trace_header_digest(
     *,
     run_id: str,
@@ -1447,6 +1581,23 @@ def canonical_trace_header_digest(
 ) -> str:
     """Digest the complete immutable first record of a canonical run journal."""
     return _digest(_canonical_journal_header(run_id, lineage, header))
+
+
+def _incomplete_termination_reason(
+    events: tuple[TraceEvent, ...],
+) -> IncompleteTerminationReason | None:
+    if not events or events[-1].type != "verifier" or events[-1].verifier is None:
+        return None
+    evidence = events[-1].verifier.get("evidence")
+    if not isinstance(evidence, dict) or "termination_reason" not in evidence:
+        return None
+    reason = evidence["termination_reason"]
+    if not isinstance(reason, str) or reason not in _INCOMPLETE_TERMINATION_SUMMARIES:
+        raise RuntimeContractError(
+            "canonical trace has an invalid incomplete termination reason",
+            code="internal",
+        )
+    return cast(IncompleteTerminationReason, reason)
 
 
 def _canonical_journal_header(

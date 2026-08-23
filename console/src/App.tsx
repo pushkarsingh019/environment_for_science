@@ -9,6 +9,10 @@ import {
   environmentTraceEvidence,
 } from "./environments";
 import { RunActionComposer } from "./environments/RunActionComposer";
+import {
+  EvaluationBoundaryPanel,
+  EvaluationWorkspace,
+} from "./evaluation/EvaluationWorkspace";
 import type {
   DraftCommandResult,
   EnvironmentCatalogEntry,
@@ -550,7 +554,7 @@ function SealedFrozenPanel({ frozen }: { frozen: SealedEnvironment }) {
 }
 
 export function App() {
-  const [mode, setMode] = useState<"edit" | "run">("edit");
+  const [mode, setMode] = useState<"edit" | "run" | "evaluate">("edit");
   const [catalog, setCatalog] = useState<EnvironmentCatalogEntry[]>([]);
   const [environment, setEnvironment] = useState<EnvironmentSummary | null>(null);
   const [draft, setDraft] = useState<EnvironmentDraft | null>(null);
@@ -758,7 +762,7 @@ export function App() {
         <div className="topbar-context">
           <span className="mode-badge">Scientist Console</span>
           <span className="topbar-divider" />
-          <span>{mode === "edit" ? "Edit" : "Run"}</span>
+          <span>{mode === "edit" ? "Edit" : mode === "run" ? "Run" : "Evaluate"}</span>
         </div>
       </header>
 
@@ -815,11 +819,24 @@ export function App() {
           >
             Run
           </button>
+          <button
+            aria-controls="evaluation-workspace"
+            aria-selected={mode === "evaluate"}
+            className={mode === "evaluate" ? "is-active" : ""}
+            data-testid="mode-evaluate"
+            onClick={() => setMode("evaluate")}
+            role="tab"
+            type="button"
+          >
+            Evaluate
+          </button>
         </div>
 
         {error && <div className="error-banner" role="alert"><strong>Console request failed.</strong> {error}</div>}
 
-        {mode === "edit" ? (
+        {mode === "evaluate" ? (
+          <EvaluationWorkspace />
+        ) : mode === "edit" ? (
           environment?.source_kind === "sealed_seed" ? (
             <SealedEnvironmentWorkspace environment={environment} />
           ) : (
@@ -891,7 +908,9 @@ export function App() {
       </main>
 
       <aside className="details-rail" aria-label="Environment and run details">
-        {mode === "edit" ? (
+        {mode === "evaluate" ? (
+          <EvaluationBoundaryPanel />
+        ) : mode === "edit" ? (
           environment?.source_kind === "sealed_seed" ? (
             <ValidationPanel environment={environment} />
           ) : draft ? <DraftIdentity draft={draft} /> : <div className="loading-panel">Loading draft identity…</div>

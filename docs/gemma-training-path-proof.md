@@ -103,7 +103,7 @@ Use the prime-rl lockfile rather than resolving fresh package versions.
 | uv | `0.11.1` for the handoff (`>=0.11.1` required) | Reads the repository lock and its supply-chain cutoff syntax. |
 | Transformers | `5.6.2` | Exact prime-rl dependency; local tokenizer/meta-model probes used it. |
 | PyTorch | lock: `2.11.0+cu128`; local structure probe: CPU `2.11.0` | Exact trainer ABI in `uv.lock`. |
-| vLLM | lock: `0.26.0+cu129`, x86 wheel SHA-256 `6ce4ca30616f0a35810391015622b197a7b8b267ed27f8716f0789db79ff578b`; tag source commit [`568afb3a13806beb53bb2e6bd518269357b237c0`](https://github.com/vllm-project/vllm/tree/568afb3a13806beb53bb2e6bd518269357b237c0) | This exact tag contains `Gemma4ForConditionalGeneration`, `Gemma4EngineToolParser`, and Gemma LoRA mappings. |
+| vLLM | lock: `0.26.0+cu129`, x86 wheel SHA-256 `7632856147650da3ed8d1652b1b05ffaadcc62ea8e910fdaa6f8ce055b201ebf`; tag source commit [`568afb3a13806beb53bb2e6bd518269357b237c0`](https://github.com/vllm-project/vllm/tree/568afb3a13806beb53bb2e6bd518269357b237c0) | This exact tag contains `Gemma4ForConditionalGeneration`, `Gemma4EngineToolParser`, and Gemma LoRA mappings. |
 | Flash Attention | `2.8.3+cu128torch2.11`, x86 wheel SHA-256 `a16162f436286cc03ebbfb174c0853343ed98ae13c37abf1042947668ec40549` | prime-rl resolves `attn="auto"` to FA2 on SM120. Install only the `flash-attn` extra for this smoke. |
 | Other key locked packages | pydantic `2.13.4`, numpy `2.3.5`, OpenAI `2.38.0`, MCP `1.27.1`, tokenizers `0.22.2`, safetensors `0.7.0`, msgspec `0.21.1` | Used by config, harness, renderer, trace, and transport paths. |
 | Target platform | Linux `x86_64`, NVIDIA CUDA GPU; no macOS training | prime-rl's lock declares Linux x86_64/aarch64 environments only. |

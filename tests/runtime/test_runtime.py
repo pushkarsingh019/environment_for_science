@@ -14,6 +14,7 @@ from studio.runtime import (
     EnvironmentRuntime,
     EpisodeState,
     EpisodeUpdate,
+    IncompleteTerminationReason,
     PolicyAgentIdentity,
     RunLineage,
     RunSnapshot,
@@ -603,6 +604,60 @@ def test_completed_trace_is_persisted_as_append_only_policy_visible_jsonl(
         "repair_transition",
     ):
         assert hidden_key not in visible_artifact
+
+
+@pytest.mark.parametrize(
+    "termination_reason",
+    (
+        "model_ended_before_terminal",
+        "output_budget_exhausted",
+        "turn_budget_exhausted",
+        "tool_call_budget_exhausted",
+    ),
+)
+def test_runtime_owns_canonical_incomplete_scientific_results(
+    termination_reason: IncompleteTerminationReason,
+) -> None:
+    runtime = EnvironmentRuntime(EegMarkerRecoveryModule.from_seed())
+    started = runtime.start(
+        scenario_id="eeg-marker-recovery-001",
+        policy_agent=PolicyAgentIdentity(
+            id="bounded-evaluation-policy",
+            name="Bounded evaluation policy",
+        ),
+    )
+
+    completed = runtime.finalize_incomplete(
+        started.run_id,
+        termination_reason=termination_reason,
+    )
+
+    assert completed.status == "completed"
+    assert completed.verifier_result is not None
+    assert completed.verifier_result.passed is False
+    assert completed.verifier_result.terminal_disposition == "failed"
+    assert completed.verifier_result.outcome_category == "incomplete"
+    assert completed.verifier_result.metrics
+    assert set(completed.verifier_result.metrics.values()) == {0.0}
+    assert completed.verifier_result.metrics["reward"] == 0.0
+    assert completed.verifier_result.evidence == {
+        "termination_reason": termination_reason
+    }
+    assert completed.trace[-1].type == "verifier"
+    assert completed.trace[-1].verifier == completed.verifier_result.model_dump(
+        mode="json",
+        exclude_none=True,
+    )
+    assert completed.trace_digest.startswith("sha256:")
+    assert completed.result_digest is not None
+
+    report = runtime.replay(completed.run_id)
+
+    assert report.trace_matches is True
+    assert report.result_matches is True
+    assert runtime.current(report.replay_run_id).verifier_result == (
+        completed.verifier_result
+    )
 
 
 def test_runtime_restores_active_and_completed_runs_from_the_canonical_journal(

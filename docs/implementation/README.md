@@ -4,14 +4,14 @@ Source specification: [Science Environment Studio executable prototype specifica
 
 ## Progress
 
-- Completed: **5 / 13**
+- Completed: **6 / 13**
 - In progress: **None**
-- Ready now: **06**
+- Ready now: **07, 08, 09, 10**
 - A ticket counts as complete only after its acceptance criteria, tests, review, and commit pass.
 
 ## Current checkpoint
 
-Tickets 01 through 05 are complete. One local command builds and serves the Scientist Console
+Tickets 01 through 06 are complete. One local command builds and serves the Scientist Console
 with the loopback-only deterministic Environment Runtime. The console runs and replays the
 targeted EEG recovery episodes and now provides a scientifically recognizable EEG
 diagnostic preflight over a configurable schematic whole-cap Apparatus and distinct
@@ -75,9 +75,33 @@ projections remove them before runtime schema validation and before Policy,
 API, trace, Verifier, or console consumption; executable schemas, scenario state, signed data,
 and canonical list semantics remain closed.
 
+The validated EEG development Bundle now compiles reproducibly into a disposable native
+Verifiers v1 Taskset, Toolset, null-harness adapter, and evaluation configuration while the
+authored Bundle remains authoritative. Exact native canaries cover declared-tool setup,
+parameterized actions, retry idempotency, scientific success and failure, turn, tool, output,
+and early-stop budgets, error normalization, runtime-result parity, and canonical trace-digest
+parity against the product-owned Runtime.
+
+A provider-neutral canonical runner executes the fixed 32-scenario base-Gemma development
+matrix through an attested, text-only, loopback logical route carried over an owner-only Unix
+socket. It preserves model, response, message, tool-call/result, accounting, action, transition,
+Verifier, runtime-distribution, and infrastructure-error evidence without persisting model
+coordinates, credentials, host paths, or opaque reflected runtime secrets. Calibration readiness
+requires a bounded mix of successes and failures, no infrastructure errors, and authenticated
+local-runtime evidence for every row.
+
+The Scientist Console can launch, resume, list, inspect, and replay the durable write-once local
+evaluation in ordinary language. A separately staged fixed launcher, bootstrap, model stager,
+namespace proxy, immutable model/runtime receipts, and operator procedure define the sole
+supported local-Gemma serving boundary without adding physical Apparatus controls or exposing
+provider-side tools.
+
 ## Frontier
 
-- [06: Evaluate EEG through Verifiers and local base Gemma](issues/06-evaluate-eeg-through-verifiers-and-local-base-gemma.md) — can start immediately
+- [07: Prove mesoscope portability through the same compiler](issues/07-prove-mesoscope-portability-through-the-same-compiler.md) — can start immediately
+- [08: Evaluate GPT through OpenAI Responses](issues/08-evaluate-gpt-through-openai-responses.md) — can start immediately
+- [09: Evaluate Gemini through Interactions](issues/09-evaluate-gemini-through-interactions.md) — can start immediately
+- [10: Train, save, reload, and evaluate a bounded Gemma adapter](issues/10-train-save-reload-and-evaluate-a-bounded-gemma-adapter.md) — can start immediately
 
 ## Dependency order
 
@@ -86,11 +110,11 @@ and canonical list semantics remain closed.
 3. [Diagnose EEG signal and response failures visually](issues/03-diagnose-eeg-signal-and-response-failures-visually.md) — complete
 4. [Run the complete EEG curriculum and fixed splits](issues/04-run-the-complete-eeg-curriculum-and-fixed-splits.md) — complete
 5. [Run the sealed mesoscope four-region handoff](issues/05-run-the-sealed-mesoscope-four-region-handoff.md) — complete
-6. [Evaluate EEG through Verifiers and local base Gemma](issues/06-evaluate-eeg-through-verifiers-and-local-base-gemma.md) — ready
-7. [Prove mesoscope portability through the same compiler](issues/07-prove-mesoscope-portability-through-the-same-compiler.md) — blocked by 06
-8. [Evaluate GPT through OpenAI Responses](issues/08-evaluate-gpt-through-openai-responses.md) — blocked by 06
-9. [Evaluate Gemini through Interactions](issues/09-evaluate-gemini-through-interactions.md) — blocked by 06
-10. [Train, save, reload, and evaluate a bounded Gemma adapter](issues/10-train-save-reload-and-evaluate-a-bounded-gemma-adapter.md) — blocked by 06
+6. [Evaluate EEG through Verifiers and local base Gemma](issues/06-evaluate-eeg-through-verifiers-and-local-base-gemma.md) — complete
+7. [Prove mesoscope portability through the same compiler](issues/07-prove-mesoscope-portability-through-the-same-compiler.md) — ready
+8. [Evaluate GPT through OpenAI Responses](issues/08-evaluate-gpt-through-openai-responses.md) — ready
+9. [Evaluate Gemini through Interactions](issues/09-evaluate-gemini-through-interactions.md) — ready
+10. [Train, save, reload, and evaluate a bounded Gemma adapter](issues/10-train-save-reload-and-evaluate-a-bounded-gemma-adapter.md) — ready
 11. [Train Gemma on the EEG curriculum](issues/11-train-gemma-on-the-eeg-curriculum.md) — blocked by 10
 12. [Compare all models in the Scientist Console](issues/12-compare-all-models-in-the-scientist-console.md) — blocked by 07, 08, 09, and 11
 13. [Ship the resettable end-to-end demo](issues/13-ship-the-resettable-end-to-end-demo.md) — blocked by 12

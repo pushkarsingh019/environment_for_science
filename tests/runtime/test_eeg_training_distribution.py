@@ -155,9 +155,48 @@ def test_actual_training_wheel_excludes_and_survives_evaluator_audit(
         "environments/mesoscope/bundle.json",
         "environments/mesoscope/presentation.py",
         "environments/mesoscope/runtime.py",
+        "studio/policy_evaluation/__init__.py",
+        "studio/policy_evaluation/artifact_safety.py",
+        "studio/policy_evaluation/compiler.py",
+        "studio/policy_evaluation/coordinator.py",
+        "studio/policy_evaluation/local_gemma.py",
+        "studio/policy_evaluation/model_runner.py",
+        "studio/policy_evaluation/repository.py",
+        "studio/policy_evaluation/runtime_bridge.py",
     }.issubset(names)
     assert all(
         action["input_schema"]
         == {"type": "object", "properties": {}, "additionalProperties": False}
         for action in mesoscope_bundle["actions"]
     )
+
+    project_root = project_root.resolve()
+    imported = subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            (
+                "import pathlib, sys; "
+                "wheel=pathlib.Path(sys.argv[1]).resolve(); "
+                "source=pathlib.Path(sys.argv[2]).resolve(); "
+                "sys.path[:]=[str(wheel)]+[entry for entry in sys.path "
+                "if entry and pathlib.Path(entry).resolve()!=source]; "
+                "import studio.application as application; "
+                "from studio.policy_evaluation.compiler import compile_verifiers_v1; "
+                "from studio.policy_evaluation.coordinator import EvaluationCoordinator; "
+                "from studio.policy_evaluation.model_runner import CanonicalModelRunner; "
+                "modules=(application, sys.modules[compile_verifiers_v1.__module__], "
+                "sys.modules[EvaluationCoordinator.__module__], "
+                "sys.modules[CanonicalModelRunner.__module__]); "
+                "assert all(str(wheel) in str(module.__file__) for module in modules); "
+                "print('wheel-import-ok')"
+            ),
+            str(wheels[0]),
+            str(project_root),
+        ],
+        cwd=tmp_path,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    assert imported.stdout.strip() == "wheel-import-ok"
