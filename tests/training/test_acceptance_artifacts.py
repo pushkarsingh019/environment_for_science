@@ -145,7 +145,12 @@ def _zip_segment(payload: bytes) -> bytes:
     return output.getvalue()
 
 
-def _write_test_dcp(checkpoint: Path) -> None:
+def _write_test_dcp(
+    checkpoint: Path,
+    *,
+    impersonate_types: bool = False,
+    duplicate_storage_fqn: bool = False,
+) -> None:
     module_names = (
         "torch",
         "torch.distributed",
@@ -194,26 +199,34 @@ def _write_test_dcp(checkpoint: Path) -> None:
             "_StorageInfo",
             "torch.distributed.checkpoint.filesystem",
         )
+        def instance(target: type[object], claimed_name: str) -> object:
+            value = (tensor_type if impersonate_types else target)()
+            if impersonate_types and target is not tensor_type:
+                value._dcp_name = claimed_name
+            return value
+
         names = ("app.model.weight", "app.optimizers.state")
         segments = (_zip_segment(b"model"), _zip_segment(b"optimizer"))
         offsets = (0, len(segments[0]))
         state = {name: tensor_type() for name in names}
         storage: dict[object, object] = {}
-        for name, offset, segment in zip(names, offsets, segments):
-            index = index_type()
-            index.fqn = name
+        for position, (name, offset, segment) in enumerate(
+            zip(names, offsets, segments)
+        ):
+            index = instance(index_type, "MetadataIndex")
+            index.fqn = names[0] if duplicate_storage_fqn and position else name
             index.index = None
-            information = storage_info_type()
+            information = instance(storage_info_type, "_StorageInfo")
             information.relative_path = "__0_0.distcp"
             information.offset = offset
             information.length = len(segment)
             storage[index] = information
-        storage_meta = storage_meta_type()
+        storage_meta = instance(storage_meta_type, "StorageMeta")
         storage_meta.checkpoint_id = None
         storage_meta.save_id = "test-save"
         storage_meta.load_id = None
         storage_meta.modules = []
-        metadata = metadata_type()
+        metadata = instance(metadata_type, "Metadata")
         metadata.state_dict_metadata = state
         metadata.planner_data = {name: ("app", name) for name in names}
         metadata.storage_data = storage
@@ -394,6 +407,9 @@ def test_verifier_proves_step_checkpoint_changed_adapter_reload_and_tool_loops(
         ("missing_checkpoint", "checkpoint"),
         ("malformed_checkpoint", "checkpoint"),
         ("trailing_checkpoint_metadata", "checkpoint"),
+        ("impersonated_checkpoint_types", "checkpoint"),
+        ("duplicate_checkpoint_storage", "checkpoint"),
+        ("signature_only_checkpoint", "checkpoint"),
         ("unlinked_checkpoint", "checkpoint"),
         ("failed_reload", "reloaded evaluation"),
         ("nonfinite_metric", "finite"),
@@ -435,6 +451,26 @@ def test_verifier_fails_closed_for_incomplete_or_nominal_evidence(
     elif mutation == "trailing_checkpoint_metadata":
         metadata = root / "run/checkpoints/step_1/trainer/.metadata"
         metadata.write_bytes(metadata.read_bytes() + b"trailing junk")
+    elif mutation == "impersonated_checkpoint_types":
+        _write_test_dcp(
+            root / "run/checkpoints/step_1/trainer",
+            impersonate_types=True,
+        )
+    elif mutation == "duplicate_checkpoint_storage":
+        _write_test_dcp(
+            root / "run/checkpoints/step_1/trainer",
+            duplicate_storage_fqn=True,
+        )
+    elif mutation == "signature_only_checkpoint":
+        segments = (_zip_segment(b"model"), _zip_segment(b"optimizer"))
+        forged = bytearray()
+        for segment in segments:
+            replacement = bytearray(len(segment))
+            replacement[:4] = b"PK\x03\x04"
+            replacement[-22:-18] = b"PK\x05\x06"
+            forged.extend(replacement)
+        shard = root / "run/checkpoints/step_1/trainer/__0_0.distcp"
+        shard.write_bytes(forged)
     elif mutation == "unlinked_checkpoint":
         shard = root / "run/checkpoints/step_1/trainer/__0_0.distcp"
         shard.write_bytes(shard.read_bytes() + b"unlinked bytes")
