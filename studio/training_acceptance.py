@@ -671,7 +671,11 @@ def _validate_canonical_trace_row(
             snapshot.scenario_id != row["scenario_id"]
             or snapshot.trace_digest != row["runtime_trace_digest"]
             or snapshot.result_digest != row["result_digest"]
-            or len(model_calls) != action_count
+            or len(model_calls) not in {action_count, action_count + 1}
+            or sum(
+                call["finish_reason"] == "tool_calls" for call in model_calls
+            )
+            != action_count
             or action_count not in {row["tool_calls"], row["tool_calls"] + 1}
         ):
             raise ValueError("canonical snapshot does not match its native trace")
