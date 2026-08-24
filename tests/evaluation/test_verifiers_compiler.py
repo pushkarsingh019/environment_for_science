@@ -349,6 +349,10 @@ def test_generated_v1_adapter_keeps_declared_tool_names_and_persisted_runtime_ev
     assert "matching_result_index = next(" in taskset_source
     assert "if candidate == expected[\"result\"]" in taskset_source
     assert "allowed_tool_results" in taskset_source
+    assert "terminal_call_suppressed" in taskset_source
+    assert '"error_code": "tool.terminal"' in taskset_source
+    assert "reused_provider_call_ids" in taskset_source
+    assert "runtime_result_canonicals" in taskset_source
     assert "if canonical not in allowed" in taskset_source
     assert '"science_environment_runtime" not in trace.info' in taskset_source
     assert 'if item["accepted"]' in taskset_source

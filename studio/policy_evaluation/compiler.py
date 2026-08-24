@@ -1361,6 +1361,15 @@ def _persist_runtime_evidence(trace: vf.Trace) -> None:
     # Any unmatched payload must still equal a result proven for that ID below.
     allowed_tool_results: dict[str, set[str]] = {{}}
     assistant_messages = trace.assistant_messages
+    provider_call_id_counts: dict[str, int] = {{}}
+    for message in assistant_messages:
+        for call in message.tool_calls or []:
+            provider_call_id_counts[call.id] = provider_call_id_counts.get(call.id, 0) + 1
+    reused_provider_call_ids = {{
+        provider_call_id
+        for provider_call_id, count in provider_call_id_counts.items()
+        if count > 1
+    }}
     for message_index, message in enumerate(assistant_messages):
         for call in message.tool_calls or []:
             ordinal += 1
@@ -1388,6 +1397,12 @@ def _persist_runtime_evidence(trace: vf.Trace) -> None:
             output_budget_exhausted = (
                 trace.state.terminal_reason == "output_budget_exhausted"
                 and message_index == len(assistant_messages) - 1
+            )
+            terminal_call_suppressed = (
+                trace.state.terminal
+                and not output_budget_exhausted
+                and not budget_overflow
+                and execution_index >= len(trace.state.tool_executions)
             )
             dispatched_execution = False
             if output_budget_exhausted:
@@ -1428,6 +1443,19 @@ def _persist_runtime_evidence(trace: vf.Trace) -> None:
                             "error_code": "tool.budget_exhausted",
                         }},
                     }}
+            elif terminal_call_suppressed:
+                # A Runtime action can terminate between model boundaries. The
+                # pinned harness may already have sampled the next response when
+                # the stop hook observes that state, so its calls are visible but
+                # correctly have no ToolMessage or Runtime execution.
+                expected = {{
+                    "accepted": False,
+                    "action": action,
+                    "result": {{
+                        "status": "error",
+                        "error_code": "tool.terminal",
+                    }},
+                }}
             elif not isinstance(arguments, dict):
                 expected = {{
                     "accepted": False,
@@ -1476,6 +1504,7 @@ def _persist_runtime_evidence(trace: vf.Trace) -> None:
             suppressed_by_framework_stop = (
                 output_budget_exhausted
                 or budget_overflow
+                or terminal_call_suppressed
                 or (
                     trace.state.terminal_reason == "turn_budget_exhausted"
                     and message_index == len(assistant_messages) - 1
@@ -1544,6 +1573,15 @@ def _persist_runtime_evidence(trace: vf.Trace) -> None:
             "runtime_action_count": len(trace.state.accepted_actions),
         }}
         raise RuntimeError("adapter.tool_lineage_divergence")
+    runtime_result_canonicals = {{
+        json.dumps(
+            execution["result"],
+            sort_keys=True,
+            separators=(",", ":"),
+            allow_nan=False,
+        )
+        for execution in trace.state.tool_executions
+    }}
     for provider_call_id, remaining_results in tool_results.items():
         allowed = allowed_tool_results.get(provider_call_id, set())
         for remaining_result in remaining_results:
@@ -1553,7 +1591,10 @@ def _persist_runtime_evidence(trace: vf.Trace) -> None:
                 separators=(",", ":"),
                 allow_nan=False,
             )
-            if canonical not in allowed:
+            if canonical not in allowed and not (
+                provider_call_id in reused_provider_call_ids
+                and canonical in runtime_result_canonicals
+            ):
                 trace.info["science_environment_adapter_error"] = {{
                     "category": "adapter",
                     "code": "adapter.tool_lineage_divergence",
