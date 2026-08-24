@@ -1031,7 +1031,11 @@ function ModelComparisonPanel() {
               )}
               <code className="comparison-digest">{replay.scenario.runtime_trace_digest}</code>
               <code className="comparison-digest">{replay.scenario.result_digest}</code>
-              <span>Reproducible from the exact manifest and scoring revision.</span>
+              <span>
+                {replay.reproducible
+                  ? `Canonical evaluator snapshot loaded (${replay.canonical_snapshot?.trace.length ?? 0} trace events).`
+                  : "Offline fixture receipt only; no real canonical trace is claimed."}
+              </span>
             </article>
           )}
 
@@ -1097,7 +1101,7 @@ function CurriculumTrainingPanel() {
           <h2>Train on 96; diagnose on 32; evaluate on 64</h2>
         </div>
         <button
-          className="primary-button compact-button"
+          className="secondary-button compact-button"
           data-testid="launch-curriculum-training"
           disabled={busy || !loaded}
           onClick={() => void operate(() => trainingApi.launchCurriculumJob())}
@@ -1189,7 +1193,7 @@ function TrainingAcceptancePanel() {
           <h2>Save, reload, and verify on workstations</h2>
         </div>
         <button
-          className="primary-button compact-button"
+          className="secondary-button compact-button"
           data-testid="launch-training-acceptance"
           disabled={busy || !loaded}
           onClick={() => void operate(() => trainingApi.launchAcceptanceJob())}

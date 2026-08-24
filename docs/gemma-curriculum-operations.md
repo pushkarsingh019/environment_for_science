@@ -78,10 +78,23 @@ training code revision, and exact model identities. The verifier independently r
 - evaluator-owned write-once base and trained held-out ledgers; and
 - deterministic 10,000-replicate paired bootstrap evidence.
 
-Transfer only the verifier's sanitized evidence and comparison JSON to the product artifact root.
-Validate both typed documents again locally, install the real comparison immutably, and complete
-the durable curriculum job with the evidence artifact digest. Raw logs and a successful queue state
-cannot complete the job.
+Transfer only the verifier's sanitized evidence JSON, comparison JSON, and sealed evaluator
+ledgers to the product artifact root. The ledgers contain canonical Runtime snapshots but no model
+paths, credentials, or private transport material; scan all three inputs before installation. Install
+through the fail-closed path:
+
+```bash
+.venv/bin/python scripts/install_verified_curriculum_comparison.py \
+  --evidence <result-root>/evidence.json \
+  --comparison <result-root>/comparison.json \
+  --ledger-root <result-root>/ledgers \
+  --comparison-root artifacts/comparisons
+```
+
+The installer revalidates both typed documents, recomputes both Gemma rows and the paired claim
+from the sealed ledgers, and stores each canonical scenario snapshot for the replay API. Then
+complete the durable curriculum job with the evidence artifact digest. Raw logs, digest-only replay
+claims, fixture relabeling, and a successful queue state cannot complete the job.
 
 The claim rule is fixed: report `improved` only when trained-minus-base success is positive and the
 95% paired bootstrap interval excludes zero. Otherwise report `inconclusive` or `regressed` exactly

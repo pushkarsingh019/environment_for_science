@@ -842,7 +842,8 @@ export interface ComparisonReplay {
   adapter_digest: string | null;
   training_artifact_digest: string | null;
   scenario: ComparisonScenarioLink;
-  reproducible: true;
+  reproducible: boolean;
+  canonical_snapshot: RunSnapshot | null;
 }
 
 export interface CurriculumTrainingJob {

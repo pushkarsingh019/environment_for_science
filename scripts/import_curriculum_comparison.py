@@ -11,7 +11,7 @@ from studio.curriculum_analysis import (
     CurriculumAnalysisError,
     import_native_heldout_evaluation,
 )
-from studio.model_comparison import real_model_comparison
+from studio.model_comparison import ModelComparisonRepository, real_model_comparison
 from studio.policy_evaluation.gemini_interactions import gemini_credential_ready
 from studio.policy_evaluation.openai_responses import openai_credential_ready
 
@@ -22,6 +22,7 @@ def main() -> int:
     parser.add_argument("--trained-traces", type=Path, required=True)
     parser.add_argument("--artifact-root", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument("--comparison-root", type=Path, required=True)
     parser.add_argument("--base-configuration-digest", required=True)
     parser.add_argument("--trained-configuration-digest", required=True)
     parser.add_argument("--base-call-model", required=True)
@@ -51,6 +52,11 @@ def main() -> int:
             trained_adapter_digest=args.trained_adapter_digest,
             openai_credential_ready=openai_credential_ready(os.environ),
             gemini_credential_ready=gemini_credential_ready(os.environ),
+        )
+        ModelComparisonRepository(args.comparison_root).install_real(
+            comparison,
+            base_ledger_root=args.artifact_root / "base",
+            trained_ledger_root=args.artifact_root / "trained",
         )
     except (CurriculumAnalysisError, ValueError) as error:
         print(json.dumps({"status": "failed", "summary": str(error)}, sort_keys=True))

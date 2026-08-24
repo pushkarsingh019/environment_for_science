@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import math
 import os
 import sqlite3
 from pathlib import Path
@@ -16,6 +17,7 @@ from .curriculum_analysis import (
     PairedBootstrapAnalysis,
     paired_bootstrap_success,
 )
+from .runtime import RunSnapshot, validate_completed_run_snapshot
 
 if TYPE_CHECKING:
     from evaluation.eeg.curriculum import HeldOutScenarioSet
@@ -231,7 +233,15 @@ class ComparisonReplay(_FrozenModel):
         pattern=r"^sha256:[0-9a-f]{64}$",
     )
     scenario: ScenarioResultLink
-    reproducible: Literal[True]
+    reproducible: bool
+    canonical_snapshot: RunSnapshot | None
+
+    @model_validator(mode="after")
+    def validate_replay_source(self) -> ComparisonReplay:
+        is_real = self.source == "real_evaluation"
+        if is_real != self.reproducible or is_real != (self.canonical_snapshot is not None):
+            raise ValueError("comparison replay source is inconsistent")
+        return self
 
 
 class ModelComparisonRepository:
@@ -298,11 +308,74 @@ class ModelComparisonRepository:
                 code="storage",
             ) from error
 
-    def install_real(self, result: ModelComparisonResult) -> ModelComparisonResult:
+    def install_real(
+        self,
+        result: ModelComparisonResult,
+        *,
+        base_ledger_root: Path,
+        trained_ledger_root: Path,
+    ) -> ModelComparisonResult:
         if result.source != "real_evaluation":
             raise ValueError("only real comparison evidence can enter the immutable index")
+        try:
+            base_evidence, base_snapshots = _evidence_from_evaluator_ledger(
+                base_ledger_root,
+                result.models[0].model_configuration_digest,
+            )
+            trained_evidence, trained_snapshots = _evidence_from_evaluator_ledger(
+                trained_ledger_root,
+                result.models[1].model_configuration_digest,
+            )
+        except (OSError, ValueError, sqlite3.Error) as error:
+            raise ValueError(
+                "real comparison requires complete sealed evaluator ledgers"
+            ) from error
+        expected_models = (
+            _real_gemma_model(
+                "base_gemma",
+                base_evidence,
+                adapter_identity=None,
+                adapter_digest=None,
+            ),
+            _real_gemma_model(
+                "trained_gemma",
+                trained_evidence,
+                adapter_identity=result.models[1].adapter_identity,
+                adapter_digest=result.models[1].adapter_digest,
+            ),
+        )
+        expected_contrast = paired_bootstrap_success(
+            base_evidence.scenario_success,
+            trained_evidence.scenario_success,
+        )
+        if (
+            not all(
+                _gemma_model_matches(observed, expected)
+                for observed, expected in zip(result.models[:2], expected_models)
+            )
+            or result.gemma_contrast != expected_contrast
+            or result.training_claim != expected_contrast.conclusion
+        ):
+            raise ValueError(
+                "real comparison does not match its sealed evaluator ledgers"
+            )
         payload = result.model_dump_json()
         digest = _digest_bytes(payload.encode())
+        replay_sources: tuple[
+            tuple[
+                Literal["base_gemma", "trained_gemma"],
+                dict[str, RunSnapshot],
+            ],
+            ...,
+        ] = (
+            ("base_gemma", base_snapshots),
+            ("trained_gemma", trained_snapshots),
+        )
+        replay_rows = tuple(
+            _replay_row(result.comparison_id, role, snapshot)
+            for role, snapshots in replay_sources
+            for snapshot in snapshots.values()
+        )
         try:
             with self._lock, self._connect() as connection:
                 existing = connection.execute(
@@ -311,6 +384,16 @@ class ModelComparisonRepository:
                 ).fetchone()
                 if existing is not None and existing[0] != digest:
                     raise ValueError("real comparison identity is immutable")
+                for row in replay_rows:
+                    replay = connection.execute(
+                        """
+                        SELECT snapshot_digest FROM real_replays
+                        WHERE result_id = ? AND model_role = ? AND scenario_id = ?
+                        """,
+                        row[:3],
+                    ).fetchone()
+                    if replay is not None and replay[0] != row[4]:
+                        raise ValueError("real comparison replay identity is immutable")
                 connection.execute(
                     """
                     INSERT OR IGNORE INTO real_results(
@@ -318,6 +401,15 @@ class ModelComparisonRepository:
                     ) VALUES (?, ?, ?)
                     """,
                     (result.comparison_id, payload, digest),
+                )
+                connection.executemany(
+                    """
+                    INSERT OR IGNORE INTO real_replays(
+                        result_id, model_role, scenario_id,
+                        snapshot_json, snapshot_digest
+                    ) VALUES (?, ?, ?, ?, ?)
+                    """,
+                    replay_rows,
                 )
                 connection.execute(
                     """
@@ -367,6 +459,11 @@ class ModelComparisonRepository:
                 "comparison replay was not found",
                 code="not_found",
             )
+        canonical_snapshot = (
+            self._real_snapshot(result.comparison_id, role, scenario)
+            if result.source == "real_evaluation"
+            else None
+        )
         return ComparisonReplay(
             replay_version="scientist-model-comparison-replay/1",
             source=result.source,
@@ -376,8 +473,43 @@ class ModelComparisonRepository:
             adapter_digest=model.adapter_digest,
             training_artifact_digest=result.training_artifact_digest,
             scenario=scenario,
-            reproducible=True,
+            reproducible=canonical_snapshot is not None,
+            canonical_snapshot=canonical_snapshot,
         )
+
+    def _real_snapshot(
+        self,
+        result_id: str,
+        role: ModelRole,
+        scenario: ScenarioResultLink,
+    ) -> RunSnapshot:
+        try:
+            with self._lock, self._connect() as connection:
+                row = connection.execute(
+                    """
+                    SELECT snapshot_json, snapshot_digest
+                    FROM real_replays
+                    WHERE result_id = ? AND model_role = ? AND scenario_id = ?
+                    """,
+                    (result_id, role, scenario.scenario_id),
+                ).fetchone()
+            if row is None or _digest_bytes(row[0].encode()) != row[1]:
+                raise ValueError("missing or altered replay")
+            snapshot = RunSnapshot.model_validate_json(row[0])
+            validate_completed_run_snapshot(snapshot)
+            if (
+                snapshot.scenario_id != scenario.scenario_id
+                or snapshot.run_id != scenario.run_id
+                or snapshot.trace_digest != scenario.runtime_trace_digest
+                or snapshot.result_digest != scenario.result_digest
+            ):
+                raise ValueError("replay does not match comparison")
+            return snapshot
+        except (sqlite3.Error, ValueError) as error:
+            raise ComparisonIndexError(
+                "the real comparison replay failed integrity validation",
+                code="storage",
+            ) from error
 
     def _prepare(self) -> None:
         with self._connect() as connection:
@@ -387,6 +519,21 @@ class ModelComparisonRepository:
                     result_id TEXT PRIMARY KEY,
                     result_json TEXT NOT NULL,
                     result_digest TEXT NOT NULL
+                )
+                """
+            )
+            connection.execute(
+                """
+                CREATE TABLE IF NOT EXISTS real_replays(
+                    result_id TEXT NOT NULL,
+                    model_role TEXT NOT NULL CHECK(
+                        model_role IN ('base_gemma', 'trained_gemma')
+                    ),
+                    scenario_id TEXT NOT NULL,
+                    snapshot_json TEXT NOT NULL,
+                    snapshot_digest TEXT NOT NULL,
+                    PRIMARY KEY(result_id, model_role, scenario_id),
+                    FOREIGN KEY(result_id) REFERENCES real_results(result_id)
                 )
                 """
             )
@@ -416,6 +563,125 @@ class ModelComparisonRepository:
 
     def _connect(self) -> sqlite3.Connection:
         return sqlite3.connect(self._database, timeout=30.0)
+
+
+def _gemma_model_matches(
+    observed: ComparisonModelResult,
+    expected: ComparisonModelResult,
+) -> bool:
+    if observed.model_dump(exclude={"metrics"}) != expected.model_dump(
+        exclude={"metrics"}
+    ):
+        return False
+    observed_metrics = observed.metrics
+    expected_metrics = expected.metrics
+    if observed_metrics is None or expected_metrics is None:
+        return observed_metrics is expected_metrics
+    scalar_pairs = (
+        (observed_metrics.task_success, expected_metrics.task_success),
+        (observed_metrics.verifier_score, expected_metrics.verifier_score),
+        (observed_metrics.mean_action_count, expected_metrics.mean_action_count),
+        (observed_metrics.abort_precision, expected_metrics.abort_precision),
+        (observed_metrics.abort_recall, expected_metrics.abort_recall),
+    )
+    if (
+        observed_metrics.scenario_count != expected_metrics.scenario_count
+        or observed_metrics.tool_errors != expected_metrics.tool_errors
+        or any(not _optional_float_matches(left, right) for left, right in scalar_pairs)
+        or set(observed_metrics.strata) != set(expected_metrics.strata)
+    ):
+        return False
+    return all(
+        observed_stratum.count == expected_stratum.count
+        and _optional_float_matches(
+            observed_stratum.task_success,
+            expected_stratum.task_success,
+        )
+        and _optional_float_matches(
+            observed_stratum.verifier_score,
+            expected_stratum.verifier_score,
+        )
+        for name, observed_stratum in observed_metrics.strata.items()
+        for expected_stratum in (expected_metrics.strata[name],)
+    )
+
+
+def _optional_float_matches(left: float | None, right: float | None) -> bool:
+    if left is None or right is None:
+        return left is right
+    return math.isclose(left, right, rel_tol=0.0, abs_tol=1e-12)
+
+
+def _evidence_from_evaluator_ledger(
+    artifact_root: Path,
+    model_configuration_digest: str,
+) -> tuple[HeldOutEvaluationEvidence, dict[str, RunSnapshot]]:
+    from evaluation.eeg.attempts import open_held_out_attempt_ledger
+
+    root = Path(artifact_root).expanduser().resolve()
+    if not root.is_dir() or root.is_symlink():
+        raise ValueError("evaluator ledger root is invalid")
+    scenario_set = _heldout_scenario_set()
+    ledger = open_held_out_attempt_ledger(
+        artifact_root=root,
+        scenario_set=scenario_set,
+        model_configuration_digest=model_configuration_digest,
+        rollouts_per_scenario=1,
+    )
+    report = scenario_set.aggregate(ledger)
+    snapshots = {
+        scenario_id: ledger.completed_snapshot(scenario_id)
+        for scenario_id in scenario_set.scenario_ids
+    }
+    for snapshot in snapshots.values():
+        validate_completed_run_snapshot(snapshot)
+    success = {
+        scenario_id: bool(snapshot.verifier_result.metrics["exact_terminal_success"])
+        for scenario_id, snapshot in snapshots.items()
+        if snapshot.verifier_result is not None
+    }
+    scores = {
+        scenario_id: float(snapshot.verifier_result.metrics["reward"])
+        for scenario_id, snapshot in snapshots.items()
+        if snapshot.verifier_result is not None
+    }
+    result_digests = {
+        scenario_id: snapshot.result_digest
+        for scenario_id, snapshot in snapshots.items()
+        if snapshot.result_digest is not None
+    }
+    evidence = HeldOutEvaluationEvidence(
+        evidence_version="eeg-heldout-evaluation-evidence/1",
+        model_configuration_digest=model_configuration_digest,
+        report=report,
+        scenario_success=success,
+        verifier_scores=scores,
+        canonical_run_ids={
+            scenario_id: snapshot.run_id
+            for scenario_id, snapshot in snapshots.items()
+        },
+        runtime_trace_digests={
+            scenario_id: snapshot.trace_digest
+            for scenario_id, snapshot in snapshots.items()
+        },
+        runtime_result_digests=result_digests,
+    )
+    return evidence, snapshots
+
+
+def _replay_row(
+    result_id: str,
+    role: Literal["base_gemma", "trained_gemma"],
+    snapshot: RunSnapshot,
+) -> tuple[str, str, str, str, str]:
+    payload = snapshot.model_dump_json()
+    return (
+        result_id,
+        role,
+        snapshot.scenario_id,
+        payload,
+        _digest_bytes(payload.encode()),
+    )
 
 
 def real_model_comparison(

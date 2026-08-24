@@ -15,6 +15,7 @@ from environments.eeg.curriculum import (
     CurriculumAttempt,
     CurriculumContractError,
 )
+from studio.runtime import RunSnapshot
 
 if TYPE_CHECKING:
     from evaluation.eeg.curriculum import HeldOutScenarioSet
@@ -122,6 +123,44 @@ class HeldOutAttemptLedger:
             raise CurriculumContractError(
                 "the evaluator attempt ledger could not record an outcome"
             ) from error
+
+    def completed_snapshot(self, scenario_id: str) -> RunSnapshot:
+        """Return one canonical snapshot only after the complete ledger is sealed."""
+
+        if scenario_id not in self._scenario_ids:
+            raise CurriculumContractError(
+                "the evaluator replay scenario is outside the sealed ledger"
+            )
+        try:
+            with self._connect() as connection:
+                metadata = _read_metadata(connection)
+                self._validate_metadata(metadata)
+                ledger_digest = metadata.get("ledger_digest")
+                attempts = self._load_attempts(connection)
+                if (
+                    ledger_digest is None
+                    or ledger_digest != self._ledger_digest(metadata, attempts)
+                ):
+                    raise CurriculumContractError(
+                        "the evaluator attempt ledger must pass its seal before replay"
+                    )
+        except sqlite3.Error as error:
+            raise CurriculumContractError(
+                "the evaluator replay could not be read"
+            ) from error
+        match = next(
+            (
+                attempt.run
+                for attempt in attempts
+                if attempt.scenario_id == scenario_id and attempt.rollout_index == 0
+            ),
+            None,
+        )
+        if match is None:
+            raise CurriculumContractError(
+                "the evaluator replay scenario has no canonical run"
+            )
+        return match.model_copy(deep=True)
 
     def seal(self) -> str:
         """Seal a complete matrix and return its immutable content digest."""

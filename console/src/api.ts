@@ -3804,20 +3804,32 @@ function parseComparisonReplay(value: unknown): ComparisonReplay {
       "training_artifact_digest",
       "scenario",
       "reproducible",
+      "canonical_snapshot",
     ],
     path,
   );
+  const source = oneOf(
+    record.source,
+    ["seeded_offline_fixture", "real_evaluation"] as const,
+    `${path}.source`,
+  );
+  const reproducible = booleanValue(record.reproducible, `${path}.reproducible`);
+  const canonicalSnapshot = record.canonical_snapshot === null
+    ? null
+    : parseRunSnapshot(record.canonical_snapshot);
+  if (
+    (source === "real_evaluation") !== reproducible
+    || (source === "real_evaluation") !== (canonicalSnapshot !== null)
+  ) {
+    malformed(path, "bind real evidence to one canonical snapshot");
+  }
   return {
     replay_version: oneOf(
       record.replay_version,
       ["scientist-model-comparison-replay/1"] as const,
       `${path}.replay_version`,
     ),
-    source: oneOf(
-      record.source,
-      ["seeded_offline_fixture", "real_evaluation"] as const,
-      `${path}.source`,
-    ),
+    source,
     provenance: parseComparisonProvenance(record.provenance, `${path}.provenance`),
     model_role: oneOf(
       record.model_role,
@@ -3838,11 +3850,8 @@ function parseComparisonReplay(value: unknown): ComparisonReplay {
           `${path}.training_artifact_digest`,
         ),
     scenario: parseComparisonScenario(record.scenario, `${path}.scenario`),
-    reproducible: ((): true => {
-      const parsed = booleanValue(record.reproducible, `${path}.reproducible`);
-      if (!parsed) malformed(`${path}.reproducible`, "be true");
-      return true;
-    })(),
+    reproducible,
+    canonical_snapshot: canonicalSnapshot,
   };
 }
 

@@ -17,6 +17,12 @@ test("labels active real or fixture comparison evidence without ambiguity", asyn
     await expect(panel.getByTestId("comparison-model-trained_gemma")).toContainText(
       "eeg-curriculum-final",
     );
+    const base = panel.getByTestId("comparison-model-base_gemma");
+    await base.getByText(/Strata and 64 constituent scenarios/).click();
+    await base.getByRole("button", { name: /eeg-/ }).first().click();
+    await expect(panel.getByTestId("comparison-replay")).toContainText(
+      "Canonical evaluator snapshot loaded",
+    );
   } else {
     await expect(fixture).toContainText("Offline fixture");
   }
@@ -72,7 +78,7 @@ test("compares four models with bounded claims, failures, replays, and separate 
   await base.getByText(/Strata and 64 constituent scenarios/).click();
   await base.getByRole("button", { name: /eeg-/ }).first().click();
   await expect(panel.getByTestId("comparison-replay")).toContainText(
-    "Reproducible from the exact manifest",
+    "Offline fixture receipt only",
   );
   await expect(panel.getByTestId("mesoscope-generality-track")).toContainText(
     "not EEG training evidence",

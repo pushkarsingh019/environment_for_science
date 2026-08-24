@@ -16,6 +16,7 @@ from studio.model_comparison import (
     ModelComparisonResult,
     seeded_comparison,
 )
+from tests.evaluation.model_comparison_support import real_comparison_with_ledgers
 
 
 @pytest.mark.parametrize(
@@ -119,9 +120,12 @@ def test_loopback_comparison_routes_switch_replay_and_reset_fixtures(
 
         replay = client.get(scenario["replay_route"])
         assert replay.status_code == 200
-        assert replay.json()["scenario"]["runtime_trace_digest"] == (
+        replay_document = replay.json()
+        assert replay_document["scenario"]["runtime_trace_digest"] == (
             scenario["runtime_trace_digest"]
         )
+        assert replay_document["reproducible"] is False
+        assert replay_document["canonical_snapshot"] is None
 
         reset = client.post("/api/model-comparison/reset")
         assert reset.status_code == 200
@@ -131,21 +135,14 @@ def test_loopback_comparison_routes_switch_replay_and_reset_fixtures(
 
 
 def test_reset_preserves_installed_real_comparison_rows(tmp_path: Path) -> None:
-    repository = ModelComparisonRepository(tmp_path)
-    document = seeded_comparison("successful").model_dump(mode="json")
-    document.update(
-        {
-            "comparison_id": "model-comparison-real-test0001",
-            "source": "real_evaluation",
-            "fixture_state": None,
-            "fixture_notice": None,
-            "training_result_id": "eeg-training-result-realtest0001",
-            "training_artifact_digest": "sha256:" + "d" * 64,
-        }
-    )
-    real = ModelComparisonResult.model_validate_json(json.dumps(document))
+    repository = ModelComparisonRepository(tmp_path / "comparisons")
+    real, base_ledger, trained_ledger = real_comparison_with_ledgers(tmp_path)
 
-    repository.install_real(real)
+    repository.install_real(
+        real,
+        base_ledger_root=base_ledger,
+        trained_ledger_root=trained_ledger,
+    )
     assert repository.current() == real
     assert repository.real_result_count() == 1
 
@@ -169,4 +166,51 @@ def test_replay_resolves_exact_model_and_scenario_digests(tmp_path: Path) -> Non
     assert replay.adapter_digest == result.models[0].adapter_digest
     assert replay.training_artifact_digest == result.training_artifact_digest
     assert replay.provenance == result.provenance
+    assert replay.reproducible is False
+    assert replay.canonical_snapshot is None
+
+
+def test_real_install_recomputes_claims_and_persists_canonical_scenario_replays(
+    tmp_path: Path,
+) -> None:
+    result, base_ledger, trained_ledger = real_comparison_with_ledgers(tmp_path)
+    repository = ModelComparisonRepository(tmp_path / "comparisons")
+
+    repository.install_real(
+        result,
+        base_ledger_root=base_ledger,
+        trained_ledger_root=trained_ledger,
+    )
+    scenario = result.models[0].scenarios[0]
+    replay = repository.replay("base_gemma", scenario.scenario_id)
+
+    assert replay.source == "real_evaluation"
     assert replay.reproducible is True
+    assert replay.canonical_snapshot is not None
+    assert replay.canonical_snapshot.run_id == scenario.run_id
+    assert replay.canonical_snapshot.trace_digest == scenario.runtime_trace_digest
+    assert replay.canonical_snapshot.result_digest == scenario.result_digest
+
+
+def test_real_install_rejects_fixture_relabeling_without_evaluator_ledgers(
+    tmp_path: Path,
+) -> None:
+    document = seeded_comparison("successful").model_dump(mode="json")
+    document.update(
+        {
+            "comparison_id": "model-comparison-real-test0001",
+            "source": "real_evaluation",
+            "fixture_state": None,
+            "fixture_notice": None,
+            "training_result_id": "eeg-training-result-realtest0001",
+            "training_artifact_digest": "sha256:" + "d" * 64,
+        }
+    )
+    relabeled = ModelComparisonResult.model_validate_json(json.dumps(document))
+
+    with pytest.raises(ValueError, match="evaluator ledger"):
+        ModelComparisonRepository(tmp_path / "comparisons").install_real(
+            relabeled,
+            base_ledger_root=tmp_path / "missing-base",
+            trained_ledger_root=tmp_path / "missing-trained",
+        )
