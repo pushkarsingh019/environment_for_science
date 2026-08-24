@@ -1692,8 +1692,10 @@ class GeneratedTask(vf.Task[GeneratedData, ApparatusState]):
             termination_reason = "model_ended_before_terminal"
         else:
             return False
+        # The harness commits intermediate tool messages only after this stop
+        # hook returns. GeneratedTask.finalize persists evidence from that complete
+        # graph; doing it here would misclassify linked results as missing.
         finalize_incomplete(trace.state, termination_reason)
-        _persist_runtime_evidence(trace)
         return True
 
     @vf.stop(priority=10)

@@ -340,9 +340,14 @@ def test_generated_v1_adapter_keeps_declared_tool_names_and_persisted_runtime_ev
     assert 'termination_reason = "model_ended_before_terminal"' in taskset_source
     assert (
         "finalize_incomplete(trace.state, termination_reason)\n"
-        "        _persist_runtime_evidence(trace)\n"
         "        return True"
     ) in taskset_source
+    # The harness has not committed its model-visible tool transcript while a
+    # stop hook is running; finalization persists evidence after that commit.
+    assert (
+        "finalize_incomplete(trace.state, termination_reason)\n"
+        "        _persist_runtime_evidence(trace)"
+    ) not in taskset_source
     # Verifiers stores branch-replayed context tool messages alongside sampled
     # branch responses. Reused renderer call IDs must be matched by canonical
     # result semantics; unmatched noncanonical payloads still fail closed.
