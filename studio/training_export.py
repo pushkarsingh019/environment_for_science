@@ -33,6 +33,7 @@ _TRAINING_PACKAGE_DIGEST = (
 _DEVELOPMENT_PACKAGE_DIGEST = (
     "sha256:1997bf9ff6f2c56a63928ef1392564f7c8cc6b29484b82b2baf43fb31e1d0197"
 )
+_TRAINING_SERVED_ADAPTER = "r8-a16.0"
 
 
 class NativeAcceptanceExporter:
@@ -75,7 +76,7 @@ class NativeAcceptanceExporter:
 
         training_rows = _native_rows(
             run / "rollouts/step_1/train/effective/traces.jsonl",
-            expected_model=model,
+            expected_model=_TRAINING_SERVED_ADAPTER,
             normalized_model=model,
             expected_count=8,
             label="training rollout",
@@ -253,8 +254,8 @@ def _native_rows(
 def _native_model_matches(call_models: set[object], expected: str) -> bool:
     if not call_models:
         return False
-    if expected == FINAL_SERVED_ADAPTER:
-        return call_models == {FINAL_SERVED_ADAPTER}
+    if expected in {FINAL_SERVED_ADAPTER, _TRAINING_SERVED_ADAPTER}:
+        return call_models == {expected}
     revision = (
         PRIMARY_MODEL_REVISION if expected == PRIMARY_MODEL else FALLBACK_MODEL_REVISION
     )

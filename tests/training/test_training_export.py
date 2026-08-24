@@ -75,7 +75,7 @@ def _native_tree(tmp_path: Path) -> tuple[Path, Path, Path]:
     training = [
         _native_row(
             training_scenario,
-            "google/gemma-4-E4B-it",
+            "r8-a16.0",
             index,
         )
         for index in range(8)
@@ -129,6 +129,27 @@ def test_exporter_derives_sanitized_verified_evidence_from_native_artifacts(
     assert str(tmp_path).casefold() not in receipt_text
     assert "/home/" not in receipt_text
     assert "/users/" not in receipt_text
+
+
+def test_exporter_rejects_unpinned_training_adapter_identity(tmp_path: Path) -> None:
+    run, baseline, reloaded = _native_tree(tmp_path)
+    training = run / "rollouts/step_1/train/effective/traces.jsonl"
+    rows = [json.loads(line) for line in training.read_text().splitlines()]
+    rows[0]["traces"][0]["calls"][0]["model"] = "unapproved-adapter"
+    _write_rows(training, rows)
+
+    with pytest.raises(AcceptanceArtifactError, match="tool loops"):
+        NativeAcceptanceExporter().export(
+            job_id="training-acceptance-export003",
+            run_directory=run,
+            baseline_traces=baseline,
+            reloaded_traces=reloaded,
+            destination=tmp_path / "rejected-training-identity",
+            training_hardware_id=_digest("training-hardware"),
+            inference_hardware_id=_digest("inference-hardware"),
+            training_taskset_digest=_digest("training-taskset"),
+            development_taskset_digest=_digest("development-taskset"),
+        )
 
 
 def test_exporter_rejects_native_provider_errors_before_copying(

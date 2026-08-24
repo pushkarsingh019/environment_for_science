@@ -1341,7 +1341,8 @@ def _persist_runtime_evidence(trace: vf.Trace) -> None:
             raise RuntimeError("adapter.tool_result_malformed")
         try:
             payload = json.loads(tool_message.content)
-        except json.JSONDecodeError:
+            json.dumps(payload, allow_nan=False)
+        except (json.JSONDecodeError, ValueError):
             trace.info["science_environment_adapter_error"] = {{
                 "category": "adapter",
                 "code": "adapter.tool_result_malformed",
