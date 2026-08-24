@@ -171,6 +171,7 @@ class CurriculumTrainingEvidence(_FrozenModel):
                 initial_adapter_digest=self.initial_adapter_digest,
                 final_adapter_digest=self.final_adapter_digest,
                 checkpoint_digest=self.checkpoint_digest,
+                optimization=self.optimization,
                 paired_outcomes_digest=self.paired_bootstrap.paired_outcomes_digest,
             )
         ):
@@ -286,6 +287,7 @@ def verify_curriculum_training_evidence(
         initial_adapter_digest=initial_adapter_digest,
         final_adapter_digest=final_adapter_digest,
         checkpoint_digest=checkpoint_digest,
+        optimization=optimization,
         paired_outcomes_digest=paired.paired_outcomes_digest,
     )
     return CurriculumTrainingEvidence(
@@ -437,7 +439,8 @@ def _native_row(
         raise CurriculumEvidenceError(f"{label} trace evidence is incomplete")
     return {
         "scenario_id": scenario_id,
-        "trace_digest": trace_digest,
+        "trace_digest": _canonical_digest(document),
+        "runtime_trace_digest": trace_digest,
         "result_digest": result_digest,
         "sampled_tokens": sampled_tokens,
         "mask_tokens": mask_tokens,
@@ -554,6 +557,7 @@ def _curriculum_artifact_digest(
     initial_adapter_digest: str,
     final_adapter_digest: str,
     checkpoint_digest: str,
+    optimization: CurriculumOptimizationEvidence,
     paired_outcomes_digest: str,
 ) -> str:
     return _canonical_digest(
@@ -567,6 +571,7 @@ def _curriculum_artifact_digest(
             "initial_adapter_digest": initial_adapter_digest,
             "final_adapter_digest": final_adapter_digest,
             "checkpoint_digest": checkpoint_digest,
+            "optimization": optimization.model_dump(mode="json"),
             "paired_outcomes_digest": paired_outcomes_digest,
         }
     )
