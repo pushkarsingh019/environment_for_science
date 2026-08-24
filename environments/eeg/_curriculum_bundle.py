@@ -98,7 +98,7 @@ def materialize_curriculum_bundle(package: dict[str, Any]) -> EnvironmentBundle:
     }
     if len(document["scenarios"]) != len(scenarios):
         raise ValueError("the curriculum package contains a malformed scenario")
-    return validate_environment_bundle(document).model_copy(deep=True)
+    return validate_environment_bundle(document)
 
 
 def _initial_visible(

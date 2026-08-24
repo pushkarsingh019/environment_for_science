@@ -200,7 +200,7 @@ def _validate_combination_policy(
 ) -> None:
     by_split = {package.split: package for package in packages}
     expected_individual_counts: dict[CurriculumSplit, dict[FaultFamily, int]] = {
-        "training": {fault: 4 for fault in _FAULT_FAMILIES},
+        "training": dict.fromkeys(_FAULT_FAMILIES, 4),
         "development": {
             fault: (2 if fault == "response_mismatch" else 1)
             for fault in _FAULT_FAMILIES
@@ -236,15 +236,14 @@ def _validate_combination_policy(
             if record.category == "pair"
         )
         expected_counts = (
-            {pair: 4 for pair in _TAUGHT_PAIRS}
+            dict.fromkeys(_TAUGHT_PAIRS, 4)
             if split == "training"
-            else {
-                pair: count
-                for pair, count in zip(
+            else dict(
+                zip(
                     (frozenset(components) for components in _TAUGHT_PAIR_ORDER),
                     (2, 2, 2, 1, 1),
                 )
-            }
+            )
         )
         if dict(pair_counts) != expected_counts:
             raise CurriculumContractError("a non-taught pair entered optimization data")
@@ -262,9 +261,9 @@ def _validate_combination_policy(
         for record in held_package.scenarios
         if record.category == "triple"
     )
-    if dict(held_pairs) != {pair: 2 for pair in _RESERVED_PAIRS} or dict(
+    if dict(held_pairs) != dict.fromkeys(_RESERVED_PAIRS, 2) or dict(
         held_triples
-    ) != {triple: 2 for triple in _RESERVED_TRIPLES}:
+    ) != dict.fromkeys(_RESERVED_TRIPLES, 2):
         raise CurriculumContractError("held-out combinations do not match the freeze")
     for package in packages:
         individual_faults = {

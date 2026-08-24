@@ -6,6 +6,7 @@ import hashlib
 import json
 import sqlite3
 import uuid
+from contextlib import closing
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -82,7 +83,7 @@ class HeldOutAttemptLedger:
         attempt_json = _canonical_bytes(attempt_document).decode("utf-8")
         attempt_digest = _digest(attempt_document)
         try:
-            with self._connect() as connection:
+            with closing(self._connect()) as connection, connection:
                 connection.execute("BEGIN IMMEDIATE")
                 metadata = _read_metadata(connection)
                 self._validate_metadata(metadata)
@@ -132,7 +133,7 @@ class HeldOutAttemptLedger:
                 "the evaluator replay scenario is outside the sealed ledger"
             )
         try:
-            with self._connect() as connection:
+            with closing(self._connect()) as connection, connection:
                 metadata = _read_metadata(connection)
                 self._validate_metadata(metadata)
                 ledger_digest = metadata.get("ledger_digest")
@@ -160,13 +161,13 @@ class HeldOutAttemptLedger:
             raise CurriculumContractError(
                 "the evaluator replay scenario has no canonical run"
             )
-        return match.model_copy(deep=True)
+        return match
 
     def seal(self) -> str:
         """Seal a complete matrix and return its immutable content digest."""
 
         try:
-            with self._connect() as connection:
+            with closing(self._connect()) as connection, connection:
                 connection.execute("BEGIN IMMEDIATE")
                 metadata = _read_metadata(connection)
                 self._validate_metadata(metadata)
@@ -209,7 +210,7 @@ class HeldOutAttemptLedger:
                 "the evaluator attempt ledger belongs to a different curriculum package"
             )
         try:
-            with self._connect() as connection:
+            with closing(self._connect()) as connection, connection:
                 metadata = _read_metadata(connection)
                 self._validate_metadata(metadata)
                 ledger_digest = metadata.get("ledger_digest")
@@ -231,7 +232,7 @@ class HeldOutAttemptLedger:
     def _initialize_or_validate(self) -> None:
         try:
             self._path.parent.mkdir(parents=True, exist_ok=True)
-            with self._connect() as connection:
+            with closing(self._connect()) as connection, connection:
                 connection.execute("BEGIN IMMEDIATE")
                 connection.execute(
                     """
@@ -384,7 +385,7 @@ class HeldOutAttemptLedger:
 
     def _metadata(self) -> dict[str, str]:
         try:
-            with self._connect() as connection:
+            with closing(self._connect()) as connection, connection:
                 metadata = _read_metadata(connection)
                 self._validate_metadata(metadata)
                 return metadata

@@ -87,7 +87,7 @@ class EegCurriculumRuntime:
     """Execute independent fault occurrences through a staged EEG episode."""
 
     def __init__(self, bundle: EnvironmentBundle) -> None:
-        self._bundle = bundle.model_copy(deep=True)
+        self._bundle = bundle
         fixture_document = (bundle.model_extra or {}).get("curriculum_fixture")
         try:
             package = _CurriculumPackageDocument.model_validate(fixture_document)
@@ -133,9 +133,9 @@ class EegCurriculumRuntime:
             "stage": "preflight",
             "configuration": deepcopy(configuration),
             "occurrences": occurrence_states,
-            "domain_sequences": {domain: 1 for domain in _DOMAINS},
-            "evidence_revisions": {domain: 0 for domain in _DOMAINS},
-            "freshness": {domain: "current" for domain in _DOMAINS},
+            "domain_sequences": dict.fromkeys(_DOMAINS, 1),
+            "evidence_revisions": dict.fromkeys(_DOMAINS, 0),
+            "freshness": dict.fromkeys(_DOMAINS, "current"),
             "inspections": [],
             "retests": [],
             "state_changes": [],

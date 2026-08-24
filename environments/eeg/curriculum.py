@@ -997,7 +997,7 @@ def _digest(value: Any) -> str:
 def _replay_runtime(bundle: EnvironmentBundle) -> EnvironmentRuntime:
     from environments.eeg.runtime import EegEnvironmentModule
 
-    return EnvironmentRuntime(EegEnvironmentModule(bundle.model_copy(deep=True)))
+    return EnvironmentRuntime(EegEnvironmentModule(bundle))
 
 
 def _validate_run_integrity(
