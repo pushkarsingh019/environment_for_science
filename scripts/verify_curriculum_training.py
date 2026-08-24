@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import os
 from pathlib import Path
 
 from studio.curriculum_analysis import (
@@ -165,8 +166,8 @@ def main() -> int:
             training_result_id=evidence.result_id,
             training_artifact_digest=evidence.artifact_digest,
             trained_adapter_digest=evidence.final_adapter_digest,
-            openai_credential_ready=openai_credential_ready(),
-            gemini_credential_ready=gemini_credential_ready(),
+            openai_credential_ready=openai_credential_ready(os.environ),
+            gemini_credential_ready=gemini_credential_ready(os.environ),
         )
         validate_artifact_safe(evidence.model_dump(mode="json"))
     except (

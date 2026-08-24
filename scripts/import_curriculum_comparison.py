@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 from pathlib import Path
 
 from studio.curriculum_analysis import (
@@ -48,8 +49,8 @@ def main() -> int:
             training_result_id=args.training_result_id,
             training_artifact_digest=args.training_artifact_digest,
             trained_adapter_digest=args.trained_adapter_digest,
-            openai_credential_ready=openai_credential_ready(),
-            gemini_credential_ready=gemini_credential_ready(),
+            openai_credential_ready=openai_credential_ready(os.environ),
+            gemini_credential_ready=gemini_credential_ready(os.environ),
         )
     except (CurriculumAnalysisError, ValueError) as error:
         print(json.dumps({"status": "failed", "summary": str(error)}, sort_keys=True))
