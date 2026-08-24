@@ -1,7 +1,7 @@
 # Prototype the end-to-end demo story
 
 Type: prototype
-Status: open
+Status: resolved
 Blocked by:
 
 ## Question
@@ -10,4 +10,15 @@ What should a judge see and understand, moment by moment, from describing or dra
 
 ## Progress
 
-No end-to-end interactive prototype has been built or accepted. The full story remains in scope: scientist-facing EEG and mesoscope authoring, frozen simulated runs, deterministic verification, base/frontier evaluation, Gemma training, and held-out comparison. The story must be prototyped only after the underlying runnable slices exist.
+The accepted story starts with visualization-first EEG authoring, a reversible conversational
+edit, and a frozen revision. It runs a simulated fault through deterministic recovery and
+verification, then shows the sealed mesoscope handoff as a separate platform-generality proof.
+The Evaluate workspace progressively discloses base evaluation, hosted-provider readiness,
+workstation-only acceptance and curriculum jobs, and the four-model comparison. Real imported
+Gemma evidence is visibly distinct from offline fixtures; its honest conclusion is inconclusive
+(9/64 base versus 10/64 trained, paired interval `[0.0, 0.046875]`), not a manufactured win.
+Every real scenario opens its validated canonical evaluator snapshot. One central reset restores
+seeded drafts, scenarios, and the successful offline fixture, removes mutable demo queues, and
+preserves completed training evidence, sealed ledgers, and immutable real comparisons. The full
+keyboard/mobile Chromium journey and clean-checkout startup canary pass without provider secrets
+or GPU access.

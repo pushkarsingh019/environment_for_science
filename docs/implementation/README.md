@@ -4,14 +4,14 @@ Source specification: [Science Environment Studio executable prototype specifica
 
 ## Progress
 
-- Completed: **12 / 13**
-- In progress: **13** — complete suites, final two-axis review, and documentation closure remain
+- Completed: **13 / 13**
+- In progress: **None**
 - Ready now: **None**
 - A ticket counts as complete only after its acceptance criteria, tests, review, and commit pass.
 
 ## Current checkpoint
 
-Tickets 01 through 12 are complete. One local command builds and serves the Scientist Console
+Tickets 01 through 13 are complete. One local command builds and serves the Scientist Console
 with the loopback-only deterministic Environment Runtime. The console runs and replays the
 targeted EEG recovery episodes and now provides a scientifically recognizable EEG
 diagnostic preflight over a configurable schematic whole-cap Apparatus and distinct
@@ -122,10 +122,10 @@ available when `GEMINI_API_KEY` is supplied only to the Studio process.
 
 The bounded training-acceptance route is implemented without adding Mac-side model compute. Jobs
 persist queued, running, failed, retried, and completed states in ordinary language. A fail-closed
-verifier checks exact stack/model pins, two distinct sanitized workstation receipts, BF16 and
-language-only LoRA configuration, finite optimization metrics, non-empty DCP state, stable PEFT
-artifacts, changed tensor bytes, fresh reload identity, and held-out tool-loop trace digests. The
-existing disposable probe can require the product verifier in the same pass. Ticket 10 is complete. The training workstation produced finite metrics, resumable DCP state,
+verifier checks exact stack/model pins, two distinct sanitized workstation receipts, finite
+optimization metrics, parseable DCP structure, exact rank-8 BF16 LoRA tensors, changed bytes,
+fresh reload identity, model-call lineage, and replayable canonical snapshots. The existing
+probe can require the product verifier in the same pass. Ticket 10 is complete. The training workstation produced finite metrics, resumable DCP state,
 14 changed language-layer adapter tensors, and canonical EEG tool loops. A distinct approved
 workstation loaded the byte-identical portable adapter into a fresh process and completed both
 predeclared scenarios without trace errors. The full 4.1 GB evidence tree was privately imported,
@@ -145,14 +145,16 @@ because credentials were absent; no scores were fabricated. Five unmistakable of
 still cover supported, inconclusive, regressed, partially unavailable, and adapter-error states,
 and mesoscope remains a separate platform-generality track.
 
-Ticket 13's central reset, one-command prerequisite reporting, and end-to-end browser journey are
-implemented. Reset restores seeded authoring and fixture state while preserving immutable training
-jobs and real comparison rows. Final closure still requires the real imports, complete suites, and
-standards/specification review.
+Ticket 13 is complete. The one-command product reports prerequisites, the end-to-end browser
+journey covers both Apparatuses and all role boundaries, and reset removes mutable demo queues
+while preserving completed training evidence, sealed ledgers, and real comparisons. All 915 Python
+tests were collected (899 passed; 16 opt-in canaries skipped), all 45 browser journeys passed, and
+Ruff, mypy, TypeScript, build, artifact, statistical, security, and private-material checks passed.
+The final standards/specification review has no unresolved blocking finding.
 
 ## Frontier
 
-- [13: Ship the resettable end-to-end demo](issues/13-ship-the-resettable-end-to-end-demo.md) — reset journey passes; awaiting real evidence, full suites, and final review
+- None — all implementation tickets are complete.
 
 ## Dependency order
 
@@ -168,4 +170,4 @@ standards/specification review.
 10. [Train, save, reload, and evaluate a bounded Gemma adapter](issues/10-train-save-reload-and-evaluate-a-bounded-gemma-adapter.md) — complete
 11. [Train Gemma on the EEG curriculum](issues/11-train-gemma-on-the-eeg-curriculum.md) — complete
 12. [Compare all models in the Scientist Console](issues/12-compare-all-models-in-the-scientist-console.md) — complete
-13. [Ship the resettable end-to-end demo](issues/13-ship-the-resettable-end-to-end-demo.md) — in progress; software complete, final review blocked by 12
+13. [Ship the resettable end-to-end demo](issues/13-ship-the-resettable-end-to-end-demo.md) — complete

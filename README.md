@@ -10,11 +10,12 @@ handoff. The project doesn't connect to or control physical apparatus.
 ## Project status
 
 The product, domain, interface, runtime, evaluation, and training decisions are complete.
-Tickets 01 through 12 of 13 are complete. The bounded E4B adapter passed real optimization,
-private transfer, independent fresh reload on a second approved workstation, and product-owned
-artifact verification. The full immutable curriculum result and real comparison are also imported:
-base succeeded on 9/64 held-out scenarios and trained on 10/64, an honestly inconclusive result.
-Ticket 13 remains open for complete suites, final two-axis review, and documentation closure.
+All 13 implementation tickets are complete. The bounded E4B adapter passed real optimization,
+private transfer, independent fresh reload on a second approved workstation, and strengthened
+product-owned artifact verification. The full immutable curriculum result and real comparison are
+imported: base succeeded on 9/64 held-out scenarios and trained on 10/64, an honestly inconclusive
+result. Complete Python, static, build, browser, security, statistical, and documentation checks
+pass, and the final two-axis review has no unresolved blocking finding.
 
 Read these documents before you implement a ticket:
 
@@ -33,7 +34,7 @@ never closes a real training or comparison ticket.
 
 ## Implementation checkpoint
 
-The implemented and in-progress product provides:
+The completed prototype provides:
 
 - An extensible Environment Bundle v1 validator with nested JSON Schema checks.
 - A seeded synthetic EEG marker-recovery bundle and apparatus module.
@@ -82,8 +83,8 @@ The repository also provides:
   workstations and never start model compute on the local computer.
 - Fail-closed native artifact import, immutable held-out ledgers, paired bootstrap analysis, and
   a four-model console with explicit provider, adapter, and scientific failure states.
-- Five labeled offline comparison states, constituent replay receipts, and a central demo reset
-  that preserves immutable real artifacts.
+- Five labeled offline comparison states, sealed canonical real-scenario snapshots, and a central
+  demo reset that removes mutable queues while preserving immutable real artifacts.
 
 The repository retains the disposable Gemma training-path probe under
 `probes/gemma-training-path/`; it is not product runtime code.
