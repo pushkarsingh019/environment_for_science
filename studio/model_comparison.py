@@ -99,6 +99,7 @@ class ComparisonModelResult(_FrozenModel):
     requested_model: str = Field(min_length=1)
     returned_model: str | None = Field(default=None, min_length=1)
     adapter_identity: str | None = Field(default=None, min_length=1)
+    model_configuration_digest: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
     run_id: str = Field(pattern=r"^[a-z][a-z0-9-]{7,100}$")
     status: ModelResultStatus
     metrics: ComparisonMetrics | None
@@ -490,6 +491,7 @@ def _real_gemma_model(
         requested_model="google/gemma-4-E4B-it",
         returned_model="google/gemma-4-E4B-it",
         adapter_identity=adapter_identity,
+        model_configuration_digest=evidence.model_configuration_digest,
         run_id=report.evaluation_id,
         status="available",
         metrics=metrics,
@@ -512,6 +514,9 @@ def _unavailable_reference(
         requested_model=requested,
         returned_model=None,
         adapter_identity=None,
+        model_configuration_digest=_digest_text(
+            f"unavailable-reference:{role}:{requested}:hosted-reference-medium-v1"
+        ),
         run_id=f"comparison-run-unavailable-{role.replace('_', '-')}",
         status="provider_failure" if credential_ready else "credential_missing",
         metrics=None,
@@ -659,6 +664,9 @@ def _fixture_model(
         requested_model=requested,
         returned_model=requested if status == "available" else None,
         adapter_identity=adapter,
+        model_configuration_digest=_digest_text(
+            f"fixture-configuration:{role}:{requested}:{adapter or 'none'}"
+        ),
         run_id=f"comparison-run-fixture-{role.replace('_', '-')}",
         status=status,
         metrics=metrics,

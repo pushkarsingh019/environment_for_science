@@ -49,6 +49,7 @@ def test_seeded_comparison_states_are_explicit_and_scientifically_bounded(
     assert result.mesoscope.claim_scope == "platform_generality"
     assert result.mesoscope.eeg_training_evidence is False
     for model in result.models:
+        assert model.model_configuration_digest.startswith("sha256:")
         if model.status == "available":
             assert model.metrics is not None
             assert len(model.scenarios) == 64

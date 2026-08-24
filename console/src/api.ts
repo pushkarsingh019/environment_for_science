@@ -3438,6 +3438,7 @@ function parseComparisonModel(
       "requested_model",
       "returned_model",
       "adapter_identity",
+      "model_configuration_digest",
       "run_id",
       "status",
       "metrics",
@@ -3506,6 +3507,10 @@ function parseComparisonModel(
     adapter_identity: record.adapter_identity === null
       ? null
       : nonEmptyString(record.adapter_identity, `${path}.adapter_identity`),
+    model_configuration_digest: digest(
+      record.model_configuration_digest,
+      `${path}.model_configuration_digest`,
+    ),
     run_id: patternedString(
       record.run_id,
       /^[a-z][a-z0-9-]{7,100}$/,

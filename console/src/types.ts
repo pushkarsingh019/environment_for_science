@@ -776,6 +776,7 @@ export interface ComparisonModelResult {
   requested_model: string;
   returned_model: string | null;
   adapter_identity: string | null;
+  model_configuration_digest: string;
   run_id: string;
   status:
     | "available"

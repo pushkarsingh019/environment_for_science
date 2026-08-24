@@ -956,6 +956,11 @@ function ModelComparisonPanel() {
                 <small>Requested: {model.requested_model}</small>
                 <small>Returned: {model.returned_model ?? "Unavailable"}</small>
                 {model.adapter_identity && <small>Adapter: {model.adapter_identity}</small>}
+                <details>
+                  <summary>Model and run provenance</summary>
+                  <code>{model.model_configuration_digest}</code>
+                  <code>{model.run_id}</code>
+                </details>
                 {model.failure ? (
                   <div className="error-banner" data-testid={`comparison-failure-${model.role}`}>
                     <strong>{model.failure.category} failure</strong>

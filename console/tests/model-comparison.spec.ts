@@ -44,6 +44,8 @@ test("compares four models with bounded claims, failures, replays, and separate 
 
   await panel.getByTestId("comparison-fixture-successful").click();
   const base = panel.getByTestId("comparison-model-base_gemma");
+  await base.getByText("Model and run provenance").click();
+  await expect(base).toContainText("sha256:");
   await base.getByText(/Strata and 64 constituent scenarios/).click();
   await base.getByRole("button", { name: /eeg-/ }).first().click();
   await expect(panel.getByTestId("comparison-replay")).toContainText(
