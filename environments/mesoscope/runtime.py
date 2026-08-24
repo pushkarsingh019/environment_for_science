@@ -532,6 +532,7 @@ class MesoscopeEnvironmentModule:
             outcome_category=outcome_category,
             summary=summary,
             metrics={
+                "reward": float(passed),
                 "exact_terminal_match": float(exact_terminal),
                 "fault_detection": float(fault_detection),
                 "package_agreement": float(package_agreement),

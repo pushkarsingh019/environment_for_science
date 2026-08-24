@@ -174,6 +174,7 @@ def test_valid_four_region_package_is_verified_only_after_exact_agreement(
     assert completed.verifier_result.terminal_disposition == "closed"
     assert completed.verifier_result.summary == SUCCESS_WORDING
     assert completed.verifier_result.metrics == {
+        "reward": 1.0,
         "exact_terminal_match": 1.0,
         "fault_detection": 1.0,
         "package_agreement": 1.0,
@@ -464,10 +465,10 @@ def test_valid_package_has_reviewed_golden_package_and_canonical_digests(
         "sha256:e889bd5d0918f8699b5f4e36273373cbf35fe23a19185708cc12d7a59955e866"
     )
     assert completed.trace_digest == (
-        "sha256:54b45b20cdc5cec035b1ef004d0e9b3b40b5d948e8a806efd244f798620ec5e0"
+        "sha256:e95d89f1dc5556c02af6cd6730936084812c7615eabc012382564261eac77f1b"
     )
     assert completed.result_digest == (
-        "sha256:4d6bb63ce927dbbbdd9ba31c0ac2f2850ae2392465e33585cc2e53b2594725d7"
+        "sha256:6c416816d7d0421da8ac8a9c16305902dc00f4f5564893dc59214e7d7685bfba"
     )
     assert {
         row["artifact_id"]: row["expected_digest"]
