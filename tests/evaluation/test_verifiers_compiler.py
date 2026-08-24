@@ -338,6 +338,18 @@ def test_generated_v1_adapter_keeps_declared_tool_names_and_persisted_runtime_ev
     assert "async def incomplete_model_response(" in taskset_source
     assert 'response.finish_reason == "length"' in taskset_source
     assert 'termination_reason = "model_ended_before_terminal"' in taskset_source
+    assert (
+        "finalize_incomplete(trace.state, termination_reason)\n"
+        "        _persist_runtime_evidence(trace)\n"
+        "        return True"
+    ) in taskset_source
+    # Verifiers stores branch-replayed context tool messages alongside sampled
+    # branch responses. Reused renderer call IDs must be matched by canonical
+    # result semantics; unmatched noncanonical payloads still fail closed.
+    assert "matching_result_index = next(" in taskset_source
+    assert "if candidate == expected[\"result\"]" in taskset_source
+    assert "allowed_tool_results" in taskset_source
+    assert "if canonical not in allowed" in taskset_source
     assert '"science_environment_runtime" not in trace.info' in taskset_source
     assert 'if item["accepted"]' in taskset_source
     assert "trace.state.accepted_actions" in taskset_source

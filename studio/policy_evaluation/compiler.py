@@ -1331,9 +1331,34 @@ def _persist_runtime_evidence(trace: vf.Trace) -> None:
     execution_index = 0
     accepted_count = 0
     ordinal = 0
-    tool_results: dict[str, list[Any]] = {{}}
+    tool_results: dict[str, list[dict[str, Any]]] = {{}}
     for tool_message in trace.tool_messages:
-        tool_results.setdefault(tool_message.tool_call_id, []).append(tool_message)
+        if not isinstance(tool_message.content, str):
+            trace.info["science_environment_adapter_error"] = {{
+                "category": "adapter",
+                "code": "adapter.tool_result_malformed",
+            }}
+            raise RuntimeError("adapter.tool_result_malformed")
+        try:
+            payload = json.loads(tool_message.content)
+        except json.JSONDecodeError:
+            trace.info["science_environment_adapter_error"] = {{
+                "category": "adapter",
+                "code": "adapter.tool_result_malformed",
+            }}
+            raise RuntimeError("adapter.tool_result_malformed") from None
+        if not isinstance(payload, dict):
+            trace.info["science_environment_adapter_error"] = {{
+                "category": "adapter",
+                "code": "adapter.tool_result_malformed",
+            }}
+            raise RuntimeError("adapter.tool_result_malformed")
+        tool_results.setdefault(tool_message.tool_call_id, []).append(payload)
+    # Pinned Verifiers persists prompt-replayed branch context alongside sampled
+    # responses. Gemma's pinned renderer can reuse call_0 on each response, so
+    # correlate by the canonical Runtime result as well as the provider call ID.
+    # Any unmatched payload must still equal a result proven for that ID below.
+    allowed_tool_results: dict[str, set[str]] = {{}}
     assistant_messages = trace.assistant_messages
     for message_index, message in enumerate(assistant_messages):
         for call in message.tool_calls or []:
@@ -1344,30 +1369,6 @@ def _persist_runtime_evidence(trace: vf.Trace) -> None:
             except json.JSONDecodeError:
                 arguments = None
             persisted_result = None
-            result_queue = tool_results.get(call.id, [])
-            result = result_queue.pop(0) if result_queue else None
-            if result is not None:
-                if not isinstance(result.content, str):
-                    trace.info["science_environment_adapter_error"] = {{
-                        "category": "adapter",
-                        "code": "adapter.tool_result_malformed",
-                    }}
-                    raise RuntimeError("adapter.tool_result_malformed")
-                try:
-                    payload = json.loads(result.content)
-                except json.JSONDecodeError:
-                    trace.info["science_environment_adapter_error"] = {{
-                        "category": "adapter",
-                        "code": "adapter.tool_result_malformed",
-                    }}
-                    raise RuntimeError("adapter.tool_result_malformed")
-                if not isinstance(payload, dict):
-                    trace.info["science_environment_adapter_error"] = {{
-                        "category": "adapter",
-                        "code": "adapter.tool_result_malformed",
-                    }}
-                    raise RuntimeError("adapter.tool_result_malformed")
-                persisted_result = payload
             action = {{"type": call.name, "arguments": arguments}}
             schema_error = (
                 next(
@@ -1483,18 +1484,38 @@ def _persist_runtime_evidence(trace: vf.Trace) -> None:
                     and expected.get("terminal_after_execution", False)
                 )
             )
-            if persisted_result is None and not suppressed_by_framework_stop:
-                trace.info["science_environment_adapter_error"] = {{
-                    "category": "adapter",
-                    "code": "adapter.tool_result_missing",
-                }}
-                raise RuntimeError("adapter.tool_result_missing")
-            if persisted_result is not None and persisted_result != expected["result"]:
-                trace.info["science_environment_adapter_error"] = {{
-                    "category": "adapter",
-                    "code": "adapter.tool_result_divergence",
-                }}
-                raise RuntimeError("adapter.tool_result_divergence")
+            canonical_expected_result = json.dumps(
+                expected["result"],
+                sort_keys=True,
+                separators=(",", ":"),
+                allow_nan=False,
+            )
+            allowed_tool_results.setdefault(call.id, set()).add(
+                canonical_expected_result
+            )
+            if not suppressed_by_framework_stop:
+                result_queue = tool_results.get(call.id, [])
+                matching_result_index = next(
+                    (
+                        index
+                        for index, candidate in enumerate(result_queue)
+                        if candidate == expected["result"]
+                    ),
+                    None,
+                )
+                if matching_result_index is None:
+                    if not result_queue:
+                        trace.info["science_environment_adapter_error"] = {{
+                            "category": "adapter",
+                            "code": "adapter.tool_result_missing",
+                        }}
+                        raise RuntimeError("adapter.tool_result_missing")
+                    trace.info["science_environment_adapter_error"] = {{
+                        "category": "adapter",
+                        "code": "adapter.tool_result_divergence",
+                    }}
+                    raise RuntimeError("adapter.tool_result_divergence")
+                persisted_result = result_queue.pop(matching_result_index)
             result_linkage = (
                 "linked" if persisted_result is not None else "framework_stop_suppressed"
             )
@@ -1522,12 +1543,21 @@ def _persist_runtime_evidence(trace: vf.Trace) -> None:
             "runtime_action_count": len(trace.state.accepted_actions),
         }}
         raise RuntimeError("adapter.tool_lineage_divergence")
-    if any(tool_results.values()):
-        trace.info["science_environment_adapter_error"] = {{
-            "category": "adapter",
-            "code": "adapter.tool_lineage_divergence",
-        }}
-        raise RuntimeError("adapter.tool_lineage_divergence")
+    for provider_call_id, remaining_results in tool_results.items():
+        allowed = allowed_tool_results.get(provider_call_id, set())
+        for remaining_result in remaining_results:
+            canonical = json.dumps(
+                remaining_result,
+                sort_keys=True,
+                separators=(",", ":"),
+                allow_nan=False,
+            )
+            if canonical not in allowed:
+                trace.info["science_environment_adapter_error"] = {{
+                    "category": "adapter",
+                    "code": "adapter.tool_lineage_divergence",
+                }}
+                raise RuntimeError("adapter.tool_lineage_divergence")
     if [item["action"] for item in tool_lineage if item["accepted"]] != (
         trace.state.accepted_actions
     ):
@@ -1606,6 +1636,7 @@ class GeneratedTask(vf.Task[GeneratedData, ApparatusState]):
         else:
             return False
         finalize_incomplete(trace.state, termination_reason)
+        _persist_runtime_evidence(trace)
         return True
 
     @vf.stop(priority=10)

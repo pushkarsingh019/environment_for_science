@@ -5,7 +5,10 @@ from __future__ import annotations
 import pytest
 from pydantic import ValidationError
 
-from studio.curriculum_training_evidence import CurriculumRunConfiguration
+from studio.curriculum_training_evidence import (
+    CurriculumRunConfiguration,
+    _aligned_training_node,
+)
 
 
 def _configuration() -> dict[str, object]:
@@ -49,6 +52,18 @@ def _configuration() -> dict[str, object]:
         "provider_sampling_seed": None,
         "adapter_selection": "final-step-predeclared",
     }
+
+
+def test_prime_training_tokens_align_logprobs_to_true_mask_positions() -> None:
+    node = {
+        "token_ids": [101, 102, 103, 104],
+        "mask": [False, True, True, False],
+        "logprobs": [-0.2, -0.4],
+    }
+
+    assert _aligned_training_node(node) is True
+    assert _aligned_training_node({**node, "logprobs": [-0.2]}) is False
+    assert _aligned_training_node({**node, "mask": [True]}) is False
 
 
 def test_configuration_records_exact_splits_stack_seed_policy_and_selection() -> None:

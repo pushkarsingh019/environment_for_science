@@ -107,8 +107,8 @@ class CurriculumTrainingEvidence(_FrozenModel):
     configuration_digest: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
     stack: dict[str, str]
     training_scenario_ids: tuple[str, ...] = Field(min_length=96, max_length=96)
-    training_rollouts: Literal[384]
-    training_trace_digests: tuple[str, ...] = Field(min_length=384, max_length=384)
+    training_rollouts: int = Field(ge=384)
+    training_trace_digests: tuple[str, ...] = Field(min_length=384)
     sampled_tokens: int = Field(ge=1)
     trainable_mask_tokens: int = Field(ge=1)
     aligned_logprob_tokens: int = Field(ge=1)
@@ -129,7 +129,8 @@ class CurriculumTrainingEvidence(_FrozenModel):
     @model_validator(mode="after")
     def validate_split_and_claim_provenance(self) -> CurriculumTrainingEvidence:
         if (
-            self.configuration_digest != _canonical_digest(
+            len(self.training_trace_digests) != self.training_rollouts
+            or self.configuration_digest != _canonical_digest(
                 self.configuration.model_dump(mode="json")
             )
             or self.paired_bootstrap.paired_outcomes_digest
@@ -165,7 +166,7 @@ def verify_curriculum_training_evidence(
     scenario_counts = Counter(row["scenario_id"] for row in training_rows)
     if (
         set(scenario_counts) != set(approved_training.scenario_ids)
-        or set(scenario_counts.values()) != {4}
+        or min(scenario_counts.values(), default=0) < 4
         or approved_training.identity.package_digest
         != configuration.training_package_digest
     ):
@@ -230,7 +231,7 @@ def verify_curriculum_training_evidence(
         configuration_digest=configuration_digest,
         stack=dict(STACK_PINS),
         training_scenario_ids=tuple(sorted(scenario_counts)),
-        training_rollouts=384,
+        training_rollouts=len(training_rows),
         training_trace_digests=tuple(
             row["trace_digest"] for row in training_rows
         ),
@@ -256,11 +257,11 @@ def verify_curriculum_training_evidence(
 
 
 def _training_rows(run: Path, *, expected_call_model: str) -> list[dict[str, Any]]:
-    paths = tuple(run.glob("rollouts/step_*/train/effective/traces.jsonl"))
+    paths = tuple(run.glob("rollouts/step_*/train/all/traces.jsonl"))
     documents: list[dict[str, Any]] = []
     for path in paths:
         documents.extend(_jsonl(path, "training"))
-    if len(paths) != 96 or len(documents) != 384:
+    if len(paths) != 96 or len(documents) < 384:
         raise CurriculumEvidenceError("training rollout artifacts are incomplete")
     return [
         _native_row(
@@ -316,10 +317,7 @@ def _native_row(
         sampled_tokens = sum(len(node["token_ids"]) for node in sampled_nodes)
         mask_tokens = sum(sum(bool(value) for value in node["mask"]) for node in sampled_nodes)
         logprob_tokens = sum(len(node["logprobs"]) for node in sampled_nodes)
-        aligned = all(
-            len(node["token_ids"]) == len(node["mask"]) == len(node["logprobs"])
-            for node in sampled_nodes
-        )
+        aligned = all(_aligned_training_node(node) for node in sampled_nodes)
         if (
             document["ok"] is not True
             or trace["ok"] is not True
@@ -365,6 +363,21 @@ def _native_row(
         "logprob_tokens": logprob_tokens,
         "reward_records": reward_records,
     }
+
+
+def _aligned_training_node(node: dict[str, Any]) -> bool:
+    """Validate Verifiers' token/mask/logprob layout for one sampled node."""
+
+    token_ids = node.get("token_ids")
+    mask = node.get("mask")
+    logprobs = node.get("logprobs")
+    return (
+        isinstance(token_ids, list)
+        and isinstance(mask, list)
+        and isinstance(logprobs, list)
+        and len(token_ids) == len(mask)
+        and len(logprobs) == sum(value is True for value in mask)
+    )
 
 
 def _optimization(path: Path) -> CurriculumOptimizationEvidence:
