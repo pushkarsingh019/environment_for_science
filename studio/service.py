@@ -330,7 +330,7 @@ class ScienceStudio:
         return (authoring, policy) if entry.source_kind == "editable_draft" else (policy,)
 
     def current_draft(self) -> DraftSnapshot:
-        return self._drafts.current().model_copy(deep=True)
+        return self._drafts.current()
 
     def apply_authoring_command(
         self,
@@ -883,7 +883,7 @@ def _validated_authoring_state(document: dict[str, object]) -> dict[str, object]
 
 
 def _state_from_snapshot(snapshot: DraftSnapshot) -> EegAuthoringState:
-    return EegAuthoringState.model_validate(snapshot.state).model_copy(deep=True)
+    return EegAuthoringState.model_validate(snapshot.state)
 
 
 def _runtime_for_bundle(

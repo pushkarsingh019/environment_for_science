@@ -214,7 +214,7 @@ def seed_authoring_state(bundle: EnvironmentBundle) -> EegAuthoringState:
                 "procedure": configuration,
                 "notes": (),
             }
-        ).model_copy(deep=True)
+        )
     except ValidationError as error:
         messages = "; ".join(item["msg"] for item in error.errors())
         raise BundleValidationError(
@@ -521,7 +521,7 @@ def compile_frozen_bundle(
             deepcopy(configuration_document)
         )
 
-    return validate_environment_bundle(document).model_copy(deep=True)
+    return validate_environment_bundle(document)
 
 
 def _unsupported_result(
