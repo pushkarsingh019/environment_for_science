@@ -14,7 +14,7 @@ from collections.abc import Callable, Mapping, Sequence
 from functools import partial
 from importlib.resources import files
 from statistics import median
-from typing import Any, Literal
+from typing import Any, Literal, cast
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
 
@@ -26,6 +26,7 @@ from studio.bundle import EnvironmentBundle
 from studio.runtime import (
     EnvironmentAction,
     EnvironmentRuntime,
+    IncompleteTerminationReason,
     RunSnapshot,
     RuntimeContractError,
 )
@@ -741,7 +742,18 @@ class _ScenarioSet:
                 )
             if run.trace_header.split != self._package.split:
                 raise CurriculumContractError("curriculum run split provenance mismatch")
-            if (
+            canonical_incomplete = (
+                result.outcome_category == "incomplete"
+                and set(result.evidence) == {"termination_reason"}
+                and result.evidence["termination_reason"]
+                in {
+                    "model_ended_before_terminal",
+                    "output_budget_exhausted",
+                    "turn_budget_exhausted",
+                    "tool_call_budget_exhausted",
+                }
+            )
+            if not canonical_incomplete and (
                 result.evidence.get("curriculum_package_digest")
                 != self._package.package_digest
                 or result.outcome_category != record.category
@@ -755,7 +767,16 @@ class _ScenarioSet:
             _atomic_metric(result.metrics, "eligible_safe_abort")
             for metric_name in METRIC_DEFINITIONS:
                 _metric_value(result.metrics, metric_name)
-            _validate_sufficient_statistics(run, record)
+            if canonical_incomplete:
+                if any(
+                    _metric_value(result.metrics, metric_name) != 0.0
+                    for metric_name in METRIC_DEFINITIONS
+                ):
+                    raise CurriculumContractError(
+                        "incomplete curriculum result contains scientific credit"
+                    )
+            else:
+                _validate_sufficient_statistics(run, record)
             joined.append((run, record))
 
         scenario_ids = {run.scenario_id for run, _record in joined}
@@ -1017,7 +1038,16 @@ def _validate_run_integrity(
                     replayed.run_id,
                     EnvironmentAction.model_validate(event.action),
                 )
-        replayed = runtime.verify(replayed.run_id)
+        if result.outcome_category == "incomplete":
+            replayed = runtime.finalize_incomplete(
+                replayed.run_id,
+                termination_reason=cast(
+                    IncompleteTerminationReason,
+                    result.evidence["termination_reason"],
+                ),
+            )
+        else:
+            replayed = runtime.verify(replayed.run_id)
     except (RuntimeContractError, ValidationError, ValueError) as error:
         raise CurriculumContractError("curriculum run replay validation failed") from error
     if (

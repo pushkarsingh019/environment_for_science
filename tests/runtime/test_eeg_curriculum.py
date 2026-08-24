@@ -339,6 +339,23 @@ def test_aggregate_replays_runs_and_rejects_a_forged_verifier_result() -> None:
         training.aggregate((_attempt(forged),))
 
 
+def test_aggregate_counts_canonical_incomplete_as_a_scientific_failure() -> None:
+    training = load_training_scenario_set()
+    runtime = EnvironmentRuntime(EegEnvironmentModule(training.environment_bundle))
+    started = runtime.start(training.scenario_ids[0], _POLICY)
+    completed = runtime.finalize_incomplete(
+        started.run_id,
+        termination_reason="model_ended_before_terminal",
+    )
+
+    report = training.aggregate((_attempt(completed),))
+
+    assert report.completed_runs == 1
+    assert report.harness_errors == 0
+    assert report.exact_terminal_accuracy == 0.0
+    assert report.mean_reward == 0.0
+
+
 def test_exact_terminal_accuracy_excludes_partial_abort_credit() -> None:
     training = load_training_scenario_set()
     record = next(
