@@ -184,13 +184,12 @@ class AttemptTraceStore:
             observed_digest = "sha256:" + hashlib.sha256(payload).hexdigest()
             if observed_digest != digest:
                 raise ValueError("evaluation attempt trace digest does not match")
-            attempt = deserialize_attempt_trace(
+            return deserialize_attempt_trace(
                 payload,
                 evaluation_id=evaluation_id,
                 attempt_id=attempt_id,
                 scenario_id=scenario_id,
             )
-            return attempt
         except AttemptTraceStoreError:
             raise
         except (
@@ -372,13 +371,13 @@ def serialize_attempt_trace(
         _TRACE_COLLECTIONS,
         _RECORD_TYPES[1:-1],
     ):
-        for item in getattr(attempt.trace, collection):
-            records.append(
-                _payload_record(
-                    record_type,
-                    item.model_dump(mode="json", exclude_none=True),
-                )
+        records.extend(
+            _payload_record(
+                record_type,
+                item.model_dump(mode="json", exclude_none=True),
             )
+            for item in getattr(attempt.trace, collection)
+        )
     outcome: dict[str, Any]
     if attempt.completed_run is not None:
         outcome = {

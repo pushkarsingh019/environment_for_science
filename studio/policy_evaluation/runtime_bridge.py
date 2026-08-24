@@ -95,6 +95,9 @@ class EvaluationRuntimeBridge:
 
     def __init__(self, bundle: EnvironmentBundle) -> None:
         self._bundle = bundle.model_copy(deep=True)
+        self._environment_module = EnvironmentRegistry.from_seeded_environments().module_for_bundle(
+            self._bundle
+        )
 
     def start(
         self,
@@ -220,7 +223,7 @@ class EvaluationRuntimeBridge:
     def finalize(self, state: ReplayableRuntimeState) -> RunSnapshot:
         """Rebuild and score one attempt through the apparatus verifier."""
         runtime, current = self._reconstruct(state)
-        return runtime.verify(current.run_id).model_copy(deep=True)
+        return runtime.verify(current.run_id)
 
     def finalize_incomplete(
         self,
@@ -233,7 +236,7 @@ class EvaluationRuntimeBridge:
         return runtime.finalize_incomplete(
             current.run_id,
             termination_reason=termination_reason,
-        ).model_copy(deep=True)
+        )
 
     def _state(
         self,
@@ -326,8 +329,7 @@ class EvaluationRuntimeBridge:
         )
 
     def _runtime(self) -> EnvironmentRuntime:
-        registry = EnvironmentRegistry.from_seeded_environments()
-        return EnvironmentRuntime(registry.module_for_bundle(self._bundle.model_copy(deep=True)))
+        return EnvironmentRuntime(self._environment_module)
 
 
 def _execution_id(

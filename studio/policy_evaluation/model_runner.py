@@ -544,15 +544,6 @@ class ModelProvider(Protocol):
     def complete(self, request: ModelRequest) -> ModelResponse: ...
 
 
-class ModelAttestationProvider(Protocol):
-    """Optional server-evidence seam implemented by the real local provider."""
-
-    def preflight(
-        self,
-        request: ModelPreflightRequest,
-    ) -> LocalGemmaRuntimeAttestation: ...
-
-
 class ModelResponseRecord(_FrozenModel):
     """Response identity and accounting retained outside message content."""
 

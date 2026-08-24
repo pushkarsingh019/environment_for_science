@@ -1,8 +1,6 @@
 import { expect, test } from "@playwright/test";
 import { decodeLocalGemmaAttestation } from "../src/api";
 
-const rawDigest = "a".repeat(64);
-
 function distribution(
   name: string,
   version: string,
