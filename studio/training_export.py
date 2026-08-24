@@ -139,7 +139,7 @@ class NativeAcceptanceExporter:
         }
         _write_json(destination / "acceptance-config.json", configuration)
         receipt = {
-            "receipt_version": "science-gemma-acceptance-receipt/1",
+            "receipt_version": "science-gemma-acceptance-receipt/2",
             "job_id": job_id,
             "stack": dict(STACK_PINS),
             "model": model,
@@ -218,6 +218,17 @@ def _native_rows(
                 trace_error = "native trace model identity does not match"
             runtime_trace_digest = runtime["runtime_trace_digest"]
             result_digest = runtime["runtime_result_digest"]
+            snapshot = runtime["completed_snapshot"]
+            model_calls = [
+                {
+                    "ordinal": ordinal,
+                    "model": call["model"],
+                    "finish_reason": call["finish_reason"],
+                    "input_tokens": call["usage"]["prompt_tokens"],
+                    "output_tokens": call["usage"]["completion_tokens"],
+                }
+                for ordinal, call in enumerate(calls, start=1)
+            ]
         except (KeyError, IndexError, TypeError) as error:
             raise AcceptanceArtifactError(
                 f"{label} traces are malformed"
@@ -246,6 +257,8 @@ def _native_rows(
                 "trace_error": None,
                 "runtime_trace_digest": runtime_trace_digest,
                 "result_digest": result_digest,
+                "snapshot": snapshot,
+                "model_calls": model_calls,
             }
         )
     return sorted(rows, key=lambda row: (row["scenario_id"], row["rollout_index"]))

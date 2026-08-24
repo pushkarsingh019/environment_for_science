@@ -4,11 +4,21 @@ from __future__ import annotations
 
 import hashlib
 import json
+import pickle
 import struct
+import zipfile
 from pathlib import Path
 
 import pytest
 
+from environments.eeg.curriculum import (
+    DevelopmentScenarioSet,
+    TrainingScenarioSet,
+    load_development_scenario_set,
+    load_training_scenario_set,
+)
+from environments.eeg.runtime import EegEnvironmentModule
+from studio.runtime import EnvironmentAction, EnvironmentRuntime, PolicyAgentIdentity
 from studio.training_acceptance import (
     STACK_PINS,
     AcceptanceArtifactError,
@@ -62,6 +72,65 @@ def _write_safetensors(
     path.write_bytes(struct.pack("<Q", len(encoded)) + encoded + data)
 
 
+def _canonical_trace_row(
+    scenario_set: TrainingScenarioSet | DevelopmentScenarioSet,
+    scenario_id: str,
+    *,
+    rollout_index: int,
+    model: str,
+    incomplete: bool = True,
+) -> dict[str, object]:
+    runtime = EnvironmentRuntime(
+        EegEnvironmentModule(scenario_set.environment_bundle)
+    )
+    current = runtime.start(
+        scenario_id,
+        PolicyAgentIdentity(id="acceptance-test-policy", name="Acceptance test policy"),
+    )
+    for _ in range(2):
+        action = current.permitted_actions[0]
+        current = runtime.apply_action(
+            current.run_id,
+            EnvironmentAction(type=action, arguments={}),
+        )
+    completed = (
+        runtime.finalize_incomplete(
+            current.run_id,
+            termination_reason="model_ended_before_terminal",
+        )
+        if incomplete
+        else runtime.verify(current.run_id)
+    )
+    return {
+        "scenario_id": scenario_id,
+        "rollout_index": rollout_index,
+        "model": model,
+        "ok": True,
+        "tool_calls": 2,
+        "trace_error": None,
+        "runtime_trace_digest": completed.trace_digest,
+        "result_digest": completed.result_digest,
+        "snapshot": completed.model_dump(mode="json"),
+        "model_calls": [
+            {
+                "ordinal": ordinal,
+                "model": (
+                    "r8-a16.0"
+                    if (
+                        model == "google/gemma-4-E4B-it"
+                        and scenario_set.identity.split == "training"
+                    )
+                    else model
+                ),
+                "finish_reason": "tool_calls",
+                "input_tokens": 100 + ordinal,
+                "output_tokens": 4,
+            }
+            for ordinal in (1, 2)
+        ],
+    }
+
+
 def _canonical(path: Path, value: object) -> None:
     path.write_text(
         json.dumps(value, sort_keys=True, separators=(",", ":")) + "\n"
@@ -97,31 +166,34 @@ def _acceptance_tree(root: Path) -> Path:
         )
         _write_safetensors(directory / "adapter_model.safetensors", tensor)
     (checkpoint / ".metadata").write_bytes(
-        b"\x80\x04" + b"pinned-dcp-metadata"
+        pickle.dumps(
+            {
+                "module": "torch.distributed.checkpoint.metadata",
+                "metadata": "Metadata",
+                "tensor": "TensorStorageMetadata",
+                "storage": "StorageInfo",
+            },
+            protocol=4,
+        )
     )
-    (checkpoint / "__0_0.distcp").write_bytes(
-        b"PK\x03\x04" + b"pinned-dcp-shard"
-    )
+    with zipfile.ZipFile(checkpoint / "__0_0.distcp", "w") as archive:
+        archive.writestr("archive/data.pkl", pickle.dumps({"state": "resumable"}))
+        archive.writestr("archive/.format_version", "1")
+        archive.writestr("archive/byteorder", "little")
+        archive.writestr("archive/version", "1")
+        archive.writestr("archive/data/0", b"checkpoint tensor bytes")
     _canonical(
         root / "optimization-metrics.json",
         {"loss": 1.25, "gradient_norm": 0.75, "mismatch_kl": 0.02},
     )
     training_scenario_id = "eeg-04b947fbdffb3768"
     training_rows = [
-        {
-            "scenario_id": training_scenario_id,
-            "rollout_index": rollout_index,
-            "model": "google/gemma-4-E4B-it",
-            "ok": True,
-            "tool_calls": 2,
-            "trace_error": None,
-            "runtime_trace_digest": _digest(
-                f"training-{training_scenario_id}-{rollout_index}".encode()
-            ),
-            "result_digest": _digest(
-                f"training-result-{training_scenario_id}-{rollout_index}".encode()
-            ),
-        }
+        _canonical_trace_row(
+            load_training_scenario_set(),
+            training_scenario_id,
+            rollout_index=rollout_index,
+            model="google/gemma-4-E4B-it",
+        )
         for rollout_index in range(8)
     ]
     (traces / "training.jsonl").write_text(
@@ -136,16 +208,12 @@ def _acceptance_tree(root: Path) -> Path:
         ("reloaded", "proof-final"),
     ):
         rows = [
-            {
-                "scenario_id": scenario_id,
-                "rollout_index": 0,
-                "model": model,
-                "ok": True,
-                "tool_calls": 2,
-                "trace_error": None,
-                "runtime_trace_digest": _digest(f"{name}-{scenario_id}".encode()),
-                "result_digest": _digest(f"result-{name}-{scenario_id}".encode()),
-            }
+            _canonical_trace_row(
+                load_development_scenario_set(),
+                scenario_id,
+                rollout_index=0,
+                model=model,
+            )
             for scenario_id in scenario_ids
         ]
         (traces / f"{name}.jsonl").write_text(
@@ -182,7 +250,7 @@ def _acceptance_tree(root: Path) -> Path:
     _canonical(
         root / "receipt.json",
         {
-            "receipt_version": "science-gemma-acceptance-receipt/1",
+            "receipt_version": "science-gemma-acceptance-receipt/2",
             "job_id": "training-acceptance-test0001",
             "stack": dict(STACK_PINS),
             "model": "google/gemma-4-E4B-it",
@@ -244,6 +312,9 @@ def test_verifier_proves_step_checkpoint_changed_adapter_reload_and_tool_loops(
         ("nonfinite_metric", "finite"),
         ("vision_tensor", "language-layer"),
         ("single_tensor", "architecture"),
+        ("forged_snapshot", "canonical"),
+        ("wrong_model_lineage", "canonical"),
+        ("legacy_relabel", "legacy"),
         ("fallback_without_resource_failure", "fallback"),
     ),
 )
@@ -283,6 +354,29 @@ def test_verifier_fails_closed_for_incomplete_or_nominal_evidence(
                 "model.language_model.layers.0.self_attn.q_proj.lora_A.weight",
             ),
         )
+    elif mutation in {"forged_snapshot", "wrong_model_lineage"}:
+        trace_path = root / "evals/reloaded.jsonl"
+        rows = [json.loads(line) for line in trace_path.read_text().splitlines()]
+        if mutation == "forged_snapshot":
+            rows[0]["runtime_trace_digest"] = _digest(b"forged snapshot")
+        else:
+            rows[0]["model_calls"][0]["model"] = "unloaded-adapter"
+        trace_path.write_text(
+            "".join(json.dumps(row, sort_keys=True) + "\n" for row in rows)
+        )
+    elif mutation == "legacy_relabel":
+        for trace_path in (root / "evals").glob("*.jsonl"):
+            rows = [json.loads(line) for line in trace_path.read_text().splitlines()]
+            for row in rows:
+                row.pop("snapshot")
+                row.pop("model_calls")
+            trace_path.write_text(
+                "".join(json.dumps(row, sort_keys=True) + "\n" for row in rows)
+            )
+        receipt_path = root / "receipt.json"
+        receipt = json.loads(receipt_path.read_text())
+        receipt["receipt_version"] = "science-gemma-acceptance-receipt/1"
+        _canonical(receipt_path, receipt)
     else:
         receipt_path = root / "receipt.json"
         receipt = json.loads(receipt_path.read_text())

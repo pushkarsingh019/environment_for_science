@@ -8,9 +8,16 @@ from pathlib import Path
 
 import pytest
 
+from environments.eeg.curriculum import (
+    load_development_scenario_set,
+    load_training_scenario_set,
+)
 from studio.training_acceptance import AcceptanceArtifactError
 from studio.training_export import NativeAcceptanceExporter
-from tests.training.test_acceptance_artifacts import _acceptance_tree
+from tests.training.test_acceptance_artifacts import (
+    _acceptance_tree,
+    _canonical_trace_row,
+)
 
 
 def _digest(value: str) -> str:
@@ -18,6 +25,33 @@ def _digest(value: str) -> str:
 
 
 def _native_row(scenario_id: str, model: str, ordinal: int) -> dict[str, object]:
+    scenario_set = (
+        load_training_scenario_set()
+        if model == "r8-a16.0"
+        else load_development_scenario_set()
+    )
+    normalized_model = (
+        "google/gemma-4-E4B-it" if model == "r8-a16.0" else model
+    )
+    canonical = _canonical_trace_row(
+        scenario_set,
+        scenario_id,
+        rollout_index=ordinal,
+        model=normalized_model,
+        incomplete=False,
+    )
+    calls = [
+        {
+            "model": model,
+            "error": None,
+            "finish_reason": call["finish_reason"],
+            "usage": {
+                "prompt_tokens": call["input_tokens"],
+                "completion_tokens": call["output_tokens"],
+            },
+        }
+        for call in canonical["model_calls"]
+    ]
     return {
         "ok": True,
         "errors": [],
@@ -28,25 +62,20 @@ def _native_row(scenario_id: str, model: str, ordinal: int) -> dict[str, object]
                 "is_completed": True,
                 "errors": [],
                 "stop_condition": "terminal",
-                "calls": [
-                    {"model": model, "error": None},
-                    {"model": model, "error": None},
-                ],
+                "calls": calls,
                 "nodes": [
                     {"message": {"role": "user"}},
                     {"message": {"role": "assistant"}},
+                    {"message": {"role": "tool"}},
                     {"message": {"role": "tool"}},
                     {"message": {"role": "assistant"}},
                 ],
                 "info": {
                     "science_environment_runtime": {
                         "scenario_id": scenario_id,
-                        "runtime_trace_digest": _digest(
-                            f"trace-{scenario_id}-{model}-{ordinal}"
-                        ),
-                        "runtime_result_digest": _digest(
-                            f"result-{scenario_id}-{model}-{ordinal}"
-                        ),
+                        "runtime_trace_digest": canonical["runtime_trace_digest"],
+                        "runtime_result_digest": canonical["result_digest"],
+                        "completed_snapshot": canonical["snapshot"],
                     }
                 },
             }

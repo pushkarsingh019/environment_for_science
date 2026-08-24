@@ -6,17 +6,26 @@ import hashlib
 import json
 import math
 import os
+import pickletools
 import re
 import struct
+import zipfile
 from collections.abc import Mapping
 from pathlib import Path
-from typing import Any, Final, Literal
+from typing import Any, Final, Literal, cast
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from environments.eeg.curriculum import (
     load_development_scenario_set,
     load_training_scenario_set,
+)
+from environments.eeg.runtime import EegEnvironmentModule
+from studio.runtime import (
+    EnvironmentAction,
+    EnvironmentRuntime,
+    RunSnapshot,
+    validate_completed_run_snapshot,
 )
 
 PRIMARY_MODEL: Final = "google/gemma-4-E4B-it"
@@ -73,6 +82,10 @@ _EXPECTED_ADAPTER_TENSORS = frozenset(
 )
 _MAX_JSON_BYTES = 4 * 1024 * 1024
 _MAX_ADAPTER_BYTES = 1024 * 1024 * 1024
+_LEGACY_ACCEPTED_JOB_ID = "training-acceptance-a71274e2a3e04d7f865bf6c48b8fa8d3"
+_LEGACY_ACCEPTED_ARTIFACT_DIGEST = (
+    "sha256:cc16f8e5e6bfe261594ebda73bdd4b25a0d4ce04530fa1e28c7485a6bab26a46"
+)
 
 
 class AcceptanceArtifactError(ValueError):
@@ -225,8 +238,13 @@ class AcceptanceArtifactVerifier:
             },
             "acceptance receipt",
         )
-        if receipt["receipt_version"] != "science-gemma-acceptance-receipt/1":
+        receipt_version = receipt["receipt_version"]
+        if receipt_version not in {
+            "science-gemma-acceptance-receipt/1",
+            "science-gemma-acceptance-receipt/2",
+        }:
             raise AcceptanceArtifactError("acceptance receipt version is unsupported")
+        canonical_traces = receipt_version == "science-gemma-acceptance-receipt/2"
         job_id = receipt["job_id"]
         if not isinstance(job_id, str) or _JOB_ID.fullmatch(job_id) is None:
             raise AcceptanceArtifactError("acceptance job identity is invalid")
@@ -359,6 +377,7 @@ class AcceptanceArtifactVerifier:
             expected_model=model,
             label="training rollout",
             minimum_rows=8,
+            require_canonical=canonical_traces,
         )
         if len(training) != 8:
             raise AcceptanceArtifactError("training rollout traces are incomplete")
@@ -375,11 +394,13 @@ class AcceptanceArtifactVerifier:
             self._relative(root, paths["baseline_traces"]),
             expected_model=model,
             label="baseline evaluation",
+            require_canonical=canonical_traces,
         )
         reloaded = self._trace_rows(
             self._relative(root, paths["reloaded_traces"]),
             expected_model=FINAL_SERVED_ADAPTER,
             label="reloaded evaluation",
+            require_canonical=canonical_traces,
         )
         baseline_ids = tuple(row["scenario_id"] for row in baseline)
         reloaded_ids = tuple(row["scenario_id"] for row in reloaded)
@@ -392,6 +413,18 @@ class AcceptanceArtifactVerifier:
             != configuration["development_package_digest"]
         ):
             raise AcceptanceArtifactError("held-out acceptance scenarios do not match")
+
+        artifact_digest = _tree_digest(root)
+        if (
+            not canonical_traces
+            and (
+                job_id != _LEGACY_ACCEPTED_JOB_ID
+                or artifact_digest != _LEGACY_ACCEPTED_ARTIFACT_DIGEST
+            )
+        ):
+            raise AcceptanceArtifactError(
+                "legacy acceptance evidence is not the immutable accepted artifact"
+            )
 
         return TrainingAcceptanceEvidence(
             evidence_version="science-gemma-acceptance-evidence/1",
@@ -426,7 +459,7 @@ class AcceptanceArtifactVerifier:
             reloaded_trace_digests=tuple(
                 row["runtime_trace_digest"] for row in reloaded
             ),
-            artifact_digest=_tree_digest(root),
+            artifact_digest=artifact_digest,
         )
 
     def _adapter(self, directory: Path) -> _TensorFile:
@@ -457,6 +490,7 @@ class AcceptanceArtifactVerifier:
         expected_model: str,
         label: str,
         minimum_rows: int = 2,
+        require_canonical: bool,
     ) -> tuple[dict[str, Any], ...]:
         try:
             rows = tuple(
@@ -478,6 +512,8 @@ class AcceptanceArtifactVerifier:
             "runtime_trace_digest",
             "result_digest",
         }
+        if require_canonical:
+            required.update({"snapshot", "model_calls"})
         for row in rows:
             _exact_keys(row, required, f"{label} trace")
             if (
@@ -497,6 +533,12 @@ class AcceptanceArtifactVerifier:
                 raise AcceptanceArtifactError(f"{label} did not complete tool loops")
             _required_digest(row["runtime_trace_digest"], label)
             _required_digest(row["result_digest"], label)
+            if require_canonical:
+                _validate_canonical_trace_row(
+                    row,
+                    expected_model=expected_model,
+                    label=label,
+                )
         slots = {(row["scenario_id"], row["rollout_index"]) for row in rows}
         if len(slots) != len(rows):
             raise AcceptanceArtifactError(f"{label} trace slots are duplicated")
@@ -514,11 +556,8 @@ class AcceptanceArtifactVerifier:
                 or metadata not in files
                 or not shards
                 or any(path.is_symlink() or path.stat().st_size <= 8 for path in files)
-                or not metadata.read_bytes().startswith(b"\x80\x04")
-                or any(
-                    not shard.read_bytes().startswith(b"PK\x03\x04")
-                    for shard in shards
-                )
+                or not _valid_dcp_metadata(metadata)
+                or any(not _valid_dcp_shard(shard) for shard in shards)
             ):
                 return ()
             return files
@@ -582,6 +621,171 @@ def _verified_model_fallback(
             )
         return FALLBACK_MODEL, FALLBACK_MODEL_REVISION, True
     raise AcceptanceArtifactError("acceptance model identity is not approved")
+
+
+def _validate_canonical_trace_row(
+    row: dict[str, Any],
+    *,
+    expected_model: str,
+    label: str,
+) -> None:
+    try:
+        snapshot = RunSnapshot.model_validate(row["snapshot"])
+        validate_completed_run_snapshot(snapshot)
+        model_calls = row["model_calls"]
+        if not isinstance(model_calls, list) or len(model_calls) < 2:
+            raise ValueError("model call lineage is incomplete")
+        for ordinal, call in enumerate(model_calls, start=1):
+            if not isinstance(call, dict):
+                raise ValueError("model call lineage is malformed")
+            _exact_keys(
+                call,
+                {
+                    "ordinal",
+                    "model",
+                    "finish_reason",
+                    "input_tokens",
+                    "output_tokens",
+                },
+                f"{label} model call",
+            )
+            if (
+                call["ordinal"] != ordinal
+                or not _acceptance_call_model_matches(
+                    call["model"],
+                    expected_model=expected_model,
+                    label=label,
+                )
+                or not isinstance(call["finish_reason"], str)
+                or not call["finish_reason"]
+                or any(
+                    not isinstance(call[name], int)
+                    or isinstance(call[name], bool)
+                    or call[name] < 0
+                    for name in ("input_tokens", "output_tokens")
+                )
+            ):
+                raise ValueError("model call lineage is invalid")
+        action_count = sum(event.type == "action" for event in snapshot.trace)
+        if (
+            snapshot.scenario_id != row["scenario_id"]
+            or snapshot.trace_digest != row["runtime_trace_digest"]
+            or snapshot.result_digest != row["result_digest"]
+            or len(model_calls) != action_count
+            or action_count not in {row["tool_calls"], row["tool_calls"] + 1}
+        ):
+            raise ValueError("canonical snapshot does not match its native trace")
+        scenario_set = (
+            load_training_scenario_set()
+            if label == "training rollout"
+            else load_development_scenario_set()
+        )
+        if snapshot.scenario_id not in scenario_set.scenario_ids:
+            raise ValueError("canonical snapshot is outside the frozen split")
+        runtime = EnvironmentRuntime(
+            EegEnvironmentModule(scenario_set.environment_bundle)
+        )
+        current = runtime.start(snapshot.scenario_id, snapshot.policy_agent)
+        for event in snapshot.trace:
+            if event.type == "action" and event.action is not None:
+                current = runtime.apply_action(
+                    current.run_id,
+                    EnvironmentAction.model_validate(event.action),
+                )
+        result = snapshot.verifier_result
+        if result is None:
+            raise ValueError("canonical snapshot has no verifier result")
+        if result.outcome_category == "incomplete":
+            reason = result.evidence.get("termination_reason")
+            if reason not in {
+                "model_ended_before_terminal",
+                "output_budget_exhausted",
+                "turn_budget_exhausted",
+                "tool_call_budget_exhausted",
+            }:
+                raise ValueError("canonical incomplete reason is invalid")
+            replayed = runtime.finalize_incomplete(
+                current.run_id,
+                termination_reason=cast(Any, reason),
+            )
+        else:
+            replayed = runtime.verify(current.run_id)
+        if replayed.model_dump(exclude={"run_id"}) != snapshot.model_dump(
+            exclude={"run_id"}
+        ):
+            raise ValueError("canonical snapshot does not replay")
+    except (KeyError, TypeError, ValueError) as error:
+        raise AcceptanceArtifactError(
+            f"{label} canonical evidence is invalid"
+        ) from error
+
+
+def _acceptance_call_model_matches(
+    value: object,
+    *,
+    expected_model: str,
+    label: str,
+) -> bool:
+    if not isinstance(value, str):
+        return False
+    if label == "training rollout":
+        return value == "r8-a16.0"
+    if expected_model == FINAL_SERVED_ADAPTER:
+        return value == FINAL_SERVED_ADAPTER
+    revision = (
+        PRIMARY_MODEL_REVISION
+        if expected_model == PRIMARY_MODEL
+        else FALLBACK_MODEL_REVISION
+    )
+    suffix = f"{expected_model.rsplit('/', 1)[-1]}-{revision}"
+    return value == expected_model or value.endswith(suffix)
+
+
+def _valid_dcp_metadata(path: Path) -> bool:
+    try:
+        contents = path.read_bytes()
+        operations = tuple(pickletools.genops(contents))
+    except (OSError, ValueError):
+        return False
+    required = (
+        b"torch.distributed.checkpoint.metadata",
+        b"Metadata",
+        b"TensorStorageMetadata",
+        b"StorageInfo",
+    )
+    return (
+        bool(operations)
+        and operations[-1][0].name == "STOP"
+        and all(token in contents for token in required)
+    )
+
+
+def _valid_dcp_shard(path: Path) -> bool:
+    try:
+        if not zipfile.is_zipfile(path):
+            return False
+        with zipfile.ZipFile(path) as archive:
+            names = {item.filename for item in archive.infolist()}
+            required = {
+                "archive/data.pkl",
+                "archive/.format_version",
+                "archive/byteorder",
+                "archive/version",
+            }
+            if (
+                not required.issubset(names)
+                or not any(name.startswith("archive/data/") for name in names)
+                or any(
+                    name.startswith("/") or ".." in Path(name).parts
+                    for name in names
+                )
+            ):
+                return False
+            data_pickle = archive.read("archive/data.pkl")
+            operations = tuple(pickletools.genops(data_pickle))
+            return bool(operations) and operations[-1][0].name == "STOP"
+    except (OSError, ValueError, KeyError, zipfile.BadZipFile):
+        return False
 
 
 def _exact_keys(value: Mapping[str, Any], expected: set[str], label: str) -> None:
