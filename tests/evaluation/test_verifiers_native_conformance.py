@@ -34,6 +34,7 @@ import pytest
 import studio.policy_evaluation.compiler as compiler_module
 from environments.eeg import LEGACY_SCENARIO_ID, load_legacy_bundle
 from environments.eeg.curriculum import load_development_scenario_set
+from environments.mesoscope.runtime import MesoscopeEnvironmentModule
 from studio.bundle import EnvironmentBundle, validate_environment_bundle
 from studio.policy_evaluation.attestation_protocol import canonical_json, hmac_sha256_hex
 from studio.policy_evaluation.compiler import compile_verifiers_v1
@@ -873,6 +874,78 @@ def _assert_no_live_execution_material(
     assert "science-native-gemma-" not in lowered
     assert _SECRET.casefold() not in lowered
     assert _ATTESTATION_KEY.casefold() not in lowered
+
+
+def test_native_mesoscope_handoff_matches_the_product_runtime(tmp_path: Path) -> None:
+    interpreter = _external_python()
+    repository = _assert_exact_verifiers_checkout(interpreter)
+    bundle = EnvironmentRegistry.from_seeded_environments().bundle(
+        "mesoscope-four-region-handoff"
+    )
+    actions = (
+        "inspect_sealed_handoff",
+        "run_mock_acquisition",
+        "validate_mock_package",
+        "accept_mock_package",
+    )
+    generated = tmp_path / "generated-mesoscope"
+    output_root = tmp_path / "outputs-mesoscope"
+    compile_verifiers_v1(bundle, generated)
+
+    with _scripted_chat_server(actions) as model_server:
+        completed = _run_native_eval(
+            interpreter,
+            repository,
+            generated,
+            output_root,
+            model_server.base_url,
+            model_server.unix_socket_path,
+            run_name="native-mesoscope-conformance",
+        )
+
+    assert completed.returncode == 0, (
+        f"native mesoscope eval failed\nstdout:\n{completed.stdout}"
+        f"\nstderr:\n{completed.stderr}"
+    )
+    direct_runtime = EnvironmentRuntime(
+        MesoscopeEnvironmentModule(bundle.model_copy(deep=True))
+    )
+    current = direct_runtime.start(
+        "mesoscope-demo-001",
+        ModelIdentity(
+            provider="local-openai-compatible",
+            requested_model=_MODEL_ID,
+            adapter_revision=BASE_GEMMA_ADAPTER_REVISION,
+        ).policy_identity(),
+    )
+    for action in actions:
+        current = direct_runtime.apply_action(
+            current.run_id,
+            EnvironmentAction(type=action, arguments={}),
+        )
+    direct = direct_runtime.verify(current.run_id)
+    trace, persisted = _one_persisted_trace(
+        output_root,
+        "native-mesoscope-conformance",
+    )
+    runtime = trace["info"]["science_environment_runtime"]
+    native = runtime["completed_snapshot"]
+    direct_result = direct.verifier_result
+    assert direct_result is not None
+    assert native["observation"] == direct.observation
+    assert native["permitted_actions"] == list(direct.permitted_actions)
+    assert native["trace"] == [
+        event.model_dump(mode="json") for event in direct.trace
+    ]
+    assert native["verifier_result"] == direct_result.model_dump(mode="json")
+    assert runtime["runtime_trace_digest"] == direct.trace_digest
+    assert runtime["runtime_result_digest"] == direct.result_digest
+    assert trace["rewards"]["reward"]["score"] == direct_result.metrics["reward"]
+    assert direct_result.summary == "MOCK PACKAGE VERIFIED"
+    assert [item["action"]["type"] for item in runtime["tool_lineage"]] == list(
+        actions
+    )
+    _assert_no_live_execution_material(trace, persisted, model_server.base_url)
 
 
 def test_native_null_harness_matches_the_product_runtime(tmp_path: Path) -> None:
