@@ -776,6 +776,7 @@ export interface ComparisonModelResult {
   requested_model: string;
   returned_model: string | null;
   adapter_identity: string | null;
+  adapter_digest: string | null;
   model_configuration_digest: string;
   run_id: string;
   status:
@@ -811,6 +812,8 @@ export interface ModelComparisonResult {
   fixture_state: ComparisonFixtureState | null;
   fixture_notice: string | null;
   claim_scope: "within_eeg_compositional_generalization";
+  training_result_id: string | null;
+  training_artifact_digest: string | null;
   provenance: {
     scenario_manifest_id: "eeg-curriculum-release-1:held_out";
     scenario_manifest_digest: string;
@@ -835,6 +838,9 @@ export interface ComparisonReplay {
   source: "seeded_offline_fixture" | "real_evaluation";
   provenance: ModelComparisonResult["provenance"];
   model_role: ComparisonModelRole;
+  model_configuration_digest: string;
+  adapter_digest: string | null;
+  training_artifact_digest: string | null;
   scenario: ComparisonScenarioLink;
   reproducible: true;
 }

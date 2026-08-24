@@ -38,6 +38,8 @@ def test_seeded_comparison_states_are_explicit_and_scientifically_bounded(
     assert result.fixture_state == state
     assert "not a live" in (result.fixture_notice or "")
     assert result.training_claim == claim
+    assert result.training_result_id is None
+    assert result.training_artifact_digest is None
     assert [model.role for model in result.models] == [
         "base_gemma",
         "trained_gemma",
@@ -50,6 +52,9 @@ def test_seeded_comparison_states_are_explicit_and_scientifically_bounded(
     assert result.mesoscope.eeg_training_evidence is False
     for model in result.models:
         assert model.model_configuration_digest.startswith("sha256:")
+        assert (model.adapter_identity is not None) == (
+            model.adapter_digest is not None
+        )
         if model.status == "available":
             assert model.metrics is not None
             assert len(model.scenarios) == 64
@@ -134,6 +139,8 @@ def test_reset_preserves_installed_real_comparison_rows(tmp_path: Path) -> None:
             "source": "real_evaluation",
             "fixture_state": None,
             "fixture_notice": None,
+            "training_result_id": "eeg-training-result-realtest0001",
+            "training_artifact_digest": "sha256:" + "d" * 64,
         }
     )
     real = ModelComparisonResult.model_validate_json(json.dumps(document))
@@ -158,5 +165,8 @@ def test_replay_resolves_exact_model_and_scenario_digests(tmp_path: Path) -> Non
     assert replay.source == "seeded_offline_fixture"
     assert replay.model_role == "base_gemma"
     assert replay.scenario == scenario
+    assert replay.model_configuration_digest == result.models[0].model_configuration_digest
+    assert replay.adapter_digest == result.models[0].adapter_digest
+    assert replay.training_artifact_digest == result.training_artifact_digest
     assert replay.provenance == result.provenance
     assert replay.reproducible is True

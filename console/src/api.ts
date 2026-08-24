@@ -3438,6 +3438,7 @@ function parseComparisonModel(
       "requested_model",
       "returned_model",
       "adapter_identity",
+      "adapter_digest",
       "model_configuration_digest",
       "run_id",
       "status",
@@ -3493,7 +3494,10 @@ function parseComparisonModel(
     malformed(path, "keep failures separate from scientific metrics");
   }
   const referenceModel = booleanValue(record.reference_model, `${path}.reference_model`);
-  if (referenceModel !== ["openai_reference", "gemini_reference"].includes(role)) {
+  if (
+    referenceModel !== ["openai_reference", "gemini_reference"].includes(role)
+    || (record.adapter_identity === null) !== (record.adapter_digest === null)
+  ) {
     malformed(`${path}.reference_model`, "match the model role");
   }
   return {
@@ -3507,6 +3511,9 @@ function parseComparisonModel(
     adapter_identity: record.adapter_identity === null
       ? null
       : nonEmptyString(record.adapter_identity, `${path}.adapter_identity`),
+    adapter_digest: record.adapter_digest === null
+      ? null
+      : digest(record.adapter_digest, `${path}.adapter_digest`),
     model_configuration_digest: digest(
       record.model_configuration_digest,
       `${path}.model_configuration_digest`,
@@ -3646,6 +3653,8 @@ function parseModelComparison(value: unknown): ModelComparisonResult {
       "fixture_state",
       "fixture_notice",
       "claim_scope",
+      "training_result_id",
+      "training_artifact_digest",
       "provenance",
       "models",
       "gemma_contrast",
@@ -3690,8 +3699,22 @@ function parseModelComparison(value: unknown): ModelComparisonResult {
   const fixtureNotice = record.fixture_notice === null
     ? null
     : nonEmptyString(record.fixture_notice, `${path}.fixture_notice`);
-  if ((source === "seeded_offline_fixture") !== (fixtureState !== null && fixtureNotice !== null)) {
-    malformed(path, "label offline fixtures unmistakably");
+  const trainingResultId = record.training_result_id === null
+    ? null
+    : patternedString(
+        record.training_result_id,
+        /^eeg-training-result-[a-z0-9]{8,64}$/,
+        `${path}.training_result_id`,
+      );
+  const trainingArtifactDigest = record.training_artifact_digest === null
+    ? null
+    : digest(record.training_artifact_digest, `${path}.training_artifact_digest`);
+  if (
+    (source === "seeded_offline_fixture") !== (fixtureState !== null && fixtureNotice !== null)
+    || (source === "real_evaluation")
+      !== (trainingResultId !== null && trainingArtifactDigest !== null)
+  ) {
+    malformed(path, "bind real training evidence or label offline fixtures unmistakably");
   }
   const contrast = record.gemma_contrast === null
     ? null
@@ -3728,6 +3751,8 @@ function parseModelComparison(value: unknown): ModelComparisonResult {
       ["within_eeg_compositional_generalization"] as const,
       `${path}.claim_scope`,
     ),
+    training_result_id: trainingResultId,
+    training_artifact_digest: trainingArtifactDigest,
     provenance: parseComparisonProvenance(record.provenance, `${path}.provenance`),
     models,
     gemma_contrast: contrast,
@@ -3769,7 +3794,17 @@ function parseComparisonReplay(value: unknown): ComparisonReplay {
   const path = "ComparisonReplay";
   const record = exactRecord(
     value,
-    ["replay_version", "source", "provenance", "model_role", "scenario", "reproducible"],
+    [
+      "replay_version",
+      "source",
+      "provenance",
+      "model_role",
+      "model_configuration_digest",
+      "adapter_digest",
+      "training_artifact_digest",
+      "scenario",
+      "reproducible",
+    ],
     path,
   );
   return {
@@ -3789,6 +3824,19 @@ function parseComparisonReplay(value: unknown): ComparisonReplay {
       ["base_gemma", "trained_gemma", "openai_reference", "gemini_reference"] as const,
       `${path}.model_role`,
     ),
+    model_configuration_digest: digest(
+      record.model_configuration_digest,
+      `${path}.model_configuration_digest`,
+    ),
+    adapter_digest: record.adapter_digest === null
+      ? null
+      : digest(record.adapter_digest, `${path}.adapter_digest`),
+    training_artifact_digest: record.training_artifact_digest === null
+      ? null
+      : digest(
+          record.training_artifact_digest,
+          `${path}.training_artifact_digest`,
+        ),
     scenario: parseComparisonScenario(record.scenario, `${path}.scenario`),
     reproducible: ((): true => {
       const parsed = booleanValue(record.reproducible, `${path}.reproducible`);

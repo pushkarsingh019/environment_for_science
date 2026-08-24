@@ -25,6 +25,8 @@ def test_demo_reset_restores_seeded_state_and_preserves_real_job_rows(
             "source": "real_evaluation",
             "fixture_state": None,
             "fixture_notice": None,
+            "training_result_id": "eeg-training-result-resettest0001",
+            "training_artifact_digest": "sha256:" + "e" * 64,
         }
     )
     real_comparison = ModelComparisonResult.model_validate_json(

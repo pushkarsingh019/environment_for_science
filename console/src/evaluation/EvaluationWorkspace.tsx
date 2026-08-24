@@ -902,6 +902,8 @@ function ModelComparisonPanel() {
               <span>
                 Imported evaluator-owned held-out evidence; no fixture or hosted score was substituted.
               </span>
+              <code className="comparison-digest">{comparison.training_result_id}</code>
+              <code className="comparison-digest">{comparison.training_artifact_digest}</code>
             </div>
           )}
           <div className="run-control-row" aria-label="Offline comparison states">
@@ -963,10 +965,13 @@ function ModelComparisonPanel() {
                 <small>Requested: {model.requested_model}</small>
                 <small>Returned: {model.returned_model ?? "Unavailable"}</small>
                 {model.adapter_identity && <small>Adapter: {model.adapter_identity}</small>}
+                {model.adapter_digest && (
+                  <code className="comparison-digest">{model.adapter_digest}</code>
+                )}
                 <details>
                   <summary>Model and run provenance</summary>
-                  <code>{model.model_configuration_digest}</code>
-                  <code>{model.run_id}</code>
+                  <code className="comparison-digest">{model.model_configuration_digest}</code>
+                  <code className="comparison-digest">{model.run_id}</code>
                 </details>
                 {model.failure ? (
                   <div className="error-banner" data-testid={`comparison-failure-${model.role}`}>
@@ -1017,8 +1022,15 @@ function ModelComparisonPanel() {
             <article className="evaluation-response-card" data-testid="comparison-replay">
               <p className="eyebrow">Canonical replay receipt</p>
               <strong>{replay.model_role} · {replay.scenario.scenario_id}</strong>
-              <code>{replay.scenario.runtime_trace_digest}</code>
-              <code>{replay.scenario.result_digest}</code>
+              <code className="comparison-digest">{replay.model_configuration_digest}</code>
+              {replay.adapter_digest && (
+                <code className="comparison-digest">{replay.adapter_digest}</code>
+              )}
+              {replay.training_artifact_digest && (
+                <code className="comparison-digest">{replay.training_artifact_digest}</code>
+              )}
+              <code className="comparison-digest">{replay.scenario.runtime_trace_digest}</code>
+              <code className="comparison-digest">{replay.scenario.result_digest}</code>
               <span>Reproducible from the exact manifest and scoring revision.</span>
             </article>
           )}

@@ -107,6 +107,10 @@ class ComparisonModelResult(_FrozenModel):
     requested_model: str = Field(min_length=1)
     returned_model: str | None = Field(default=None, min_length=1)
     adapter_identity: str | None = Field(default=None, min_length=1)
+    adapter_digest: str | None = Field(
+        default=None,
+        pattern=r"^sha256:[0-9a-f]{64}$",
+    )
     model_configuration_digest: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
     run_id: str = Field(pattern=r"^[a-z][a-z0-9-]{7,100}$")
     status: ModelResultStatus
@@ -123,6 +127,7 @@ class ComparisonModelResult(_FrozenModel):
             or available != bool(self.scenarios)
             or self.reference_model
             != (self.role in {"openai_reference", "gemini_reference"})
+            or (self.adapter_identity is None) != (self.adapter_digest is None)
             or (
                 self.metrics is not None
                 and self.metrics.scenario_count != len(self.scenarios)
@@ -162,6 +167,14 @@ class ModelComparisonResult(_FrozenModel):
     fixture_state: FixtureState | None
     fixture_notice: str | None
     claim_scope: Literal["within_eeg_compositional_generalization"]
+    training_result_id: str | None = Field(
+        default=None,
+        pattern=r"^eeg-training-result-[a-z0-9]{8,64}$",
+    )
+    training_artifact_digest: str | None = Field(
+        default=None,
+        pattern=r"^sha256:[0-9a-f]{64}$",
+    )
     provenance: ComparisonProvenance
     models: tuple[ComparisonModelResult, ...] = Field(min_length=4, max_length=4)
     gemma_contrast: PairedBootstrapAnalysis | None
@@ -192,6 +205,11 @@ class ModelComparisonResult(_FrozenModel):
             or self.training_claim != expected_claim
             or (self.source == "seeded_offline_fixture")
             != (self.fixture_state is not None and self.fixture_notice is not None)
+            or (self.source == "real_evaluation")
+            != (
+                self.training_result_id is not None
+                and self.training_artifact_digest is not None
+            )
             or self.mesoscope.eeg_training_evidence is not False
         ):
             raise ValueError("comparison provenance or claim rule is inconsistent")
@@ -203,6 +221,15 @@ class ComparisonReplay(_FrozenModel):
     source: Literal["seeded_offline_fixture", "real_evaluation"]
     provenance: ComparisonProvenance
     model_role: ModelRole
+    model_configuration_digest: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
+    adapter_digest: str | None = Field(
+        default=None,
+        pattern=r"^sha256:[0-9a-f]{64}$",
+    )
+    training_artifact_digest: str | None = Field(
+        default=None,
+        pattern=r"^sha256:[0-9a-f]{64}$",
+    )
     scenario: ScenarioResultLink
     reproducible: Literal[True]
 
@@ -335,7 +362,7 @@ class ModelComparisonRepository:
             if model is not None
             else None
         )
-        if scenario is None:
+        if model is None or scenario is None:
             raise ComparisonIndexError(
                 "comparison replay was not found",
                 code="not_found",
@@ -345,6 +372,9 @@ class ModelComparisonRepository:
             source=result.source,
             provenance=result.provenance,
             model_role=role,
+            model_configuration_digest=model.model_configuration_digest,
+            adapter_digest=model.adapter_digest,
+            training_artifact_digest=result.training_artifact_digest,
             scenario=scenario,
             reproducible=True,
         )
@@ -392,6 +422,9 @@ def real_model_comparison(
     base: HeldOutEvaluationEvidence,
     trained: HeldOutEvaluationEvidence,
     *,
+    training_result_id: str,
+    training_artifact_digest: str,
+    trained_adapter_digest: str,
     openai_credential_ready: bool,
     gemini_credential_ready: bool,
 ) -> ModelComparisonResult:
@@ -402,11 +435,17 @@ def real_model_comparison(
         trained.scenario_success,
     )
     models = (
-        _real_gemma_model("base_gemma", base, adapter_identity=None),
+        _real_gemma_model(
+            "base_gemma",
+            base,
+            adapter_identity=None,
+            adapter_digest=None,
+        ),
         _real_gemma_model(
             "trained_gemma",
             trained,
             adapter_identity="eeg-curriculum-final",
+            adapter_digest=trained_adapter_digest,
         ),
         _unavailable_reference(
             "openai_reference",
@@ -421,6 +460,7 @@ def real_model_comparison(
         base.model_configuration_digest
         + trained.model_configuration_digest
         + contrast.paired_outcomes_digest
+        + training_artifact_digest
     )
     return ModelComparisonResult(
         comparison_version="scientist-model-comparison/1",
@@ -432,6 +472,8 @@ def real_model_comparison(
         fixture_state=None,
         fixture_notice=None,
         claim_scope="within_eeg_compositional_generalization",
+        training_result_id=training_result_id,
+        training_artifact_digest=training_artifact_digest,
         provenance=_provenance(),
         models=models,
         gemma_contrast=contrast,
@@ -451,6 +493,7 @@ def _real_gemma_model(
     evidence: HeldOutEvaluationEvidence,
     *,
     adapter_identity: str | None,
+    adapter_digest: str | None,
 ) -> ComparisonModelResult:
     report = evidence.report
     if report.evaluation_id is None:
@@ -504,6 +547,7 @@ def _real_gemma_model(
         requested_model="google/gemma-4-E4B-it",
         returned_model="google/gemma-4-E4B-it",
         adapter_identity=adapter_identity,
+        adapter_digest=adapter_digest,
         model_configuration_digest=evidence.model_configuration_digest,
         run_id=report.evaluation_id,
         status="available",
@@ -527,6 +571,7 @@ def _unavailable_reference(
         requested_model=requested,
         returned_model=None,
         adapter_identity=None,
+        adapter_digest=None,
         model_configuration_digest=_digest_text(
             f"unavailable-reference:{role}:{requested}:hosted-reference-medium-v1"
         ),
@@ -582,6 +627,8 @@ def seeded_comparison(state: FixtureState) -> ModelComparisonResult:
             "Seeded offline demonstration fixture — not a live provider or training result."
         ),
         claim_scope="within_eeg_compositional_generalization",
+        training_result_id=None,
+        training_artifact_digest=None,
         provenance=_provenance(),
         models=models,
         gemma_contrast=contrast,
@@ -677,6 +724,11 @@ def _fixture_model(
         requested_model=requested,
         returned_model=requested if status == "available" else None,
         adapter_identity=adapter,
+        adapter_digest=(
+            _digest_text(f"fixture-adapter:{adapter}")
+            if adapter is not None
+            else None
+        ),
         model_configuration_digest=_digest_text(
             f"fixture-configuration:{role}:{requested}:{adapter or 'none'}"
         ),

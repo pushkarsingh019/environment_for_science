@@ -3003,6 +3003,14 @@ button.environment-row {
   overflow-wrap: anywhere;
 }
 
+.comparison-digest {
+  display: block;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  white-space: normal;
+  word-break: break-word;
+}
+
 .mesoscope-contract-grid h3 {
   margin: 10px 0 4px;
   overflow: hidden;

@@ -25,6 +25,9 @@ def main() -> int:
     parser.add_argument("--trained-configuration-digest", required=True)
     parser.add_argument("--base-call-model", required=True)
     parser.add_argument("--trained-call-model", default="eeg-curriculum-final")
+    parser.add_argument("--training-result-id", required=True)
+    parser.add_argument("--training-artifact-digest", required=True)
+    parser.add_argument("--trained-adapter-digest", required=True)
     args = parser.parse_args()
     try:
         base = import_native_heldout_evaluation(
@@ -42,6 +45,9 @@ def main() -> int:
         comparison = real_model_comparison(
             base,
             trained,
+            training_result_id=args.training_result_id,
+            training_artifact_digest=args.training_artifact_digest,
+            trained_adapter_digest=args.trained_adapter_digest,
             openai_credential_ready=openai_credential_ready(),
             gemini_credential_ready=gemini_credential_ready(),
         )

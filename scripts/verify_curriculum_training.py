@@ -162,6 +162,9 @@ def main() -> int:
         comparison = real_model_comparison(
             base,
             trained,
+            training_result_id=evidence.result_id,
+            training_artifact_digest=evidence.artifact_digest,
+            trained_adapter_digest=evidence.final_adapter_digest,
             openai_credential_ready=openai_credential_ready(),
             gemini_credential_ready=gemini_credential_ready(),
         )
