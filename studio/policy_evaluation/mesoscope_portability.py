@@ -92,11 +92,11 @@ class MesoscopePortabilityService:
     """Compile and replay mesoscope through product-owned generic interfaces only."""
 
     def __init__(self, artifact_root: Path) -> None:
-        self._artifact_root = Path(artifact_root).expanduser().resolve()
+        self._artifact_root = artifact_root.expanduser().resolve()
         self._registry = EnvironmentRegistry.from_seeded_environments()
         self._bundle = self._registry.bundle("mesoscope-four-region-handoff")
         reviewed_bundle = self._registry.module_for_bundle(
-            self._bundle.model_copy(deep=True)
+            self._bundle
         ).runtime_validation_bundle
         self._compilation = compile_verifiers_v1(
             reviewed_bundle,
@@ -117,7 +117,7 @@ class MesoscopePortabilityService:
                 "Seeded offline protocol fixtures; these are not hosted-model results "
                 "or evidence of cross-Apparatus training."
             ),
-            compilation=self._compilation.model_copy(deep=True),
+            compilation=self._compilation,
             results=results,
         )
 
@@ -170,9 +170,7 @@ class MesoscopePortabilityService:
         scenario_id: str,
         actions: tuple[str, ...],
     ) -> tuple[EnvironmentRuntime, RunSnapshot]:
-        runtime = EnvironmentRuntime(
-            self._registry.module_for_bundle(self._bundle.model_copy(deep=True))
-        )
+        runtime = EnvironmentRuntime(self._registry.module_for_bundle(self._bundle))
         current = runtime.start(scenario_id, _POLICY)
         for action in actions:
             current = runtime.apply_action(
