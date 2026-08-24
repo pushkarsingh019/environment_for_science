@@ -11,6 +11,7 @@ from typing import Any, Final, Literal
 from pydantic import ValidationError
 
 from .artifact_safety import contains_exact_material
+from .attestation_protocol import canonical_json
 from .hosted_transport import (
     HostedJsonTransport,
     HostedRequestExecutor,
@@ -129,7 +130,7 @@ def _responses_payload(request: ModelRequest) -> dict[str, Any]:
                     "content": [
                         {
                             "type": "input_text",
-                            "text": _canonical_json(message.content),
+                            "text": canonical_json(message.content),
                         }
                     ],
                 }
@@ -151,7 +152,7 @@ def _responses_payload(request: ModelRequest) -> dict[str, Any]:
                 {
                     "type": "function_call_output",
                     "call_id": message.provider_tool_call_id,
-                    "output": _canonical_json(message.content),
+                    "output": canonical_json(message.content),
                 }
             )
     return {
@@ -300,10 +301,10 @@ def _parse_usage(value: object) -> TokenUsage:
 
 
 def _header(headers: Mapping[str, str], name: str) -> str | None:
-    for key, value in headers.items():
-        if key.casefold() == name:
-            return value
-    return None
+    return next(
+        (value for key, value in headers.items() if key.casefold() == name),
+        None,
+    )
 
 
 def _mapping(value: object) -> Mapping[str, Any]:
@@ -322,16 +323,6 @@ def _optional_nonnegative_int(value: object) -> int | None:
     if not isinstance(value, int) or isinstance(value, bool) or value < 0:
         raise ValueError("usage counters must be non-negative integers")
     return value
-
-
-def _canonical_json(value: object) -> str:
-    return json.dumps(
-        value,
-        sort_keys=True,
-        separators=(",", ":"),
-        ensure_ascii=False,
-        allow_nan=False,
-    )
 
 
 __all__ = [

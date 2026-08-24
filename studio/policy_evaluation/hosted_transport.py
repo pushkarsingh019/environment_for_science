@@ -11,6 +11,7 @@ from typing import Any, Protocol
 from urllib import error as urllib_error
 from urllib import request as urllib_request
 
+from .attestation_protocol import canonical_json
 from .model_runner import ModelProviderFailure
 
 _MAX_RESPONSE_BYTES = 4 * 1024 * 1024
@@ -39,7 +40,6 @@ class _RejectRedirectHandler(urllib_request.HTTPRedirectHandler):
         new_url: str,
     ) -> None:
         del request, file_pointer, code, message, headers, new_url
-        return None
 
 
 class HostedRequestExecutor:
@@ -137,13 +137,7 @@ class UrllibHostedJsonTransport:
     ) -> tuple[int, Mapping[str, str], object]:
         request = urllib_request.Request(
             url,
-            data=json.dumps(
-                payload,
-                sort_keys=True,
-                separators=(",", ":"),
-                ensure_ascii=False,
-                allow_nan=False,
-            ).encode("utf-8"),
+            data=canonical_json(payload).encode("utf-8"),
             headers=headers,
             method="POST",
         )
