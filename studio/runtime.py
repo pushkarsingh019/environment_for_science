@@ -966,7 +966,7 @@ class EnvironmentRuntime:
         persist: bool = True,
     ) -> RunSnapshot:
         frozen_scenario = scenario.model_copy(deep=True)
-        initial_state = deepcopy(self._environment_module).initialize(
+        initial_state = self._environment_module.initialize(
             frozen_scenario.model_copy(deep=True)
         )
         if (
@@ -1109,7 +1109,7 @@ class EnvironmentRuntime:
                 code="internal",
             )
 
-        update = deepcopy(self._environment_module).apply_action(
+        update = self._environment_module.apply_action(
             deepcopy(record.state),
             action.model_copy(deep=True),
         )
@@ -1233,7 +1233,7 @@ class EnvironmentRuntime:
             )
 
         if incomplete_termination_reason is None:
-            outcome = deepcopy(self._environment_module).verify(deepcopy(record.state))
+            outcome = self._environment_module.verify(deepcopy(record.state))
             result = VerifierResult(
                 verifier_id=str(self._bundle.verifier["id"]),
                 result_version=str(self._bundle.verifier["result_version"]),
@@ -1249,7 +1249,7 @@ class EnvironmentRuntime:
             summary = _INCOMPLETE_TERMINATION_SUMMARIES[
                 incomplete_termination_reason
             ]
-            zero_metrics = {name: 0.0 for name in self._bundle.metrics}
+            zero_metrics = dict.fromkeys(self._bundle.metrics, 0.0)
             zero_metrics.setdefault("reward", 0.0)
             result = VerifierResult(
                 verifier_id=str(self._bundle.verifier["id"]),

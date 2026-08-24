@@ -6,9 +6,6 @@ export interface JsonObject {
   [key: string]: JsonValue;
 }
 
-/** Policy-visible JSON supplied by the Environment Runtime. */
-export type UnknownRecord = JsonObject;
-
 export interface PolicyAgentIdentity {
   id: string;
   name: string;

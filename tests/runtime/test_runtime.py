@@ -70,16 +70,16 @@ def test_start_freezes_seeded_episode_and_exposes_only_policy_visible_state() ->
     assert snapshot.trace[0].observation == snapshot.observation
 
 
-def test_current_does_not_clone_the_entire_environment_module(
+def test_runtime_operations_do_not_clone_the_entire_environment_module(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    runtime, run_id = _start_seeded_run()
+    runtime = EnvironmentRuntime(EegMarkerRecoveryModule.from_seed())
 
     def reject_module_copy(
         _module: EegMarkerRecoveryModule,
         _memo: dict[int, object],
     ) -> EegMarkerRecoveryModule:
-        raise AssertionError("current() must not clone the Environment module")
+        raise AssertionError("Runtime operations must not clone the Environment module")
 
     monkeypatch.setattr(
         EegMarkerRecoveryModule,
@@ -88,10 +88,19 @@ def test_current_does_not_clone_the_entire_environment_module(
         raising=False,
     )
 
-    snapshot = runtime.current(run_id)
+    snapshot = runtime.start(
+        scenario_id="eeg-marker-recovery-001",
+        policy_agent=PolicyAgentIdentity(
+            id="seeded-policy-agent",
+            name="Seeded recovery Policy agent",
+        ),
+    )
+    runtime.apply_action(
+        snapshot.run_id,
+        EnvironmentAction(type="inspect_onset_route", arguments={}),
+    )
 
-    assert snapshot.status == "active"
-    assert snapshot.permitted_actions
+    assert runtime.verify(snapshot.run_id).verifier_result is not None
 
 
 def test_permitted_action_query_cannot_mutate_the_active_episode(
