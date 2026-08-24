@@ -7,7 +7,7 @@ import json
 import math
 import re
 from collections import Counter
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
@@ -607,8 +607,35 @@ def _file_digest(path: Path) -> str:
 
 def _taskset_digest(path: Path, label: str) -> str:
     root = _directory(path, label)
-    files = tuple(item for item in root.rglob("*") if item.is_file())
-    if not files or any(item.is_symlink() for item in files):
+    manifest_path = root / "manifest.json"
+    try:
+        document = json.loads(manifest_path.read_text())
+        artifact_paths = document["artifact_paths"]
+    except (OSError, json.JSONDecodeError, KeyError, TypeError) as error:
+        raise CurriculumEvidenceError(f"{label} manifest is invalid") from error
+    if (
+        not isinstance(artifact_paths, list)
+        or not artifact_paths
+        or any(not isinstance(item, str) for item in artifact_paths)
+    ):
+        raise CurriculumEvidenceError(f"{label} manifest is invalid")
+    relative_paths = tuple(PurePosixPath(item) for item in artifact_paths)
+    if (
+        len(set(relative_paths)) != len(relative_paths)
+        or PurePosixPath("manifest.json") not in relative_paths
+        or any(item.is_absolute() or ".." in item.parts for item in relative_paths)
+    ):
+        raise CurriculumEvidenceError(f"{label} manifest is invalid")
+    files = tuple(root.joinpath(*item.parts) for item in relative_paths)
+    actual_source_paths = {
+        item.relative_to(root).as_posix()
+        for item in root.rglob("*")
+        if item.is_file() and "__pycache__" not in item.parts and item.suffix != ".pyc"
+    }
+    if (
+        actual_source_paths != set(artifact_paths)
+        or any(not item.is_file() or item.is_symlink() for item in files)
+    ):
         raise CurriculumEvidenceError(f"{label} artifact tree is invalid")
     return _tree_digest(files, root=root)
 

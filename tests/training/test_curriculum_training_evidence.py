@@ -82,13 +82,22 @@ def test_checkpoint_digest_is_content_bound_and_path_independent(
     second.mkdir()
     (first / "state").write_bytes(b"checkpoint")
     (second / "state").write_bytes(b"checkpoint")
+    manifest = '{"artifact_paths":["manifest.json","state"]}'
+    (first / "manifest.json").write_text(manifest)
+    (second / "manifest.json").write_text(manifest)
+    first_files = (first / "manifest.json", first / "state")
+    second_files = (second / "manifest.json", second / "state")
 
-    digest = _tree_digest((first / "state",), root=first)
+    digest = _tree_digest(first_files, root=first)
 
-    assert digest == _tree_digest((second / "state",), root=second)
+    assert digest == _tree_digest(second_files, root=second)
+    assert digest == _taskset_digest(first, "test taskset")
+    cache = first / "__pycache__"
+    cache.mkdir()
+    (cache / "generated.pyc").write_bytes(b"runtime cache")
     assert digest == _taskset_digest(first, "test taskset")
     (second / "state").write_bytes(b"changed")
-    assert digest != _tree_digest((second / "state",), root=second)
+    assert digest != _tree_digest(second_files, root=second)
     (first / "linked").symlink_to(first / "state")
     with pytest.raises(CurriculumEvidenceError, match="invalid"):
         _taskset_digest(first, "test taskset")
