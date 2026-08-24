@@ -24,7 +24,7 @@
 The console now persists queued, running, failed, retried, and completed acceptance jobs without
 starting local compute. The product verifier independently checks exact stack and model pins,
 E4B-first fallback evidence, BF16 and language-only LoRA configuration, finite optimization
-metrics, parseable DCP metadata and ZIP64 shards, the exact 28-tensor rank-8 BF16 LoRA shape,
+metrics, code-free semantic DCP metadata-to-shard linkage, the exact 28-tensor rank-8 BF16 LoRA shape,
 changed safetensor bytes, distinct sanitized workstation receipts, fresh `proof-final` reload
 identity, full canonical Runtime snapshots, deterministic scientific replay, and per-call model
 lineage. The disposable probe can require this product evidence in the same verification pass.

@@ -78,8 +78,9 @@ Run before import:
 ```
 
 The verifier parses safetensors directly; requires the exact 28 rank-8 BF16 projection tensors;
-compares pre/post bytes; safely parses DCP pickle opcodes and ZIP64 shard structure without loading
-untrusted pickle code; reconciles finite metrics; checks exact pins and configuration; validates
+compares pre/post bytes; uses a code-free whitelist unpickler to validate DCP state/planner/storage
+objects, model and optimizer entries, metadata-to-shard paths, contiguous byte ranges, and every
+embedded ZIP boundary; reconciles finite metrics; checks exact pins and configuration; validates
 model-call lineage; and cryptographically validates and scientifically replays every canonical
 snapshot. It emits only sanitized digests and counts.
 

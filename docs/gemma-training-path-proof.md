@@ -90,7 +90,7 @@ That gate now passes; logs alone were not used as proof.
   workstation, loaded into a fresh process, and independently completed those same
   predeclared scenarios with 9 and 10 linked tool-result nodes and no trace errors.
 - The product verifier independently re-read the full evidence tree, found 14 changed
-  language-layer tensors, parsed the DCP metadata and ZIP64 shard structure, replayed every
+  language-layer tensors, validated the DCP object graph and metadata-to-shard byte ranges, replayed every
   canonical scientific snapshot, checked every model-call identity, and recorded authoritative
   version-2 artifact digest
   `sha256:13839168b5f4e23f37d6f3a89ec50c51bebbd6a4be4fa888fcc5b0839a007620`.

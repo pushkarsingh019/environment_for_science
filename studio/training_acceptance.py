@@ -3,15 +3,15 @@
 from __future__ import annotations
 
 import hashlib
+import io
 import json
 import math
 import os
-import pickletools
+import pickle
 import re
 import struct
-import zipfile
 from collections.abc import Mapping
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Any, Final, Literal, cast
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
@@ -556,8 +556,7 @@ class AcceptanceArtifactVerifier:
                 or metadata not in files
                 or not shards
                 or any(path.is_symlink() or path.stat().st_size <= 8 for path in files)
-                or not _valid_dcp_metadata(metadata)
-                or any(not _valid_dcp_shard(shard) for shard in shards)
+                or not _valid_dcp_checkpoint(metadata, shards)
             ):
                 return ()
             return files
@@ -672,10 +671,11 @@ def _validate_canonical_trace_row(
             or snapshot.trace_digest != row["runtime_trace_digest"]
             or snapshot.result_digest != row["result_digest"]
             or len(model_calls) not in {action_count, action_count + 1}
-            or sum(
+            or [
                 call["finish_reason"] == "tool_calls" for call in model_calls
-            )
-            != action_count
+            ]
+            != [True] * action_count
+            + ([False] if len(model_calls) == action_count + 1 else [])
             or action_count not in {row["tool_calls"], row["tool_calls"] + 1}
         ):
             raise ValueError("canonical snapshot does not match its native trace")
@@ -745,50 +745,184 @@ def _acceptance_call_model_matches(
     return value == expected_model or value.endswith(suffix)
 
 
-def _valid_dcp_metadata(path: Path) -> bool:
-    try:
-        contents = path.read_bytes()
-        operations = tuple(pickletools.genops(contents))
-    except (OSError, ValueError):
-        return False
-    required = (
-        b"torch.distributed.checkpoint.metadata",
-        b"Metadata",
-        b"TensorStorageMetadata",
-        b"StorageInfo",
-    )
-    return (
-        bool(operations)
-        and operations[-1][0].name == "STOP"
-        and all(token in contents for token in required)
-    )
+_DCP_CLASS_GLOBALS = frozenset(
+    {
+        ("torch.distributed.checkpoint.metadata", "Metadata"),
+        ("torch.distributed.checkpoint.metadata", "TensorStorageMetadata"),
+        ("torch.distributed.checkpoint.metadata", "TensorProperties"),
+        ("torch.distributed.checkpoint.metadata", "ChunkStorageMetadata"),
+        ("torch.distributed.checkpoint.metadata", "BytesStorageMetadata"),
+        ("torch.distributed.checkpoint.metadata", "MetadataIndex"),
+        ("torch.distributed.checkpoint.metadata", "StorageMeta"),
+        ("torch.distributed.checkpoint.filesystem", "_StorageInfo"),
+    }
+)
+class _DcpObject:
+    """Inert target for a strict, code-free DCP metadata unpickler."""
+
+    _dcp_name = ""
+
+    def __init__(self, *arguments: object) -> None:
+        self.arguments = arguments
+
+    def __setstate__(self, state: object) -> None:
+        if isinstance(state, dict) and all(isinstance(key, str) for key in state):
+            self.__dict__.update(state)
+        else:
+            self.state = state
 
 
-def _valid_dcp_shard(path: Path) -> bool:
-    try:
-        if not zipfile.is_zipfile(path):
-            return False
-        with zipfile.ZipFile(path) as archive:
-            names = {item.filename for item in archive.infolist()}
-            required = {
-                "archive/data.pkl",
-                "archive/.format_version",
-                "archive/byteorder",
-                "archive/version",
-            }
-            if (
-                not required.issubset(names)
-                or not any(name.startswith("archive/data/") for name in names)
-                or any(
-                    name.startswith("/") or ".." in Path(name).parts
-                    for name in names
+_DCP_TYPES: dict[tuple[str, str], type[_DcpObject]] = {}
+
+
+class _RestrictedDcpUnpickler(pickle.Unpickler):
+    def find_class(self, module: str, name: str) -> object:
+        identity = (module, name)
+        if identity in _DCP_CLASS_GLOBALS:
+            if identity not in _DCP_TYPES:
+                _DCP_TYPES[identity] = type(
+                    f"_Dcp_{name}",
+                    (_DcpObject,),
+                    {"_dcp_name": name},
                 )
+            return _DCP_TYPES[identity]
+        if identity == ("torch", "Size"):
+            return _dcp_size
+        if identity == ("torch.serialization", "_get_layout"):
+            return _dcp_layout
+        if identity == (
+            "torch.distributed.checkpoint.metadata",
+            "_MEM_FORMAT_ENCODING",
+        ):
+            return _dcp_memory_format
+        if identity in {("torch", "bfloat16"), ("torch", "float32")}:
+            return ("torch-dtype", name)
+        if identity == ("pathlib", "PosixPath"):
+            return _dcp_path
+        raise pickle.UnpicklingError("DCP metadata contains an unapproved global")
+
+    def persistent_load(self, persistent_id: object) -> object:
+        del persistent_id
+        raise pickle.UnpicklingError("DCP metadata contains a persistent load")
+
+
+def _dcp_size(value: object) -> tuple[object, ...]:
+    if not isinstance(value, tuple):
+        raise ValueError("invalid DCP tensor size")
+    return value
+
+
+def _dcp_layout(value: object) -> tuple[str, object]:
+    return ("layout", value)
+
+
+def _dcp_memory_format(value: object) -> tuple[str, object]:
+    return ("memory-format", value)
+
+
+def _dcp_path(*parts: object) -> PurePosixPath:
+    if not all(isinstance(part, str) for part in parts):
+        raise ValueError("invalid DCP checkpoint path")
+    return PurePosixPath(*(cast(str, part) for part in parts))
+
+
+def _valid_dcp_checkpoint(metadata_path: Path, shards: tuple[Path, ...]) -> bool:
+    try:
+        if metadata_path.stat().st_size > 32 * 1024 * 1024:
+            return False
+        contents = metadata_path.read_bytes()
+        if not contents.startswith(b"\x80\x04"):
+            return False
+        stream = io.BytesIO(contents)
+        metadata = _RestrictedDcpUnpickler(stream).load()
+        if stream.read(1) != b"":
+            return False
+        state = getattr(metadata, "state_dict_metadata", None)
+        planner = getattr(metadata, "planner_data", None)
+        storage = getattr(metadata, "storage_data", None)
+        storage_meta = getattr(metadata, "storage_meta", None)
+        version = getattr(metadata, "version", None)
+        if (
+            getattr(metadata, "_dcp_name", None) != "Metadata"
+            or not isinstance(state, dict)
+            or not isinstance(planner, dict)
+            or not isinstance(storage, dict)
+            or not state
+            or set(state) != set(planner)
+            or len(state) != len(storage)
+            or getattr(storage_meta, "_dcp_name", None) != "StorageMeta"
+            or version != "1.0.0"
+            or not all(isinstance(name, str) and name for name in state)
+            or not any(name.startswith("app.model.") for name in state)
+            or not any(name.startswith("app.optimizers.") for name in state)
+            or any(
+                getattr(value, "_dcp_name", None)
+                not in {"TensorStorageMetadata", "BytesStorageMetadata"}
+                for value in state.values()
+            )
+        ):
+            return False
+        shard_by_name = {shard.name: shard for shard in shards}
+        if len(shard_by_name) != len(shards):
+            return False
+        ranges: dict[str, list[tuple[int, int]]] = {
+            name: [] for name in shard_by_name
+        }
+        for index, information in storage.items():
+            fqn = getattr(index, "fqn", None)
+            relative_path = getattr(information, "relative_path", None)
+            offset = getattr(information, "offset", None)
+            length = getattr(information, "length", None)
+            if (
+                getattr(index, "_dcp_name", None) != "MetadataIndex"
+                or getattr(information, "_dcp_name", None) != "_StorageInfo"
+                or not isinstance(fqn, str)
+                or fqn not in state
+                or not isinstance(relative_path, str)
+                or relative_path not in shard_by_name
+                or PurePosixPath(relative_path).name != relative_path
+                or not isinstance(offset, int)
+                or isinstance(offset, bool)
+                or offset < 0
+                or not isinstance(length, int)
+                or isinstance(length, bool)
+                or length <= 0
             ):
                 return False
-            data_pickle = archive.read("archive/data.pkl")
-            operations = tuple(pickletools.genops(data_pickle))
-            return bool(operations) and operations[-1][0].name == "STOP"
-    except (OSError, ValueError, KeyError, zipfile.BadZipFile):
+            ranges[relative_path].append((offset, offset + length))
+        return all(
+            _valid_dcp_shard_ranges(shard, ranges[shard.name])
+            for shard in shards
+        )
+    except (EOFError, OSError, TypeError, ValueError, pickle.UnpicklingError):
+        return False
+
+
+def _valid_dcp_shard_ranges(
+    shard: Path,
+    ranges: list[tuple[int, int]],
+) -> bool:
+    ordered = sorted(ranges)
+    try:
+        size = shard.stat().st_size
+        if (
+            not ordered
+            or ordered[0][0] != 0
+            or ordered[-1][1] != size
+            or any(left[1] != right[0] for left, right in zip(ordered, ordered[1:]))
+        ):
+            return False
+        with shard.open("rb") as stream:
+            for start, end in ordered:
+                stream.seek(start)
+                if stream.read(4) != b"PK\x03\x04":
+                    return False
+                tail_size = min(end - start, 65_557)
+                stream.seek(end - tail_size)
+                if b"PK\x05\x06" not in stream.read(tail_size):
+                    return False
+        return True
+    except OSError:
         return False
 
 

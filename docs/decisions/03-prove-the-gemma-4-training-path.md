@@ -22,7 +22,7 @@ artifacts, changed 14 language-layer tensors, and produced finite metrics. A
 second approved workstation then loaded the transferred adapter in a fresh
 process and completed both predeclared EEG tool-loop scenarios. The product
 verifier imported and independently re-read the full two-workstation tree. Its strengthened
-version-2 acceptance binds parseable DCP structure, exact LoRA tensors, complete canonical Runtime
+version-2 acceptance binds the DCP object graph and shard ranges, exact LoRA tensors, complete canonical Runtime
 snapshots, deterministic scientific replay, and model-call lineage; artifact digest
 `sha256:13839168b5f4e23f37d6f3a89ec50c51bebbd6a4be4fa888fcc5b0839a007620`
 binds the authoritative accepted result. See

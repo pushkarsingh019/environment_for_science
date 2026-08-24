@@ -3,11 +3,14 @@
 from __future__ import annotations
 
 import hashlib
+import io
 import json
 import pickle
 import struct
+import sys
 import zipfile
 from pathlib import Path
+from types import ModuleType
 
 import pytest
 
@@ -131,6 +134,103 @@ def _canonical_trace_row(
     }
 
 
+def _zip_segment(payload: bytes) -> bytes:
+    output = io.BytesIO()
+    with zipfile.ZipFile(output, "w") as archive:
+        archive.writestr("archive/data.pkl", pickle.dumps({"state": payload}))
+        archive.writestr("archive/.format_version", "1")
+        archive.writestr("archive/byteorder", "little")
+        archive.writestr("archive/version", "1")
+        archive.writestr("archive/data/0", payload)
+    return output.getvalue()
+
+
+def _write_test_dcp(checkpoint: Path) -> None:
+    module_names = (
+        "torch",
+        "torch.distributed",
+        "torch.distributed.checkpoint",
+        "torch.distributed.checkpoint.metadata",
+        "torch.distributed.checkpoint.filesystem",
+    )
+    previous = {name: sys.modules.get(name) for name in module_names}
+    modules = {name: ModuleType(name) for name in module_names}
+    try:
+        sys.modules.update(modules)
+        modules["torch"].distributed = modules["torch.distributed"]
+        modules["torch.distributed"].checkpoint = modules[
+            "torch.distributed.checkpoint"
+        ]
+        modules["torch.distributed.checkpoint"].metadata = modules[
+            "torch.distributed.checkpoint.metadata"
+        ]
+        modules["torch.distributed.checkpoint"].filesystem = modules[
+            "torch.distributed.checkpoint.filesystem"
+        ]
+
+        def dcp_class(name: str, module: str) -> type[object]:
+            result = type(name, (), {})
+            result.__module__ = module
+            setattr(modules[module], name, result)
+            return result
+
+        metadata_type = dcp_class(
+            "Metadata",
+            "torch.distributed.checkpoint.metadata",
+        )
+        tensor_type = dcp_class(
+            "TensorStorageMetadata",
+            "torch.distributed.checkpoint.metadata",
+        )
+        index_type = dcp_class(
+            "MetadataIndex",
+            "torch.distributed.checkpoint.metadata",
+        )
+        storage_meta_type = dcp_class(
+            "StorageMeta",
+            "torch.distributed.checkpoint.metadata",
+        )
+        storage_info_type = dcp_class(
+            "_StorageInfo",
+            "torch.distributed.checkpoint.filesystem",
+        )
+        names = ("app.model.weight", "app.optimizers.state")
+        segments = (_zip_segment(b"model"), _zip_segment(b"optimizer"))
+        offsets = (0, len(segments[0]))
+        state = {name: tensor_type() for name in names}
+        storage: dict[object, object] = {}
+        for name, offset, segment in zip(names, offsets, segments):
+            index = index_type()
+            index.fqn = name
+            index.index = None
+            information = storage_info_type()
+            information.relative_path = "__0_0.distcp"
+            information.offset = offset
+            information.length = len(segment)
+            storage[index] = information
+        storage_meta = storage_meta_type()
+        storage_meta.checkpoint_id = None
+        storage_meta.save_id = "test-save"
+        storage_meta.load_id = None
+        storage_meta.modules = []
+        metadata = metadata_type()
+        metadata.state_dict_metadata = state
+        metadata.planner_data = {name: ("app", name) for name in names}
+        metadata.storage_data = storage
+        metadata.storage_meta = storage_meta
+        metadata.version = "1.0.0"
+        (checkpoint / ".metadata").write_bytes(
+            pickle.dumps(metadata, protocol=4)
+        )
+        (checkpoint / "__0_0.distcp").write_bytes(b"".join(segments))
+    finally:
+        for name, module in previous.items():
+            if module is None:
+                sys.modules.pop(name, None)
+            else:
+                sys.modules[name] = module
+
+
 def _canonical(path: Path, value: object) -> None:
     path.write_text(
         json.dumps(value, sort_keys=True, separators=(",", ":")) + "\n"
@@ -165,23 +265,7 @@ def _acceptance_tree(root: Path) -> Path:
             },
         )
         _write_safetensors(directory / "adapter_model.safetensors", tensor)
-    (checkpoint / ".metadata").write_bytes(
-        pickle.dumps(
-            {
-                "module": "torch.distributed.checkpoint.metadata",
-                "metadata": "Metadata",
-                "tensor": "TensorStorageMetadata",
-                "storage": "StorageInfo",
-            },
-            protocol=4,
-        )
-    )
-    with zipfile.ZipFile(checkpoint / "__0_0.distcp", "w") as archive:
-        archive.writestr("archive/data.pkl", pickle.dumps({"state": "resumable"}))
-        archive.writestr("archive/.format_version", "1")
-        archive.writestr("archive/byteorder", "little")
-        archive.writestr("archive/version", "1")
-        archive.writestr("archive/data/0", b"checkpoint tensor bytes")
+    _write_test_dcp(checkpoint)
     _canonical(
         root / "optimization-metrics.json",
         {"loss": 1.25, "gradient_norm": 0.75, "mismatch_kl": 0.02},
@@ -308,12 +392,16 @@ def test_verifier_proves_step_checkpoint_changed_adapter_reload_and_tool_loops(
     (
         ("unchanged", "did not change"),
         ("missing_checkpoint", "checkpoint"),
+        ("malformed_checkpoint", "checkpoint"),
+        ("trailing_checkpoint_metadata", "checkpoint"),
+        ("unlinked_checkpoint", "checkpoint"),
         ("failed_reload", "reloaded evaluation"),
         ("nonfinite_metric", "finite"),
         ("vision_tensor", "language-layer"),
         ("single_tensor", "architecture"),
         ("forged_snapshot", "canonical"),
         ("wrong_model_lineage", "canonical"),
+        ("terminal_call_order", "canonical"),
         ("legacy_relabel", "legacy"),
         ("fallback_without_resource_failure", "fallback"),
     ),
@@ -330,6 +418,26 @@ def test_verifier_fails_closed_for_incomplete_or_nominal_evidence(
         final.write_bytes(initial.read_bytes())
     elif mutation == "missing_checkpoint":
         (root / "run/checkpoints/step_1/trainer/.metadata").unlink()
+    elif mutation == "malformed_checkpoint":
+        (root / "run/checkpoints/step_1/trainer/.metadata").write_bytes(
+            pickle.dumps(
+                {
+                    "markers": (
+                        "torch.distributed.checkpoint.metadata",
+                        "Metadata",
+                        "TensorStorageMetadata",
+                        "StorageInfo",
+                    )
+                },
+                protocol=4,
+            )
+        )
+    elif mutation == "trailing_checkpoint_metadata":
+        metadata = root / "run/checkpoints/step_1/trainer/.metadata"
+        metadata.write_bytes(metadata.read_bytes() + b"trailing junk")
+    elif mutation == "unlinked_checkpoint":
+        shard = root / "run/checkpoints/step_1/trainer/__0_0.distcp"
+        shard.write_bytes(shard.read_bytes() + b"unlinked bytes")
     elif mutation == "failed_reload":
         path = root / "evals/reloaded.jsonl"
         rows = [json.loads(line) for line in path.read_text().splitlines()]
@@ -354,13 +462,29 @@ def test_verifier_fails_closed_for_incomplete_or_nominal_evidence(
                 "model.language_model.layers.0.self_attn.q_proj.lora_A.weight",
             ),
         )
-    elif mutation in {"forged_snapshot", "wrong_model_lineage"}:
+    elif mutation in {
+        "forged_snapshot",
+        "wrong_model_lineage",
+        "terminal_call_order",
+    }:
         trace_path = root / "evals/reloaded.jsonl"
         rows = [json.loads(line) for line in trace_path.read_text().splitlines()]
         if mutation == "forged_snapshot":
             rows[0]["runtime_trace_digest"] = _digest(b"forged snapshot")
-        else:
+        elif mutation == "wrong_model_lineage":
             rows[0]["model_calls"][0]["model"] = "unloaded-adapter"
+        else:
+            calls = rows[0]["model_calls"]
+            terminal = {
+                **calls[-1],
+                "ordinal": 1,
+                "finish_reason": "stop",
+            }
+            rows[0]["model_calls"] = [
+                terminal,
+                {**calls[0], "ordinal": 2},
+                {**calls[1], "ordinal": 3},
+            ]
         trace_path.write_text(
             "".join(json.dumps(row, sort_keys=True) + "\n" for row in rows)
         )

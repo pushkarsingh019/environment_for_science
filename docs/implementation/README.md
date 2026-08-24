@@ -123,7 +123,7 @@ available when `GEMINI_API_KEY` is supplied only to the Studio process.
 The bounded training-acceptance route is implemented without adding Mac-side model compute. Jobs
 persist queued, running, failed, retried, and completed states in ordinary language. A fail-closed
 verifier checks exact stack/model pins, two distinct sanitized workstation receipts, finite
-optimization metrics, parseable DCP structure, exact rank-8 BF16 LoRA tensors, changed bytes,
+optimization metrics, DCP object/shard linkage, exact rank-8 BF16 LoRA tensors, changed bytes,
 fresh reload identity, model-call lineage, and replayable canonical snapshots. The existing
 probe can require the product verifier in the same pass. Ticket 10 is complete. The training workstation produced finite metrics, resumable DCP state,
 14 changed language-layer adapter tensors, and canonical EEG tool loops. A distinct approved

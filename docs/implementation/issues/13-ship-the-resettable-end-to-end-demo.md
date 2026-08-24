@@ -37,6 +37,6 @@ the console, and passed all 45 Chromium journeys. The installed real comparison 
 canonical evaluator snapshots before fixture-reset journeys run. Repository scans found no private
 host, credential, key, or SSH material. The two-axis review found no remaining documented-standard
 violation; its mesoscope-reward and Ticket 10 evidence findings were fixed with native reward
-parity, parseable DCP validation, exact LoRA structure, canonical snapshot replay, and model-call
+parity, DCP object/shard linkage, exact LoRA structure, canonical snapshot replay, and model-call
 lineage. The remaining durable-store duplication and scenario-map data clumps are non-blocking
 refactoring judgements, not acceptance defects.
