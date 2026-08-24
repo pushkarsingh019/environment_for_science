@@ -1,7 +1,7 @@
 # Prototype the mesoscope scenario contract
 
 Type: prototype
-Status: open
+Status: resolved
 Blocked by: 02, 04
 
 ## Question
@@ -10,4 +10,12 @@ Using the mesoscope research, which acquisition-readiness slice should the demo 
 
 ## Progress
 
-The research brief exists in [`docs/research-mesoscope-demo.md`](../research-mesoscope-demo.md), but the interactive state-machine prototype and deterministic verifier contract have not been built. Mesoscope remains in the full prototype scope.
+The sealed interactive prototype now implements the selected four-region acquisition-readiness
+handoff with immutable synthetic profile, signed R1–R4 and Z-A/Z-B plan, independent safety gate,
+progressive package evidence, deterministic quarantine/reject/success outcomes, and exact
+five-artifact checksums. Eight reviewed scenarios cover complete agreement and every required
+fault family. The same public Environment compiler, Runtime, canonical trace, reset, and replay
+paths used for EEG execute mesoscope without adding physical controls. Console tests at desktop
+and mobile widths preserve the synthetic/sealed/disconnected boundary, while the comparison view
+reports this only as separate `platform_generality` evidence and never as EEG or cross-Apparatus
+training evidence.
