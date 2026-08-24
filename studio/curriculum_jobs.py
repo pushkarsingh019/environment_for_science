@@ -220,6 +220,27 @@ class CurriculumTrainingJobRepository:
                 code="storage",
             ) from error
 
+    def reset_demo(self) -> int:
+        """Remove mutable demonstration rows while preserving verified results."""
+
+        try:
+            with self._lock, self._connect() as connection:
+                connection.execute(
+                    "DELETE FROM curriculum_jobs WHERE status != 'completed'"
+                )
+                row = connection.execute(
+                    "SELECT COUNT(*) FROM curriculum_jobs WHERE status = 'completed'"
+                ).fetchone()
+                connection.commit()
+            if row is None:
+                raise ValueError("missing completed curriculum job count")
+            return int(row[0])
+        except (sqlite3.Error, ValueError) as error:
+            raise CurriculumJobError(
+                "the curriculum training demo state could not be reset",
+                code="storage",
+            ) from error
+
     def _transition(
         self,
         job_id: str,

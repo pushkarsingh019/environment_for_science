@@ -2,37 +2,37 @@
 
 from __future__ import annotations
 
-import json
 from pathlib import Path
 
 from fastapi.testclient import TestClient
 
 from studio.application import create_app
-from studio.model_comparison import (
-    ModelComparisonRepository,
-    ModelComparisonResult,
-    seeded_comparison,
-)
+from studio.curriculum_jobs import CurriculumTrainingJobRepository
+from studio.model_comparison import ModelComparisonRepository
+from tests.evaluation.model_comparison_support import real_comparison_with_ledgers
 
 
 def test_demo_reset_restores_seeded_state_and_preserves_real_job_rows(
     tmp_path: Path,
 ) -> None:
-    comparison_document = seeded_comparison("successful").model_dump(mode="json")
-    comparison_document.update(
-        {
-            "comparison_id": "model-comparison-real-reset0001",
-            "source": "real_evaluation",
-            "fixture_state": None,
-            "fixture_notice": None,
-            "training_result_id": "eeg-training-result-resettest0001",
-            "training_artifact_digest": "sha256:" + "e" * 64,
-        }
+    real_comparison, base_ledger, trained_ledger = real_comparison_with_ledgers(
+        tmp_path
     )
-    real_comparison = ModelComparisonResult.model_validate_json(
-        json.dumps(comparison_document)
+    ModelComparisonRepository(tmp_path / "comparisons").install_real(
+        real_comparison,
+        base_ledger_root=base_ledger,
+        trained_ledger_root=trained_ledger,
     )
-    ModelComparisonRepository(tmp_path / "comparisons").install_real(real_comparison)
+    curriculum_repository = CurriculumTrainingJobRepository(
+        tmp_path / "training/curriculum"
+    )
+    immutable_job = curriculum_repository.launch()
+    curriculum_repository.begin(immutable_job.job_id)
+    curriculum_repository.complete(
+        immutable_job.job_id,
+        result_id="eeg-training-result-resettest0001",
+        result_digest="sha256:" + "a" * 64,
+    )
 
     with TestClient(create_app(artifact_root=tmp_path)) as client:
         seeded = client.get("/api/draft").json()
@@ -60,7 +60,7 @@ def test_demo_reset_restores_seeded_state_and_preserves_real_job_rows(
             "draft_digest": seeded["revision_digest"],
             "comparison_fixture_state": "successful",
             "seeded_scenarios_restored": True,
-            "immutable_training_jobs_preserved": 2,
+            "immutable_training_jobs_preserved": 1,
             "immutable_real_comparisons_preserved": 1,
             "immutable_artifacts_deleted": 0,
             "summary": (
@@ -75,11 +75,13 @@ def test_demo_reset_restores_seeded_state_and_preserves_real_job_rows(
             "successful"
         )
         jobs = client.get("/api/training/acceptance-jobs").json()
-        assert [item["job_id"] for item in jobs] == [job["job_id"]]
+        assert jobs == []
+        assert job["job_id"] not in response.text
         curriculum_jobs = client.get("/api/training/curriculum-jobs").json()
         assert [item["job_id"] for item in curriculum_jobs] == [
-            curriculum_job["job_id"]
+            immutable_job.job_id
         ]
+        assert curriculum_job["job_id"] not in response.text
         assert ModelComparisonRepository(
             tmp_path / "comparisons"
         ).real_result_count() == 1

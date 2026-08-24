@@ -648,7 +648,7 @@ def create_app(
             current = studio.current_draft()
             draft = studio.restore_seed(expected_revision=current.revision)
             model_comparisons.reset_demo()
-            jobs_preserved = len(training_jobs.list()) + len(curriculum_jobs.list())
+            jobs_preserved = training_jobs.reset_demo() + curriculum_jobs.reset_demo()
             real_comparisons_preserved = model_comparisons.real_result_count()
         return DemoResetSummary(
             reset_version="science-demo-reset/1",

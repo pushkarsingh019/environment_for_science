@@ -197,6 +197,27 @@ class TrainingAcceptanceJobService:
                 code="storage",
             ) from error
 
+    def reset_demo(self) -> int:
+        """Remove mutable demonstration rows while preserving verified evidence."""
+
+        try:
+            with self._lock, self._connect() as connection:
+                connection.execute(
+                    "DELETE FROM training_acceptance_jobs WHERE status != 'completed'"
+                )
+                row = connection.execute(
+                    "SELECT COUNT(*) FROM training_acceptance_jobs WHERE status = 'completed'"
+                ).fetchone()
+                connection.commit()
+            if row is None:
+                raise ValueError("missing completed acceptance job count")
+            return int(row[0])
+        except (sqlite3.Error, ValueError) as error:
+            raise TrainingJobError(
+                "the training acceptance demo state could not be reset",
+                code="storage",
+            ) from error
+
     def import_directory(self, job_id: str) -> Path:
         self.load(job_id)
         directory = self._imports / job_id
