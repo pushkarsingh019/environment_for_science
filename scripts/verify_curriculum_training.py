@@ -86,6 +86,9 @@ def main() -> int:
         trainer_language_layers=2,
         optimization_dtype="bfloat16",
         reduction_dtype="bfloat16",
+        optimization_algorithm="grpo",
+        scientific_reward_weight=1.0,
+        mechanical_jitter_weight=0.0,
         lora_target_regex=(
             "^model\\.language_model\\.layers\\..*\\."
             "(q_proj|k_proj|v_proj|o_proj|gate_proj|up_proj|down_proj)$"

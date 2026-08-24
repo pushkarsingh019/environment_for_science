@@ -59,6 +59,9 @@ def _configuration() -> dict[str, object]:
         "trainer_language_layers": 2,
         "optimization_dtype": "bfloat16",
         "reduction_dtype": "bfloat16",
+        "optimization_algorithm": "grpo",
+        "scientific_reward_weight": 1.0,
+        "mechanical_jitter_weight": 0.0,
         "lora_target_regex": (
             "^model\\.language_model\\.layers\\..*\\."
             "(q_proj|k_proj|v_proj|o_proj|gate_proj|up_proj|down_proj)$"
@@ -113,6 +116,9 @@ def test_configuration_records_exact_splits_stack_seed_policy_and_selection() ->
     assert configuration.evaluation_max_accepted_tool_calls == 64
     assert configuration.evaluation_temperature == 0.0
     assert configuration.trainer_language_layers == 2
+    assert configuration.optimization_algorithm == "grpo"
+    assert configuration.scientific_reward_weight == 1.0
+    assert configuration.mechanical_jitter_weight == 0.0
     assert configuration.provider_sampling_seed is None
     assert configuration.adapter_selection == "final-step-predeclared"
     assert configuration.training_package_digest != configuration.heldout_package_digest
@@ -124,6 +130,7 @@ def test_configuration_records_exact_splits_stack_seed_policy_and_selection() ->
         ("max_steps", 95),
         ("group_size", 8),
         ("trainer_language_layers", 4),
+        ("mechanical_jitter_weight", 0.001),
         ("provider_sampling_seed", 7),
         ("adapter_selection", "selected-after-heldout"),
         ("heldout_package_digest", "sha256:" + "f" * 64),

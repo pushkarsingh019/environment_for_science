@@ -78,6 +78,9 @@ class CurriculumRunConfiguration(_FrozenModel):
     trainer_language_layers: Literal[2]
     optimization_dtype: Literal["bfloat16"]
     reduction_dtype: Literal["bfloat16"]
+    optimization_algorithm: Literal["grpo"]
+    scientific_reward_weight: float = Field(ge=1.0, le=1.0)
+    mechanical_jitter_weight: float = Field(ge=0.0, le=0.0)
     lora_target_regex: Literal[
         "^model\\.language_model\\.layers\\..*\\.(q_proj|k_proj|v_proj|o_proj|gate_proj|up_proj|down_proj)$"
     ]
@@ -123,6 +126,8 @@ class CurriculumTrainingEvidence(_FrozenModel):
     trainable_mask_tokens: int = Field(ge=1)
     aligned_logprob_tokens: int = Field(ge=1)
     reward_records: int = Field(ge=384)
+    scientific_reward_minimum: float = Field(ge=0.0, le=1.0)
+    scientific_reward_maximum: float = Field(ge=0.0, le=1.0)
     optimization: CurriculumOptimizationEvidence
     adapter_tensor_count: int = Field(ge=1)
     changed_adapter_tensors: int = Field(ge=1)
@@ -143,7 +148,8 @@ class CurriculumTrainingEvidence(_FrozenModel):
         base_heldout_ledger = _required_ledger_digest(self.base_heldout)
         trained_heldout_ledger = _required_ledger_digest(self.trained_heldout)
         if (
-            len(self.training_trace_digests) != self.training_rollouts
+            self.scientific_reward_minimum > self.scientific_reward_maximum
+            or len(self.training_trace_digests) != self.training_rollouts
             or self.configuration_digest != _canonical_digest(
                 self.configuration.model_dump(mode="json")
             )
@@ -296,6 +302,12 @@ def verify_curriculum_training_evidence(
         trainable_mask_tokens=sum(row["mask_tokens"] for row in training_rows),
         aligned_logprob_tokens=sum(row["logprob_tokens"] for row in training_rows),
         reward_records=sum(row["reward_records"] for row in training_rows),
+        scientific_reward_minimum=min(
+            row["scientific_reward"] for row in training_rows
+        ),
+        scientific_reward_maximum=max(
+            row["scientific_reward"] for row in training_rows
+        ),
         optimization=optimization,
         adapter_tensor_count=len(final.entries),
         changed_adapter_tensors=changed,
@@ -397,7 +409,11 @@ def _native_row(
             raise ValueError("incomplete trace")
         trace_digest = runtime["runtime_trace_digest"]
         result_digest = runtime["runtime_result_digest"]
-        reward_records = len(trace["rewards"])
+        rewards = trace["rewards"]
+        reward_records = len(rewards)
+        scientific_reward = rewards["reward"]["score"]
+        scientific_weight = rewards["reward"]["weight"]
+        mechanical_weight = rewards["mechanical_jitter"]["weight"]
     except (KeyError, IndexError, TypeError, ValueError) as error:
         raise CurriculumEvidenceError(
             f"{label} trace failed canonical validation"
@@ -411,6 +427,12 @@ def _native_row(
         or _DIGEST.fullmatch(result_digest) is None
         or (require_token_metadata and (sampled_tokens < 1 or logprob_tokens < 1))
         or reward_records < 1
+        or not isinstance(scientific_reward, (int, float))
+        or isinstance(scientific_reward, bool)
+        or not math.isfinite(scientific_reward)
+        or not 0.0 <= scientific_reward <= 1.0
+        or (require_token_metadata and scientific_weight != 1.0)
+        or (require_token_metadata and mechanical_weight != 0.0)
     ):
         raise CurriculumEvidenceError(f"{label} trace evidence is incomplete")
     return {
@@ -421,6 +443,7 @@ def _native_row(
         "mask_tokens": mask_tokens,
         "logprob_tokens": logprob_tokens,
         "reward_records": reward_records,
+        "scientific_reward": float(scientific_reward),
     }
 
 
