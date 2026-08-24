@@ -32,6 +32,12 @@ class CurriculumEvidenceError(ValueError):
     """Sanitized curriculum evidence failure with no supplied host path."""
 
 
+def _heldout_package_digest() -> str:
+    from evaluation.eeg.curriculum import load_held_out_scenario_set
+
+    return load_held_out_scenario_set().identity.package_digest
+
+
 class _FrozenModel(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True, strict=True)
 
@@ -58,9 +64,7 @@ class CurriculumRunConfiguration(_FrozenModel):
     development_package_digest: Literal[
         "sha256:1997bf9ff6f2c56a63928ef1392564f7c8cc6b29484b82b2baf43fb31e1d0197"
     ]
-    heldout_package_digest: Literal[
-        "sha256:fb0a33c80e89143fb1c6da8ff39e56636a1e290fe91ce5e282cc779b9b605fd7"
-    ]
+    heldout_package_digest: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
     max_steps: Literal[96]
     group_size: Literal[4]
     sequence_length: Literal[16384]
@@ -87,6 +91,12 @@ class CurriculumRunConfiguration(_FrozenModel):
     curriculum_order: Literal["standard-source-order"]
     provider_sampling_seed: None
     adapter_selection: Literal["final-step-predeclared"]
+
+    @model_validator(mode="after")
+    def validate_evaluator_manifest(self) -> CurriculumRunConfiguration:
+        if self.heldout_package_digest != _heldout_package_digest():
+            raise ValueError("held-out package provenance is invalid")
+        return self
 
 
 class CurriculumOptimizationEvidence(_FrozenModel):

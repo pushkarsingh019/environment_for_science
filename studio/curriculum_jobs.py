@@ -40,9 +40,7 @@ class CurriculumTrainingJob(BaseModel):
     development_package_digest: Literal[
         "sha256:1997bf9ff6f2c56a63928ef1392564f7c8cc6b29484b82b2baf43fb31e1d0197"
     ]
-    heldout_package_digest: Literal[
-        "sha256:fb0a33c80e89143fb1c6da8ff39e56636a1e290fe91ce5e282cc779b9b605fd7"
-    ]
+    heldout_package_digest: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
     result_id: str | None = Field(
         default=None,
         pattern=r"^eeg-training-result-[a-z0-9]{8,64}$",
@@ -51,6 +49,12 @@ class CurriculumTrainingJob(BaseModel):
         default=None,
         pattern=r"^sha256:[0-9a-f]{64}$",
     )
+
+
+def _heldout_package_digest() -> str:
+    from evaluation.eeg.curriculum import load_held_out_scenario_set
+
+    return load_held_out_scenario_set().identity.package_digest
 
 
 class CurriculumTrainingJobRepository:
@@ -287,9 +291,7 @@ class CurriculumTrainingJobRepository:
             development_package_digest=(
                 "sha256:1997bf9ff6f2c56a63928ef1392564f7c8cc6b29484b82b2baf43fb31e1d0197"
             ),
-            heldout_package_digest=(
-                "sha256:fb0a33c80e89143fb1c6da8ff39e56636a1e290fe91ce5e282cc779b9b605fd7"
-            ),
+            heldout_package_digest=_heldout_package_digest(),
             result_id=result_id,
             result_digest=result_digest,
         )

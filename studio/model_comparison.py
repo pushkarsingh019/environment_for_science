@@ -7,17 +7,25 @@ import os
 import sqlite3
 from pathlib import Path
 from threading import RLock
-from typing import Literal
+from typing import TYPE_CHECKING, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
-
-from evaluation.eeg.curriculum import load_held_out_scenario_set
 
 from .curriculum_analysis import (
     HeldOutEvaluationEvidence,
     PairedBootstrapAnalysis,
     paired_bootstrap_success,
 )
+
+if TYPE_CHECKING:
+    from evaluation.eeg.curriculum import HeldOutScenarioSet
+
+
+def _heldout_scenario_set() -> HeldOutScenarioSet:
+    from evaluation.eeg.curriculum import load_held_out_scenario_set
+
+    return load_held_out_scenario_set()
+
 
 FixtureState = Literal[
     "successful",
@@ -126,12 +134,17 @@ class ComparisonModelResult(_FrozenModel):
 
 class ComparisonProvenance(_FrozenModel):
     scenario_manifest_id: Literal["eeg-curriculum-release-1:held_out"]
-    scenario_manifest_digest: Literal[
-        "sha256:fb0a33c80e89143fb1c6da8ff39e56636a1e290fe91ce5e282cc779b9b605fd7"
-    ]
+    scenario_manifest_digest: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
     environment_bundle_id: Literal["eeg-curriculum"]
     environment_bundle_revision: Literal["1.4.0"]
     scoring_revision: Literal["eeg-curriculum-scorer-1"]
+
+
+    @model_validator(mode="after")
+    def validate_manifest(self) -> ComparisonProvenance:
+        if self.scenario_manifest_digest != _heldout_scenario_set().identity.package_digest:
+            raise ValueError("comparison scenario manifest provenance is invalid")
+        return self
 
 
 class MesoscopeGeneralityTrack(_FrozenModel):
@@ -454,7 +467,7 @@ def _real_gemma_model(
                 f"/api/model-comparison/replays/{role}/{scenario_id}"
             ),
         )
-        for scenario_id in load_held_out_scenario_set().scenario_ids
+        for scenario_id in _heldout_scenario_set().scenario_ids
     )
     stratum_names: tuple[
         Literal["individual", "ambiguous", "pair", "triple"], ...
@@ -533,7 +546,7 @@ def _unavailable_reference(
 
 
 def seeded_comparison(state: FixtureState) -> ModelComparisonResult:
-    scenario_ids = load_held_out_scenario_set().scenario_ids
+    scenario_ids = _heldout_scenario_set().scenario_ids
     base, trained = _fixture_outcomes(state, scenario_ids)
     models = (
         _fixture_model("base_gemma", base, scenario_ids),
@@ -725,9 +738,7 @@ def _fixture_metrics(links: tuple[ScenarioResultLink, ...]) -> ComparisonMetrics
 def _provenance() -> ComparisonProvenance:
     return ComparisonProvenance(
         scenario_manifest_id="eeg-curriculum-release-1:held_out",
-        scenario_manifest_digest=(
-            "sha256:fb0a33c80e89143fb1c6da8ff39e56636a1e290fe91ce5e282cc779b9b605fd7"
-        ),
+        scenario_manifest_digest=_heldout_scenario_set().identity.package_digest,
         environment_bundle_id="eeg-curriculum",
         environment_bundle_revision="1.4.0",
         scoring_revision="eeg-curriculum-scorer-1",

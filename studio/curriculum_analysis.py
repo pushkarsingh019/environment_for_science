@@ -8,14 +8,15 @@ import math
 import random
 import re
 from pathlib import Path
-from typing import Any, Literal
+from typing import TYPE_CHECKING, Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from environments.eeg.curriculum import CurriculumAttempt, CurriculumReport
-from evaluation.eeg.attempts import open_held_out_attempt_ledger
-from evaluation.eeg.curriculum import load_held_out_scenario_set
 from studio.runtime import RunSnapshot
+
+if TYPE_CHECKING:
+    from evaluation.eeg.curriculum import HeldOutScenarioSet
 
 _DIGEST = re.compile(r"^sha256:[0-9a-f]{64}$")
 _SCENARIO_ID = re.compile(r"^eeg-[0-9a-f]{16}$")
@@ -81,7 +82,7 @@ class HeldOutEvaluationEvidence(_FrozenModel):
 
     @model_validator(mode="after")
     def validate_coverage(self) -> HeldOutEvaluationEvidence:
-        scenario_set = load_held_out_scenario_set()
+        scenario_set = _load_held_out_scenario_set()
         expected = set(scenario_set.scenario_ids)
         success_rate = sum(self.scenario_success.values()) / len(expected)
         mean_score = sum(self.verifier_scores.values()) / len(expected)
@@ -130,6 +131,14 @@ class HeldOutEvaluationEvidence(_FrozenModel):
         ):
             raise ValueError("held-out evidence does not cover the sealed split")
         return self
+
+
+def _load_held_out_scenario_set() -> HeldOutScenarioSet:
+    # Evaluator-owned truth is imported only in evaluator-facing processes. Keeping
+    # this import lazy prevents the training wheel from requiring or packaging it.
+    from evaluation.eeg.curriculum import load_held_out_scenario_set
+
+    return load_held_out_scenario_set()
 
 
 def paired_bootstrap_success(
@@ -210,7 +219,9 @@ def import_native_heldout_evaluation(
 
     if _DIGEST.fullmatch(model_configuration_digest) is None:
         raise CurriculumAnalysisError("model configuration digest is invalid")
-    scenario_set = load_held_out_scenario_set()
+    from evaluation.eeg.attempts import open_held_out_attempt_ledger
+
+    scenario_set = _load_held_out_scenario_set()
     documents = _native_documents(traces_path)
     if len(documents) != len(scenario_set.scenario_ids):
         raise CurriculumAnalysisError("held-out native traces are incomplete")
