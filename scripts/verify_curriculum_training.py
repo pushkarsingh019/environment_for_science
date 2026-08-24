@@ -17,6 +17,10 @@ from studio.curriculum_training_evidence import (
     verify_curriculum_training_evidence,
 )
 from studio.model_comparison import real_model_comparison
+from studio.policy_evaluation.artifact_safety import (
+    ArtifactSafetyError,
+    validate_artifact_safe,
+)
 from studio.policy_evaluation.gemini_interactions import gemini_credential_ready
 from studio.policy_evaluation.openai_responses import openai_credential_ready
 from studio.training_acceptance import AcceptanceArtifactError
@@ -161,8 +165,10 @@ def main() -> int:
             openai_credential_ready=openai_credential_ready(),
             gemini_credential_ready=gemini_credential_ready(),
         )
+        validate_artifact_safe(evidence.model_dump(mode="json"))
     except (
         AcceptanceArtifactError,
+        ArtifactSafetyError,
         CurriculumAnalysisError,
         CurriculumEvidenceError,
         ValueError,
