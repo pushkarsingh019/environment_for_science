@@ -24,9 +24,10 @@
 The console now persists queued, running, failed, retried, and completed acceptance jobs without
 starting local compute. The product verifier independently checks exact stack and model pins,
 E4B-first fallback evidence, BF16 and language-only LoRA configuration, finite optimization
-metrics, non-empty DCP state, stable PEFT artifacts, changed safetensor bytes, distinct sanitized
-workstation receipts, fresh `proof-final` reload identity, and matched held-out multi-turn Runtime
-trace rows. The disposable probe can require this product evidence in the same verification pass.
+metrics, parseable DCP metadata and ZIP64 shards, the exact 28-tensor rank-8 BF16 LoRA shape,
+changed safetensor bytes, distinct sanitized workstation receipts, fresh `proof-final` reload
+identity, full canonical Runtime snapshots, deterministic scientific replay, and per-call model
+lineage. The disposable probe can require this product evidence in the same verification pass.
 
 Real CUDA execution now passes on the approved training workstation. The pinned E4B snapshot ran
 8 canonical EEG rollouts, one finite optimizer step, a non-empty DCP save, stable PEFT broadcasts
@@ -38,8 +39,11 @@ The second approved workstation independently loaded the transferred adapter byt
 fresh inference process under `proof-final`. Both predeclared development identities reached
 canonical terminals with 9 and 10 tool-result nodes, respectively, and no provider, adapter,
 tool, or trace errors. The product verifier then re-read the complete imported tree, including
-the 4.1 GB resumable checkpoint, and completed durable job
-`training-acceptance-a71274e2a3e04d7f865bf6c48b8fa8d3` with artifact digest
-`sha256:cc16f8e5e6bfe261594ebda73bdd4b25a0d4ce04530fa1e28c7485a6bab26a46`.
-Only opaque workstation receipt digests are retained. See
+the 4.1 GB checkpoint. A version-2 export preserves every canonical snapshot and model-call
+receipt; it completed durable job `training-acceptance-a5e8e008778a446d8c23e25f12343313`
+with artifact digest
+`sha256:13839168b5f4e23f37d6f3a89ec50c51bebbd6a4be4fa888fcc5b0839a007620`.
+The original accepted version-1 artifact remains immutable and is grandfathered only by its exact
+job identity and whole-tree digest; arbitrary digest-only version-1 evidence is rejected. Only
+opaque workstation receipt digests are retained. See
 [the bounded acceptance operator procedure](../../gemma-acceptance-operations.md).

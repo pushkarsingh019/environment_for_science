@@ -15,3 +15,9 @@
 - [x] A platform-conformance test runs both Environment modules through the same lifecycle, validation, visibility, reset, replay, and error contract.
 - [x] The console displays the mesoscope evaluation and links each result to its canonical replay.
 - [x] No generated or model-visible artifact exposes operational mesoscope controls.
+
+The exact pinned native-harness canary now executes the generated mesoscope Taskset through the
+same local Gemma protocol seam and compares its completed snapshot, observations, actions,
+terminal result, component metrics, canonical digests, and scalar reward with direct Runtime
+execution. Mesoscope defines `reward = float(passed)`, so valid and safe-quarantine outcomes no
+longer fall through the compiler's missing-reward default.

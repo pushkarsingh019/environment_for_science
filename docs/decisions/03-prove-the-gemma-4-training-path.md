@@ -21,8 +21,9 @@ completed real BF16 LoRA optimization, wrote resumable DCP and portable PEFT
 artifacts, changed 14 language-layer tensors, and produced finite metrics. A
 second approved workstation then loaded the transferred adapter in a fresh
 process and completed both predeclared EEG tool-loop scenarios. The product
-verifier imported and independently re-read the full two-workstation tree;
-artifact digest
-`sha256:cc16f8e5e6bfe261594ebda73bdd4b25a0d4ce04530fa1e28c7485a6bab26a46`
-binds the accepted result. See
+verifier imported and independently re-read the full two-workstation tree. Its strengthened
+version-2 acceptance binds parseable DCP structure, exact LoRA tensors, complete canonical Runtime
+snapshots, deterministic scientific replay, and model-call lineage; artifact digest
+`sha256:13839168b5f4e23f37d6f3a89ec50c51bebbd6a4be4fa888fcc5b0839a007620`
+binds the authoritative accepted result. See
 [the resolved proof](../gemma-training-path-proof.md).

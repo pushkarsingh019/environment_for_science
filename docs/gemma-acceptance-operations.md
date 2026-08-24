@@ -52,23 +52,16 @@ No acceptance threshold is invented.
 
 The training JSONL contains eight canonical rollouts from the frozen 96-row training package.
 Both evaluation JSONL files contain the same two disjoint identities from the frozen development
-package. Every normalized row has exactly:
-
-```json
-{
-  "scenario_id": "eeg-0553f1f24a3a64fa",
-  "rollout_index": 0,
-  "model": "proof-final",
-  "ok": true,
-  "tool_calls": 2,
-  "trace_error": null,
-  "runtime_trace_digest": "sha256:<64 hex>",
-  "result_digest": "sha256:<64 hex>"
-}
-```
+package. Every version-2 normalized row contains its scenario/rollout identity, normalized model, accepted
+tool-result count, trace and result digests, the complete canonical `RunSnapshot`, and ordered
+model-call receipts with served model, finish reason, and native token counters. The verifier
+recomputes both canonical digests, validates the terminal Verifier boundary, replays every action
+against the frozen split, and requires the model-call lineage to reconcile with accepted actions.
 
 The baseline model is the exact selected checkpoint; the post-reload model is `proof-final`.
-Digests must come from completed canonical Runtime and Verifier evidence, not log text.
+Digest-shaped strings or log assertions without the snapshot and call lineage cannot pass. The one
+original version-1 artifact is accepted only under its fixed job identity and whole-tree digest;
+version 1 is not a general import route.
 
 `receipt.json` binds the job, exact stack pins, selected model, fallback decision, two distinct
 sanitized hardware-receipt digests, private transport, configuration digest, and relative paths.
@@ -84,19 +77,19 @@ Run before import:
 .venv/bin/python scripts/verify_training_acceptance.py <artifact-root>
 ```
 
-The verifier parses safetensors directly, requires stable PEFT directories, proves every adapter
-key is under `model.language_model.layers.`, compares pre/post tensor bytes, requires at least one
-changed tensor, verifies a non-empty DCP checkpoint, reconciles finite metrics, checks exact pins
-and configuration, and verifies baseline/reloaded multi-turn trace rows. It emits only sanitized
-digests and counts.
+The verifier parses safetensors directly; requires the exact 28 rank-8 BF16 projection tensors;
+compares pre/post bytes; safely parses DCP pickle opcodes and ZIP64 shard structure without loading
+untrusted pickle code; reconciles finite metrics; checks exact pins and configuration; validates
+model-call lineage; and cryptographically validates and scientifically replays every canonical
+snapshot. It emits only sanitized digests and counts.
 
 The disposable probe verifier also accepts `--product-acceptance-root` so its native mechanical
 checks and the product-owned acceptance checks can be required in one invocation.
 
-## Current external gate
+## External gate result
 
-The approved training workstation and E4B download are authorized, and the real one-step EEG run
-passes. Ticket 10 remains in progress until the second approved workstation is idle, independently
-loads the saved adapter under `proof-final`, completes the same disjoint tool loops, and contributes
-a distinct sanitized hardware receipt to an imported tree. Existing unrelated GPU work is never
-terminated or silently shared around this gate.
+Complete. The approved training workstation produced the bounded E4B adapter and checkpoint; the
+second approved workstation independently loaded the byte-identical adapter as `proof-final` and
+completed both predeclared tool loops. The authoritative version-2 imported artifact is
+`sha256:13839168b5f4e23f37d6f3a89ec50c51bebbd6a4be4fa888fcc5b0839a007620`.
+No unrelated GPU work was terminated or silently shared.
