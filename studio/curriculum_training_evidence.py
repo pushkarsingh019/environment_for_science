@@ -646,15 +646,14 @@ def _tree_digest(
     root: Path,
     compilation_receipt: bool = False,
 ) -> str:
-    manifest = []
-    for path in sorted(files, key=lambda item: item.relative_to(root).as_posix()):
-        manifest.append(
-            {
-                "path": path.relative_to(root).as_posix(),
-                "size_bytes": path.stat().st_size,
-                "digest": _file_digest(path),
-            }
-        )
+    manifest = [
+        {
+            "path": path.relative_to(root).as_posix(),
+            "size_bytes": path.stat().st_size,
+            "digest": _file_digest(path),
+        }
+        for path in sorted(files, key=lambda item: item.relative_to(root).as_posix())
+    ]
     if compilation_receipt:
         payload = (
             json.dumps(

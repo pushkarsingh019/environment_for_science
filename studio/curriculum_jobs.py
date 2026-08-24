@@ -14,6 +14,8 @@ from uuid import uuid4
 from pydantic import BaseModel, ConfigDict, Field
 
 CurriculumJobStatus = Literal["queued", "running", "failed", "completed"]
+
+
 class CurriculumJobError(ValueError):
     def __init__(
         self,
@@ -59,7 +61,7 @@ def _heldout_package_digest() -> str:
 
 class CurriculumTrainingJobRepository:
     def __init__(self, artifact_root: Path) -> None:
-        self._root = Path(artifact_root).expanduser().resolve()
+        self._root = artifact_root.expanduser().resolve()
         self._database = self._root / "curriculum-training-jobs.sqlite3"
         self._lock = RLock()
         try:
@@ -79,7 +81,7 @@ class CurriculumTrainingJobRepository:
             "training split is reserved; no model compute runs on this computer."
         )
         try:
-            with self._lock, self._connect() as connection:
+            with self._lock, closing(self._connect()) as connection:
                 connection.execute(
                     """
                     INSERT INTO curriculum_jobs(
@@ -152,7 +154,7 @@ class CurriculumTrainingJobRepository:
                 code="conflict",
             )
         try:
-            with self._lock, self._connect() as connection:
+            with self._lock, closing(self._connect()) as connection:
                 updated = connection.execute(
                     """
                     UPDATE curriculum_jobs
@@ -224,7 +226,7 @@ class CurriculumTrainingJobRepository:
         """Remove mutable demonstration rows while preserving verified results."""
 
         try:
-            with self._lock, self._connect() as connection:
+            with self._lock, closing(self._connect()) as connection:
                 connection.execute(
                     "DELETE FROM curriculum_jobs WHERE status != 'completed'"
                 )
@@ -250,7 +252,7 @@ class CurriculumTrainingJobRepository:
         message: str,
     ) -> CurriculumTrainingJob:
         try:
-            with self._lock, self._connect() as connection:
+            with self._lock, closing(self._connect()) as connection:
                 updated = connection.execute(
                     """
                     UPDATE curriculum_jobs
@@ -318,7 +320,7 @@ class CurriculumTrainingJobRepository:
         )
 
     def _prepare(self) -> None:
-        with self._connect() as connection:
+        with closing(self._connect()) as connection:
             connection.execute(
                 """
                 CREATE TABLE IF NOT EXISTS curriculum_jobs(
