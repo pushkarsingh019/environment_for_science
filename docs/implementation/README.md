@@ -147,8 +147,8 @@ and mesoscope remains a separate platform-generality track.
 
 Ticket 13 is complete. The one-command product reports prerequisites, the end-to-end browser
 journey covers both Apparatuses and all role boundaries, and reset removes mutable demo queues
-while preserving completed training evidence, sealed ledgers, and real comparisons. All 915 Python
-tests were collected (899 passed; 16 opt-in canaries skipped), all 45 browser journeys passed, and
+while preserving completed training evidence, sealed ledgers, and real comparisons. All 923 Python
+tests were collected (907 passed; 16 opt-in canaries skipped), all 45 browser journeys passed, and
 Ruff, mypy, TypeScript, build, artifact, statistical, security, and private-material checks passed.
 The final standards/specification review has no unresolved blocking finding.
 

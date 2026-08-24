@@ -31,7 +31,7 @@ comparison and scenario replay, then resets to seeded state. A central reset res
 and offline fixture selection while deleting mutable demonstration queues and retaining completed
 acceptance jobs, the completed curriculum job, sealed evaluator ledgers, and real comparison rows.
 
-The final clean run collected 915 Python tests (899 passed and 16 explicit opt-in dependency/
+The final clean run collected 923 Python tests (907 passed and 16 explicit opt-in dependency/
 credential canaries skipped), passed Ruff and mypy across 54 source files, built and typechecked
 the console, and passed all 45 Chromium journeys. The installed real comparison opens validated
 canonical evaluator snapshots before fixture-reset journeys run. Repository scans found no private
