@@ -91,13 +91,15 @@ def test_checkpoint_digest_is_content_bound_and_path_independent(
     digest = _tree_digest(first_files, root=first)
 
     assert digest == _tree_digest(second_files, root=second)
-    assert digest == _taskset_digest(first, "test taskset")
+    taskset_digest = _taskset_digest(first, "test taskset")
+    assert taskset_digest == _taskset_digest(second, "test taskset")
     cache = first / "__pycache__"
     cache.mkdir()
     (cache / "generated.pyc").write_bytes(b"runtime cache")
-    assert digest == _taskset_digest(first, "test taskset")
+    assert taskset_digest == _taskset_digest(first, "test taskset")
     (second / "state").write_bytes(b"changed")
     assert digest != _tree_digest(second_files, root=second)
+    assert taskset_digest != _taskset_digest(second, "test taskset")
     (first / "linked").symlink_to(first / "state")
     with pytest.raises(CurriculumEvidenceError, match="invalid"):
         _taskset_digest(first, "test taskset")

@@ -637,10 +637,15 @@ def _taskset_digest(path: Path, label: str) -> str:
         or any(not item.is_file() or item.is_symlink() for item in files)
     ):
         raise CurriculumEvidenceError(f"{label} artifact tree is invalid")
-    return _tree_digest(files, root=root)
+    return _tree_digest(files, root=root, compilation_receipt=True)
 
 
-def _tree_digest(files: tuple[Path, ...], *, root: Path) -> str:
+def _tree_digest(
+    files: tuple[Path, ...],
+    *,
+    root: Path,
+    compilation_receipt: bool = False,
+) -> str:
     manifest = []
     for path in sorted(files, key=lambda item: item.relative_to(root).as_posix()):
         manifest.append(
@@ -650,6 +655,18 @@ def _tree_digest(files: tuple[Path, ...], *, root: Path) -> str:
                 "digest": _file_digest(path),
             }
         )
+    if compilation_receipt:
+        payload = (
+            json.dumps(
+                manifest,
+                sort_keys=True,
+                separators=(",", ":"),
+                ensure_ascii=False,
+                allow_nan=False,
+            )
+            + "\n"
+        ).encode()
+        return f"sha256:{hashlib.sha256(payload).hexdigest()}"
     return _canonical_digest(manifest)
 
 
