@@ -81,7 +81,10 @@ class HeldOutEvaluationEvidence(_FrozenModel):
 
     @model_validator(mode="after")
     def validate_coverage(self) -> HeldOutEvaluationEvidence:
-        expected = set(load_held_out_scenario_set().scenario_ids)
+        scenario_set = load_held_out_scenario_set()
+        expected = set(scenario_set.scenario_ids)
+        success_rate = sum(self.scenario_success.values()) / len(expected)
+        mean_score = sum(self.verifier_scores.values()) / len(expected)
         if (
             set(self.scenario_success) != expected
             or set(self.verifier_scores) != expected
@@ -101,8 +104,29 @@ class HeldOutEvaluationEvidence(_FrozenModel):
                 not math.isfinite(value) or not 0.0 <= value <= 1.0
                 for value in self.verifier_scores.values()
             )
+            or self.report.split != "held_out"
+            or self.report.package_digest != scenario_set.identity.package_digest
+            or self.report.model_configuration_digest
+            != self.model_configuration_digest
+            or self.report.evaluation_id is None
+            or self.report.attempt_ledger_digest is None
+            or self.report.attempted_runs != len(expected)
+            or self.report.completed_runs != len(expected)
+            or self.report.harness_errors != 0
             or self.report.scenario_coverage.numerator != len(expected)
             or self.report.replay_conformance.numerator != len(expected)
+            or self.report.exact_terminal_accuracy is None
+            or not math.isclose(
+                self.report.exact_terminal_accuracy,
+                success_rate,
+                abs_tol=1e-12,
+            )
+            or self.report.mean_reward is None
+            or not math.isclose(
+                self.report.mean_reward,
+                mean_score,
+                abs_tol=1e-12,
+            )
         ):
             raise ValueError("held-out evidence does not cover the sealed split")
         return self
