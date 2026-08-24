@@ -1538,6 +1538,16 @@ def _persist_runtime_evidence(trace: vf.Trace) -> None:
                         trace.info["science_environment_adapter_error"] = {{
                             "category": "adapter",
                             "code": "adapter.tool_result_missing",
+                            "model_call_ordinal": ordinal,
+                            "runtime_execution_index": execution_index,
+                            "runtime_execution_count": len(
+                                trace.state.tool_executions
+                            ),
+                            "terminal": trace.state.terminal,
+                            "terminal_reason": trace.state.terminal_reason,
+                            "expected_terminal_after_execution": expected.get(
+                                "terminal_after_execution", False
+                            ),
                         }}
                         raise RuntimeError("adapter.tool_result_missing")
                     trace.info["science_environment_adapter_error"] = {{
@@ -1598,6 +1608,11 @@ def _persist_runtime_evidence(trace: vf.Trace) -> None:
                 trace.info["science_environment_adapter_error"] = {{
                     "category": "adapter",
                     "code": "adapter.tool_lineage_divergence",
+                    "remaining_provider_result_count": len(remaining_results),
+                    "reused_provider_call_id": (
+                        provider_call_id in reused_provider_call_ids
+                    ),
+                    "runtime_result_count": len(runtime_result_canonicals),
                 }}
                 raise RuntimeError("adapter.tool_lineage_divergence")
     if [item["action"] for item in tool_lineage if item["accepted"]] != (
