@@ -1,7 +1,7 @@
 # Prove the Gemma 4 training path
 
 Type: task
-Status: open
+Status: resolved
 Blocked by:
 
 ## Question
@@ -15,8 +15,14 @@ assumptions, and blockers.
 
 ## Progress
 
-The CPU/source probes pass with E4B as the primary training checkpoint and E2B
-as the fallback. The pinned prime-rl checkout requires an exact later
-`renderers` commit for Gemma tool calls. The ticket remains open until the
-bounded GPU test trains, saves, reloads, and evaluates an adapter. See
-[the proof plan and local results](../gemma-training-path-proof.md).
+E4B is the proved primary checkpoint and E2B remains only the bounded fallback.
+The exact prime-rl stack plus the audited Gemma renderer and compatibility patch
+completed real BF16 LoRA optimization, wrote resumable DCP and portable PEFT
+artifacts, changed 14 language-layer tensors, and produced finite metrics. A
+second approved workstation then loaded the transferred adapter in a fresh
+process and completed both predeclared EEG tool-loop scenarios. The product
+verifier imported and independently re-read the full two-workstation tree;
+artifact digest
+`sha256:cc16f8e5e6bfe261594ebda73bdd4b25a0d4ce04530fa1e28c7485a6bab26a46`
+binds the accepted result. See
+[the resolved proof](../gemma-training-path-proof.md).

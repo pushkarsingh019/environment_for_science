@@ -2,9 +2,9 @@
 
 Date: 2026-08-22
 Ticket: `03-prove-the-gemma-4-training-path`
-Status: **GPU compatibility proved on 2026-08-23.** The exact E4B snapshot completed
-both the disposable mechanical smoke and a product-owned EEG one-step acceptance run.
-Ticket 10 remains open only for its separate two-workstation import requirement.
+Status: **resolved on 2026-08-24.** The exact E4B snapshot completed the disposable
+mechanical smoke, a product-owned EEG optimization step, and independent fresh reload/evaluation
+on a second approved workstation. The fail-closed product evidence was imported and reverified.
 
 ## Decision
 
@@ -20,10 +20,10 @@ listed below. With that override, the complete text-first Gemma message → toke
 → tool call → tool result → next turn → training-sample path was exercised
 locally against a fake token-in server.
 
-The ticket must **not** be marked resolved until the GPU acceptance sequence in
-this document trains an adapter, writes both checkpoint forms, proves adapter
-tensors changed, unloads/reloads the saved adapter, and completes the disjoint
-held-out eval.
+The resolution gate required the GPU acceptance sequence in this document to train
+an adapter, write both checkpoint forms, prove adapter tensors changed, unload and
+reload the saved adapter independently, and complete the disjoint held-out evaluation.
+That gate now passes; logs alone were not used as proof.
 
 ## Claim ledger
 
@@ -86,13 +86,17 @@ held-out eval.
 - A fresh `proof-final` reload completed both disjoint EEG development scenarios;
   their baseline and reloaded runs reached canonical terminals with tool loops,
   Runtime evidence, and no provider, adapter, tool, or trace errors.
+- The portable adapter was transferred byte-for-byte to a distinct approved inference
+  workstation, loaded into a fresh process, and independently completed those same
+  predeclared scenarios with 9 and 10 linked tool-result nodes and no trace errors.
+- The product verifier independently re-read the full evidence tree, found 14 changed
+  language-layer tensors and two non-empty DCP files, and recorded artifact digest
+  `sha256:cc16f8e5e6bfe261594ebda73bdd4b25a0d4ce04530fa1e28c7485a6bab26a46`.
 
 ### Still not claimed
 
 - Full-layer E4B training, 31B training, curriculum-level quality, or scientific-task
   improvement. Those remain Ticket 11 concerns.
-- Independent reload on the second approved workstation. That remains the final
-  external seam for Ticket 10 rather than being inferred from the one-card smoke.
 
 ## Exact stack
 

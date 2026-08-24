@@ -1120,13 +1120,17 @@ function CurriculumTrainingPanel() {
 function TrainingAcceptancePanel() {
   const [jobs, setJobs] = useState<TrainingAcceptanceJob[]>([]);
   const [busy, setBusy] = useState(false);
+  const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     let active = true;
     trainingApi.listAcceptanceJobs()
-      .then((loaded) => {
-        if (active) setJobs(loaded);
+      .then((items) => {
+        if (active) {
+          setJobs(items);
+          setLoaded(true);
+        }
       })
       .catch((reason: unknown) => {
         if (active) setError(safeMessage(reason, "Unable to load training jobs."));
@@ -1163,7 +1167,7 @@ function TrainingAcceptancePanel() {
         <button
           className="primary-button compact-button"
           data-testid="launch-training-acceptance"
-          disabled={busy}
+          disabled={busy || !loaded}
           onClick={() => void operate(() => trainingApi.launchAcceptanceJob())}
           type="button"
         >

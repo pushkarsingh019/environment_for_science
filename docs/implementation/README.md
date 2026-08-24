@@ -4,14 +4,14 @@ Source specification: [Science Environment Studio executable prototype specifica
 
 ## Progress
 
-- Completed: **9 / 13**
-- In progress: **10–13** — Ticket 10 awaits the second-workstation reload; later-ticket software and the real curriculum run are proceeding without weakening that gate
+- Completed: **10 / 13**
+- In progress: **11–13** — the corrected full-curriculum run, real comparison import, and final review remain
 - Ready now: **None**
 - A ticket counts as complete only after its acceptance criteria, tests, review, and commit pass.
 
 ## Current checkpoint
 
-Tickets 01 through 09 are complete. One local command builds and serves the Scientist Console
+Tickets 01 through 10 are complete. One local command builds and serves the Scientist Console
 with the loopback-only deterministic Environment Runtime. The console runs and replays the
 targeted EEG recovery episodes and now provides a scientifically recognizable EEG
 diagnostic preflight over a configurable schematic whole-cap Apparatus and distinct
@@ -125,11 +125,12 @@ persist queued, running, failed, retried, and completed states in ordinary langu
 verifier checks exact stack/model pins, two distinct sanitized workstation receipts, BF16 and
 language-only LoRA configuration, finite optimization metrics, non-empty DCP state, stable PEFT
 artifacts, changed tensor bytes, fresh reload identity, and held-out tool-loop trace digests. The
-existing disposable probe can require the product verifier in the same pass. Ticket 10 remains
-open until the already-passing E4B/EEG run is independently reloaded on the second approved
-workstation and its two-workstation evidence tree is imported; fixture or log-only evidence cannot
-close it. The training workstation has already produced finite metrics, resumable DCP state, 14
-changed adapter tensors, and error-free baseline/reloaded canonical EEG tool loops.
+existing disposable probe can require the product verifier in the same pass. Ticket 10 is complete. The training workstation produced finite metrics, resumable DCP state,
+14 changed language-layer adapter tensors, and canonical EEG tool loops. A distinct approved
+workstation loaded the byte-identical portable adapter into a fresh process and completed both
+predeclared scenarios without trace errors. The full 4.1 GB evidence tree was privately imported,
+independently reverified, and bound to a durable completed job; fixture or log-only evidence did
+not close the ticket.
 
 Ticket 11 now has a prime-locked training compiler, immutable 96/32/64 job records, native rollout
 and optimizer evidence verification, evaluator-owned held-out import, and deterministic paired
@@ -150,7 +151,6 @@ standards/specification review.
 
 ## Frontier
 
-- [10: Train, save, reload, and evaluate a bounded Gemma adapter](issues/10-train-save-reload-and-evaluate-a-bounded-gemma-adapter.md) — real training-side evidence passed; second-workstation reload/import pending
 - [11: Train Gemma on the EEG curriculum](issues/11-train-gemma-on-the-eeg-curriculum.md) — real immutable-split workstation run in progress
 - [12: Compare all models in the Scientist Console](issues/12-compare-all-models-in-the-scientist-console.md) — interface and offline states pass; awaiting Ticket 11 real result import
 - [13: Ship the resettable end-to-end demo](issues/13-ship-the-resettable-end-to-end-demo.md) — reset journey passes; awaiting real evidence, full suites, and final review
@@ -166,7 +166,7 @@ standards/specification review.
 7. [Prove mesoscope portability through the same compiler](issues/07-prove-mesoscope-portability-through-the-same-compiler.md) — complete
 8. [Evaluate GPT through OpenAI Responses](issues/08-evaluate-gpt-through-openai-responses.md) — complete
 9. [Evaluate Gemini through Interactions](issues/09-evaluate-gemini-through-interactions.md) — complete
-10. [Train, save, reload, and evaluate a bounded Gemma adapter](issues/10-train-save-reload-and-evaluate-a-bounded-gemma-adapter.md) — in progress; second-workstation evidence pending
-11. [Train Gemma on the EEG curriculum](issues/11-train-gemma-on-the-eeg-curriculum.md) — in progress; real run active, closure still depends on 10
+10. [Train, save, reload, and evaluate a bounded Gemma adapter](issues/10-train-save-reload-and-evaluate-a-bounded-gemma-adapter.md) — complete
+11. [Train Gemma on the EEG curriculum](issues/11-train-gemma-on-the-eeg-curriculum.md) — in progress; corrected real run pending
 12. [Compare all models in the Scientist Console](issues/12-compare-all-models-in-the-scientist-console.md) — in progress; software complete, real result blocked by 11
 13. [Ship the resettable end-to-end demo](issues/13-ship-the-resettable-end-to-end-demo.md) — in progress; software complete, final review blocked by 12

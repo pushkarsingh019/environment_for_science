@@ -18,6 +18,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--baseline-model")
     parser.add_argument("--final-model", default="proof-final")
     parser.add_argument("--expected-eval-episodes", type=int, default=4)
+    parser.add_argument("--expected-eval-split", default="eval")
+    parser.add_argument(
+        "--expected-scenario-id",
+        action="append",
+        dest="expected_scenario_ids",
+    )
     parser.add_argument("--product-acceptance-root", type=Path)
     return parser.parse_args()
 
@@ -28,7 +34,12 @@ def tensors(path: Path) -> dict:
 
 
 def inspect_eval(
-    path: Path, expected_model: str | None, expected_episodes: int
+    path: Path,
+    expected_model: str | None,
+    expected_episodes: int,
+    *,
+    expected_split: str = "eval",
+    expected_scenario_ids: set[str] | None = None,
 ) -> dict:
     rows = [json.loads(line) for line in path.read_text().splitlines() if line.strip()]
     assert len(rows) == expected_episodes, (
@@ -39,7 +50,7 @@ def inspect_eval(
     scenarios: Counter[str] = Counter()
     for episode in rows:
         assert episode["ok"], f"failed episode in {path}: {episode.get('errors')}"
-        assert episode["task"]["data"]["split"] == "eval"
+        assert episode["task"]["data"]["split"] == expected_split
         scenarios[episode["task"]["data"]["name"]] += 1
         assert len(episode["traces"]) == 1, f"unexpected trace count in {path}"
         for trace in episode["traces"]:
@@ -61,7 +72,8 @@ def inspect_eval(
     assert tool_loops == len(rows), (
         f"only {tool_loops}/{len(rows)} episodes completed a tool loop in {path}"
     )
-    assert set(scenarios) == {"heldout-00", "heldout-01"}, scenarios
+    expected_ids = expected_scenario_ids or {"heldout-00", "heldout-01"}
+    assert set(scenarios) == expected_ids, scenarios
     return {
         "episodes": len(rows),
         "tool_loops": tool_loops,
@@ -154,15 +166,24 @@ def main() -> None:
     assert actual_targets and actual_targets <= expected_targets
     assert "linear" not in actual_targets
 
+    expected_scenario_ids = (
+        set(args.expected_scenario_ids)
+        if args.expected_scenario_ids is not None
+        else None
+    )
     baseline = inspect_eval(
         args.baseline_traces,
         expected_model=args.baseline_model,
         expected_episodes=args.expected_eval_episodes,
+        expected_split=args.expected_eval_split,
+        expected_scenario_ids=expected_scenario_ids,
     )
     reloaded = inspect_eval(
         args.final_traces,
         expected_model=args.final_model,
         expected_episodes=args.expected_eval_episodes,
+        expected_split=args.expected_eval_split,
+        expected_scenario_ids=expected_scenario_ids,
     )
     assert baseline["scenarios"] == reloaded["scenarios"]
     report = {

@@ -10,10 +10,10 @@ handoff. The project doesn't connect to or control physical apparatus.
 ## Project status
 
 The product, domain, interface, runtime, evaluation, and training decisions are complete.
-Tickets 01 through 09 of 13 are complete. Tickets 10–13 are in progress: real E4B bounded
-training passes on the approved training workstation, the full immutable curriculum run is active,
-and the comparison/resettable-demo software passes focused tests. Real second-workstation and
-held-out imports, full suites, and final review remain required before closure.
+Tickets 01 through 10 of 13 are complete. The bounded E4B adapter has passed real optimization,
+private transfer, independent fresh reload on a second approved workstation, and product-owned
+artifact verification. Tickets 11–13 remain in progress: the corrected immutable curriculum run,
+real held-out comparison import, full suites, and final review are still required.
 
 Read these documents before you implement a ticket:
 
