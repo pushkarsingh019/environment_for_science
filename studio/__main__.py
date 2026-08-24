@@ -18,7 +18,7 @@ def external_prerequisite_summary(
 ) -> tuple[str, ...]:
     """Describe optional integrations without reading or printing credential values."""
 
-    source = dict(os.environ) if environ is None else environ
+    source = os.environ if environ is None else environ
     return (
         "OpenAI hosted reference: "
         + (
