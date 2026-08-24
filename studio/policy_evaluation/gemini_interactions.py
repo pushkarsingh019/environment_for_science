@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import json
 import time
 from collections.abc import Callable, Mapping
 from copy import deepcopy
@@ -11,6 +10,7 @@ from typing import Any, Final, Literal
 from pydantic import ValidationError
 
 from .artifact_safety import contains_exact_material
+from .attestation_protocol import canonical_json
 from .hosted_transport import (
     HostedJsonTransport,
     HostedRequestExecutor,
@@ -128,7 +128,7 @@ def _interactions_payload(request: ModelRequest) -> dict[str, Any]:
             input_items.append(
                 {
                     "role": "user",
-                    "content": _canonical_json(message.content),
+                    "content": canonical_json(message.content),
                 }
             )
         elif message.role == "assistant":
@@ -293,10 +293,10 @@ def _required_nonnegative_int(value: object) -> int:
 
 
 def _header(headers: Mapping[str, str], name: str) -> str | None:
-    for key, value in headers.items():
-        if key.casefold() == name:
-            return value
-    return None
+    return next(
+        (value for key, value in headers.items() if key.casefold() == name),
+        None,
+    )
 
 
 def _mapping(value: object) -> Mapping[str, Any]:
@@ -307,16 +307,6 @@ def _mapping(value: object) -> Mapping[str, Any]:
 
 def _optional_mapping(value: object) -> Mapping[str, Any]:
     return {} if value is None else _mapping(value)
-
-
-def _canonical_json(value: object) -> str:
-    return json.dumps(
-        value,
-        sort_keys=True,
-        separators=(",", ":"),
-        ensure_ascii=False,
-        allow_nan=False,
-    )
 
 
 __all__ = [
