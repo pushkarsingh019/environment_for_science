@@ -8,7 +8,6 @@ import json
 import math
 import os
 import pickle
-import pickletools
 import re
 import struct
 import zipfile
@@ -877,6 +876,14 @@ def _valid_dcp_checkpoint(metadata_path: Path, shards: tuple[Path, ...]) -> bool
             or not all(isinstance(name, str) and name for name in state)
             or not any(name.startswith("app.model.") for name in state)
             or not any(name.startswith("app.optimizers.") for name in state)
+            or not any(
+                _is_dcp_object(
+                    value,
+                    "torch.distributed.checkpoint.metadata",
+                    "TensorStorageMetadata",
+                )
+                for value in state.values()
+            )
             or any(
                 not (
                     _is_dcp_object(
@@ -897,7 +904,7 @@ def _valid_dcp_checkpoint(metadata_path: Path, shards: tuple[Path, ...]) -> bool
         shard_by_name = {shard.name: shard for shard in shards}
         if len(shard_by_name) != len(shards):
             return False
-        ranges: dict[str, list[tuple[int, int]]] = {
+        ranges: dict[str, list[tuple[int, int, bool]]] = {
             name: [] for name in shard_by_name
         }
         storage_fqns: set[str] = set()
@@ -931,7 +938,17 @@ def _valid_dcp_checkpoint(metadata_path: Path, shards: tuple[Path, ...]) -> bool
             ):
                 return False
             storage_fqns.add(fqn)
-            ranges[relative_path].append((offset, offset + length))
+            ranges[relative_path].append(
+                (
+                    offset,
+                    offset + length,
+                    _is_dcp_object(
+                        state[fqn],
+                        "torch.distributed.checkpoint.metadata",
+                        "TensorStorageMetadata",
+                    ),
+                )
+            )
         if storage_fqns != set(state):
             return False
         return all(
@@ -990,7 +1007,7 @@ class _BoundedShard:
 
 def _valid_dcp_shard_ranges(
     shard: Path,
-    ranges: list[tuple[int, int]],
+    ranges: list[tuple[int, int, bool]],
 ) -> bool:
     ordered = sorted(ranges)
     try:
@@ -1003,14 +1020,110 @@ def _valid_dcp_shard_ranges(
         ):
             return False
         return all(
-            _valid_dcp_zip_segment(shard, start, end)
-            for start, end in ordered
+            _valid_dcp_zip_segment(
+                shard,
+                start,
+                end,
+                expect_tensor=expect_tensor,
+            )
+            for start, end, expect_tensor in ordered
         )
     except OSError:
         return False
 
 
-def _valid_dcp_zip_segment(shard: Path, start: int, end: int) -> bool:
+_DCP_PAYLOAD_GLOBALS = frozenset(
+    {
+        ("torch._utils", "_rebuild_tensor_v2"),
+        ("torch", "FloatStorage"),
+        ("torch", "BFloat16Storage"),
+        ("collections", "OrderedDict"),
+    }
+)
+
+
+class _DcpPayloadObject:
+    def __init__(self, *arguments: object) -> None:
+        self.arguments = arguments
+
+    def __setstate__(self, state: object) -> None:
+        self.state = state
+
+    def append(self, value: object) -> None:
+        del value
+
+    def extend(self, values: object) -> None:
+        del values
+
+    def __setitem__(self, key: object, value: object) -> None:
+        del key, value
+
+
+class _DcpPayloadGlobal:
+    def __init__(
+        self,
+        module: str,
+        name: str,
+        owner: _RestrictedDcpPayloadUnpickler,
+    ) -> None:
+        self.module = module
+        self.name = name
+        self._owner = owner
+
+    def __call__(self, *arguments: object) -> _DcpPayloadObject:
+        if (self.module, self.name) == (
+            "torch._utils",
+            "_rebuild_tensor_v2",
+        ):
+            self._owner.tensor_rebuilds += 1
+        return _DcpPayloadObject(*arguments)
+
+
+class _RestrictedDcpPayloadUnpickler(pickle.Unpickler):
+    def __init__(self, stream: io.BytesIO) -> None:
+        super().__init__(stream)
+        self.persistent_storages = 0
+        self.tensor_rebuilds = 0
+
+    def find_class(self, module: str, name: str) -> object:
+        if (module, name) not in _DCP_PAYLOAD_GLOBALS:
+            raise pickle.UnpicklingError(
+                "DCP payload contains an unapproved global"
+            )
+        return _DcpPayloadGlobal(module, name, self)
+
+    def persistent_load(self, persistent_id: object) -> object:
+        if (
+            not isinstance(persistent_id, tuple)
+            or len(persistent_id) != 5
+            or persistent_id[0] != "storage"
+            or not isinstance(persistent_id[1], _DcpPayloadGlobal)
+            or (persistent_id[1].module, persistent_id[1].name)
+            not in {
+                ("torch", "FloatStorage"),
+                ("torch", "BFloat16Storage"),
+            }
+            or not isinstance(persistent_id[2], str)
+            or not isinstance(persistent_id[3], str)
+            or persistent_id[3] != "cpu"
+            or not isinstance(persistent_id[4], int)
+            or isinstance(persistent_id[4], bool)
+            or persistent_id[4] <= 0
+        ):
+            raise pickle.UnpicklingError(
+                "DCP payload contains an invalid persistent storage"
+            )
+        self.persistent_storages += 1
+        return _DcpPayloadObject(persistent_id)
+
+
+def _valid_dcp_zip_segment(
+    shard: Path,
+    start: int,
+    end: int,
+    *,
+    expect_tensor: bool,
+) -> bool:
     try:
         with (
             _BoundedShard(shard, start, end) as segment,
@@ -1036,11 +1149,14 @@ def _valid_dcp_zip_segment(shard: Path, start: int, end: int) -> bool:
             ):
                 return False
             data_pickle = archive.read("archive/data.pkl")
-            operations = tuple(pickletools.genops(data_pickle))
-            return (
-                bool(operations)
-                and operations[-1][0].name == "STOP"
-                and operations[-1][2] == len(data_pickle) - 1
+            payload_stream = io.BytesIO(data_pickle)
+            payload = _RestrictedDcpPayloadUnpickler(payload_stream)
+            payload.load()
+            if payload_stream.read(1) != b"":
+                return False
+            return not expect_tensor or (
+                payload.persistent_storages >= 1
+                and payload.tensor_rebuilds >= 1
             )
     except (
         EOFError,

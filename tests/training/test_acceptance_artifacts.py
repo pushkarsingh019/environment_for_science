@@ -134,10 +134,25 @@ def _canonical_trace_row(
     }
 
 
-def _zip_segment(payload: bytes) -> bytes:
+def _zip_segment(
+    payload: bytes,
+    *,
+    tensor: bool = False,
+    invalid_pickle: bool = False,
+) -> bytes:
+    tensor_pickle = bytes.fromhex(
+        "800263746f7263682e5f7574696c730a5f72656275696c645f74656e736f"
+        "725f76320a71002828580700000073746f72616765710163746f7263680a42"
+        "466c6f6174313653746f726167650a71025801000000307103580300000063"
+        "707571044b01747105514b0029298963636f6c6c656374696f6e730a4f7264"
+        "65726564446963740a7106295271077471085271092e"
+    )
     output = io.BytesIO()
     with zipfile.ZipFile(output, "w") as archive:
-        archive.writestr("archive/data.pkl", pickle.dumps({"state": payload}))
+        data_pickle = tensor_pickle if tensor else pickle.dumps({"state": payload})
+        if invalid_pickle:
+            data_pickle = b"\x80\x04" + b"0" * (len(data_pickle) - 3) + b"."
+        archive.writestr("archive/data.pkl", data_pickle)
         archive.writestr("archive/.format_version", "1")
         archive.writestr("archive/byteorder", "little")
         archive.writestr("archive/version", "1")
@@ -150,6 +165,7 @@ def _write_test_dcp(
     *,
     impersonate_types: bool = False,
     duplicate_storage_fqn: bool = False,
+    invalid_payload_pickle: bool = False,
 ) -> None:
     module_names = (
         "torch",
@@ -187,6 +203,10 @@ def _write_test_dcp(
             "TensorStorageMetadata",
             "torch.distributed.checkpoint.metadata",
         )
+        bytes_type = dcp_class(
+            "BytesStorageMetadata",
+            "torch.distributed.checkpoint.metadata",
+        )
         index_type = dcp_class(
             "MetadataIndex",
             "torch.distributed.checkpoint.metadata",
@@ -206,9 +226,19 @@ def _write_test_dcp(
             return value
 
         names = ("app.model.weight", "app.optimizers.state")
-        segments = (_zip_segment(b"model"), _zip_segment(b"optimizer"))
+        segments = (
+            _zip_segment(
+                b"model",
+                tensor=True,
+                invalid_pickle=invalid_payload_pickle,
+            ),
+            _zip_segment(b"optimizer"),
+        )
         offsets = (0, len(segments[0]))
-        state = {name: tensor_type() for name in names}
+        state = {
+            names[0]: tensor_type(),
+            names[1]: bytes_type(),
+        }
         storage: dict[object, object] = {}
         for position, (name, offset, segment) in enumerate(
             zip(names, offsets, segments)
@@ -410,6 +440,7 @@ def test_verifier_proves_step_checkpoint_changed_adapter_reload_and_tool_loops(
         ("impersonated_checkpoint_types", "checkpoint"),
         ("duplicate_checkpoint_storage", "checkpoint"),
         ("signature_only_checkpoint", "checkpoint"),
+        ("invalid_payload_pickle", "checkpoint"),
         ("unlinked_checkpoint", "checkpoint"),
         ("failed_reload", "reloaded evaluation"),
         ("nonfinite_metric", "finite"),
@@ -461,8 +492,16 @@ def test_verifier_fails_closed_for_incomplete_or_nominal_evidence(
             root / "run/checkpoints/step_1/trainer",
             duplicate_storage_fqn=True,
         )
+    elif mutation == "invalid_payload_pickle":
+        _write_test_dcp(
+            root / "run/checkpoints/step_1/trainer",
+            invalid_payload_pickle=True,
+        )
     elif mutation == "signature_only_checkpoint":
-        segments = (_zip_segment(b"model"), _zip_segment(b"optimizer"))
+        segments = (
+            _zip_segment(b"model", tensor=True),
+            _zip_segment(b"optimizer"),
+        )
         forged = bytearray()
         for segment in segments:
             replacement = bytearray(len(segment))
