@@ -65,7 +65,9 @@ class CurriculumRunConfiguration(_FrozenModel):
     group_size: Literal[4]
     sequence_length: Literal[16384]
     evaluation_context_length: Literal[16384]
-    max_completion_tokens: Literal[256]
+    training_max_completion_tokens: Literal[128]
+    evaluation_max_completion_tokens: Literal[256]
+    trainer_language_layers: Literal[2]
     optimization_dtype: Literal["bfloat16"]
     reduction_dtype: Literal["bfloat16"]
     lora_target_regex: Literal[
@@ -116,8 +118,10 @@ class CurriculumTrainingEvidence(_FrozenModel):
     optimization: CurriculumOptimizationEvidence
     adapter_tensor_count: int = Field(ge=1)
     changed_adapter_tensors: int = Field(ge=1)
+    initial_adapter_digest: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
     final_adapter_digest: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
     checkpoint_files: int = Field(ge=1)
+    checkpoint_digest: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
     development_scenario_ids: tuple[str, ...] = Field(min_length=32, max_length=32)
     base_development_trace_digest: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
     trained_development_trace_digest: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
@@ -128,6 +132,8 @@ class CurriculumTrainingEvidence(_FrozenModel):
 
     @model_validator(mode="after")
     def validate_split_and_claim_provenance(self) -> CurriculumTrainingEvidence:
+        base_heldout_ledger = _required_ledger_digest(self.base_heldout)
+        trained_heldout_ledger = _required_ledger_digest(self.trained_heldout)
         if (
             len(self.training_trace_digests) != self.training_rollouts
             or self.configuration_digest != _canonical_digest(
@@ -138,6 +144,21 @@ class CurriculumTrainingEvidence(_FrozenModel):
                 self.base_heldout.scenario_success,
                 self.trained_heldout.scenario_success,
             ).paired_outcomes_digest
+            or self.artifact_digest
+            != _curriculum_artifact_digest(
+                configuration_digest=self.configuration_digest,
+                training_trace_digests=self.training_trace_digests,
+                base_development_trace_digest=self.base_development_trace_digest,
+                trained_development_trace_digest=(
+                    self.trained_development_trace_digest
+                ),
+                base_heldout_ledger=base_heldout_ledger,
+                trained_heldout_ledger=trained_heldout_ledger,
+                initial_adapter_digest=self.initial_adapter_digest,
+                final_adapter_digest=self.final_adapter_digest,
+                checkpoint_digest=self.checkpoint_digest,
+                paired_outcomes_digest=self.paired_bootstrap.paired_outcomes_digest,
+            )
         ):
             raise ValueError("curriculum evidence provenance is inconsistent")
         return self
@@ -153,6 +174,7 @@ def verify_curriculum_training_evidence(
     trained_heldout: HeldOutEvaluationEvidence,
     configuration: CurriculumRunConfiguration,
     base_call_model: str,
+    training_call_model: str = "r8-a16.0",
     trained_call_model: str = "eeg-curriculum-final",
 ) -> CurriculumTrainingEvidence:
     """Independently derive one full training result from native artifacts."""
@@ -160,7 +182,7 @@ def verify_curriculum_training_evidence(
     run = _directory(run_directory, "curriculum training run")
     training_rows = _training_rows(
         run,
-        expected_call_model=base_call_model,
+        expected_call_model=training_call_model,
     )
     approved_training = load_training_scenario_set()
     scenario_counts = Counter(row["scenario_id"] for row in training_rows)
@@ -206,23 +228,36 @@ def verify_curriculum_training_evidence(
     if changed < 1:
         raise CurriculumEvidenceError("curriculum training did not change the adapter")
     _stable_adapter(run / "broadcasts/step_96")
-    checkpoint_files = _checkpoint_files(run / "checkpoints/step_96/trainer")
+    checkpoint_root = run / "checkpoints/step_96/trainer"
+    checkpoint_files = _checkpoint_files(checkpoint_root)
+    checkpoint_digest = _tree_digest(checkpoint_files, root=checkpoint_root)
     optimization = _optimization(run / "metrics.jsonl")
     paired = paired_bootstrap_success(
         base_heldout.scenario_success,
         trained_heldout.scenario_success,
     )
     configuration_digest = _canonical_digest(configuration.model_dump(mode="json"))
-    artifact_document = {
-        "configuration_digest": configuration_digest,
-        "training_trace_digests": [row["trace_digest"] for row in training_rows],
-        "base_development": [row["trace_digest"] for row in base_development],
-        "trained_development": [row["trace_digest"] for row in trained_development],
-        "base_heldout_ledger": base_heldout.report.attempt_ledger_digest,
-        "trained_heldout_ledger": trained_heldout.report.attempt_ledger_digest,
-        "adapter_digest": _file_digest(final_path),
-        "paired_outcomes_digest": paired.paired_outcomes_digest,
-    }
+    training_trace_digests = tuple(
+        row["trace_digest"] for row in training_rows
+    )
+    base_development_digest = _rows_digest(base_development)
+    trained_development_digest = _rows_digest(trained_development)
+    initial_adapter_digest = _file_digest(initial_path)
+    final_adapter_digest = _file_digest(final_path)
+    base_heldout_ledger = _required_ledger_digest(base_heldout)
+    trained_heldout_ledger = _required_ledger_digest(trained_heldout)
+    artifact_digest = _curriculum_artifact_digest(
+        configuration_digest=configuration_digest,
+        training_trace_digests=training_trace_digests,
+        base_development_trace_digest=base_development_digest,
+        trained_development_trace_digest=trained_development_digest,
+        base_heldout_ledger=base_heldout_ledger,
+        trained_heldout_ledger=trained_heldout_ledger,
+        initial_adapter_digest=initial_adapter_digest,
+        final_adapter_digest=final_adapter_digest,
+        checkpoint_digest=checkpoint_digest,
+        paired_outcomes_digest=paired.paired_outcomes_digest,
+    )
     return CurriculumTrainingEvidence(
         evidence_version="eeg-curriculum-training-evidence/1",
         status="verified",
@@ -232,9 +267,7 @@ def verify_curriculum_training_evidence(
         stack=dict(STACK_PINS),
         training_scenario_ids=tuple(sorted(scenario_counts)),
         training_rollouts=len(training_rows),
-        training_trace_digests=tuple(
-            row["trace_digest"] for row in training_rows
-        ),
+        training_trace_digests=training_trace_digests,
         sampled_tokens=sum(row["sampled_tokens"] for row in training_rows),
         trainable_mask_tokens=sum(row["mask_tokens"] for row in training_rows),
         aligned_logprob_tokens=sum(row["logprob_tokens"] for row in training_rows),
@@ -242,17 +275,19 @@ def verify_curriculum_training_evidence(
         optimization=optimization,
         adapter_tensor_count=len(final.entries),
         changed_adapter_tensors=changed,
-        final_adapter_digest=_file_digest(final_path),
+        initial_adapter_digest=initial_adapter_digest,
+        final_adapter_digest=final_adapter_digest,
         checkpoint_files=len(checkpoint_files),
+        checkpoint_digest=checkpoint_digest,
         development_scenario_ids=tuple(
             row["scenario_id"] for row in base_development
         ),
-        base_development_trace_digest=_rows_digest(base_development),
-        trained_development_trace_digest=_rows_digest(trained_development),
+        base_development_trace_digest=base_development_digest,
+        trained_development_trace_digest=trained_development_digest,
         base_heldout=base_heldout,
         trained_heldout=trained_heldout,
         paired_bootstrap=paired,
-        artifact_digest=_canonical_digest(artifact_document),
+        artifact_digest=artifact_digest,
     )
 
 
@@ -454,6 +489,42 @@ def _directory(path: Path, label: str) -> Path:
     return resolved
 
 
+def _required_ledger_digest(evidence: HeldOutEvaluationEvidence) -> str:
+    digest = evidence.report.attempt_ledger_digest
+    if digest is None or _DIGEST.fullmatch(digest) is None:
+        raise CurriculumEvidenceError("held-out attempt ledger digest is missing")
+    return digest
+
+
+def _curriculum_artifact_digest(
+    *,
+    configuration_digest: str,
+    training_trace_digests: tuple[str, ...],
+    base_development_trace_digest: str,
+    trained_development_trace_digest: str,
+    base_heldout_ledger: str,
+    trained_heldout_ledger: str,
+    initial_adapter_digest: str,
+    final_adapter_digest: str,
+    checkpoint_digest: str,
+    paired_outcomes_digest: str,
+) -> str:
+    return _canonical_digest(
+        {
+            "configuration_digest": configuration_digest,
+            "training_trace_digests": training_trace_digests,
+            "base_development_trace_digest": base_development_trace_digest,
+            "trained_development_trace_digest": trained_development_trace_digest,
+            "base_heldout_ledger": base_heldout_ledger,
+            "trained_heldout_ledger": trained_heldout_ledger,
+            "initial_adapter_digest": initial_adapter_digest,
+            "final_adapter_digest": final_adapter_digest,
+            "checkpoint_digest": checkpoint_digest,
+            "paired_outcomes_digest": paired_outcomes_digest,
+        }
+    )
+
+
 def _canonical_digest(value: object) -> str:
     payload = json.dumps(
         value,
@@ -470,6 +541,19 @@ def _file_digest(path: Path) -> str:
         return f"sha256:{hashlib.sha256(path.read_bytes()).hexdigest()}"
     except OSError as error:
         raise CurriculumEvidenceError("adapter artifact could not be read") from error
+
+
+def _tree_digest(files: tuple[Path, ...], *, root: Path) -> str:
+    manifest = []
+    for path in sorted(files, key=lambda item: item.relative_to(root).as_posix()):
+        manifest.append(
+            {
+                "path": path.relative_to(root).as_posix(),
+                "size_bytes": path.stat().st_size,
+                "digest": _file_digest(path),
+            }
+        )
+    return _canonical_digest(manifest)
 
 
 def _rows_digest(rows: list[dict[str, Any]]) -> str:

@@ -2,12 +2,15 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
 from pydantic import ValidationError
 
 from studio.curriculum_training_evidence import (
     CurriculumRunConfiguration,
     _aligned_training_node,
+    _tree_digest,
 )
 
 
@@ -41,7 +44,9 @@ def _configuration() -> dict[str, object]:
         "group_size": 4,
         "sequence_length": 16_384,
         "evaluation_context_length": 16_384,
-        "max_completion_tokens": 256,
+        "training_max_completion_tokens": 128,
+        "evaluation_max_completion_tokens": 256,
+        "trainer_language_layers": 2,
         "optimization_dtype": "bfloat16",
         "reduction_dtype": "bfloat16",
         "lora_target_regex": (
@@ -52,6 +57,24 @@ def _configuration() -> dict[str, object]:
         "provider_sampling_seed": None,
         "adapter_selection": "final-step-predeclared",
     }
+
+
+def test_checkpoint_digest_is_content_bound_and_path_independent(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path
+    first = root / "first"
+    second = root / "second"
+    first.mkdir()
+    second.mkdir()
+    (first / "state").write_bytes(b"checkpoint")
+    (second / "state").write_bytes(b"checkpoint")
+
+    digest = _tree_digest((first / "state",), root=first)
+
+    assert digest == _tree_digest((second / "state",), root=second)
+    (second / "state").write_bytes(b"changed")
+    assert digest != _tree_digest((second / "state",), root=second)
 
 
 def test_prime_training_tokens_align_logprobs_to_true_mask_positions() -> None:
@@ -71,6 +94,9 @@ def test_configuration_records_exact_splits_stack_seed_policy_and_selection() ->
 
     assert configuration.max_steps == 96
     assert configuration.group_size == 4
+    assert configuration.training_max_completion_tokens == 128
+    assert configuration.evaluation_max_completion_tokens == 256
+    assert configuration.trainer_language_layers == 2
     assert configuration.provider_sampling_seed is None
     assert configuration.adapter_selection == "final-step-predeclared"
     assert configuration.training_package_digest != configuration.heldout_package_digest
@@ -81,6 +107,7 @@ def test_configuration_records_exact_splits_stack_seed_policy_and_selection() ->
     (
         ("max_steps", 95),
         ("group_size", 8),
+        ("trainer_language_layers", 4),
         ("provider_sampling_seed", 7),
         ("adapter_selection", "selected-after-heldout"),
         ("heldout_package_digest", "sha256:" + "f" * 64),

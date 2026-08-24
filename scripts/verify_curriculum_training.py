@@ -31,6 +31,7 @@ def main() -> int:
     parser.add_argument("--base-heldout", type=Path, required=True)
     parser.add_argument("--trained-heldout", type=Path, required=True)
     parser.add_argument("--base-call-model", required=True)
+    parser.add_argument("--training-call-model", default="r8-a16.0")
     parser.add_argument("--trained-call-model", default="eeg-curriculum-final")
     parser.add_argument("--code-revision", required=True)
     parser.add_argument("--training-taskset-digest", required=True)
@@ -69,7 +70,9 @@ def main() -> int:
         group_size=4,
         sequence_length=16_384,
         evaluation_context_length=16_384,
-        max_completion_tokens=256,
+        training_max_completion_tokens=128,
+        evaluation_max_completion_tokens=256,
+        trainer_language_layers=2,
         optimization_dtype="bfloat16",
         reduction_dtype="bfloat16",
         lora_target_regex=(
@@ -124,6 +127,7 @@ def main() -> int:
             trained_heldout=trained,
             configuration=configuration,
             base_call_model=args.base_call_model,
+            training_call_model=args.training_call_model,
             trained_call_model=args.trained_call_model,
         )
         comparison = real_model_comparison(
