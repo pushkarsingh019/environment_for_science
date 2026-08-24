@@ -96,7 +96,7 @@ def test_loopback_api_exposes_queued_running_failed_and_completed_states(
         assert completed_response.status_code == 200
         completed = completed_response.json()
         assert completed["status"] == "completed"
-        assert completed["evidence"]["changed_adapter_tensors"] == 1
+        assert completed["evidence"]["changed_adapter_tensors"] == 28
 
         listed = client.get("/api/training/acceptance-jobs")
         assert listed.status_code == 200

@@ -61,6 +61,16 @@ _ALLOWED_TARGETS = {
     "up_proj",
     "down_proj",
 }
+_EXPECTED_ADAPTER_TENSORS = frozenset(
+    f"model.language_model.layers.{layer}.{block}.{target}.lora_{side}.weight"
+    for layer in (0, 1)
+    for block, targets in (
+        ("self_attn", ("q_proj", "k_proj", "v_proj", "o_proj")),
+        ("mlp", ("gate_proj", "up_proj", "down_proj")),
+    )
+    for target in targets
+    for side in ("A", "B")
+)
 _MAX_JSON_BYTES = 4 * 1024 * 1024
 _MAX_ADAPTER_BYTES = 1024 * 1024 * 1024
 
@@ -144,18 +154,46 @@ class _TensorFile:
             if (
                 not isinstance(offsets, list)
                 or len(offsets) != 2
-                or not all(isinstance(item, int) and not isinstance(item, bool) for item in offsets)
+                or not all(
+                    isinstance(item, int) and not isinstance(item, bool)
+                    for item in offsets
+                )
                 or not isinstance(shape, list)
-                or not all(isinstance(item, int) and item >= 0 for item in shape)
-                or not isinstance(dtype, str)
+                or len(shape) != 2
+                or not all(
+                    isinstance(item, int)
+                    and not isinstance(item, bool)
+                    and item > 0
+                    for item in shape
+                )
+                or dtype != "BF16"
+                or (
+                    key.endswith(".lora_A.weight")
+                    and shape[0] != 8
+                )
+                or (
+                    key.endswith(".lora_B.weight")
+                    and shape[1] != 8
+                )
             ):
                 raise AcceptanceArtifactError("adapter tensor header is invalid")
             start, end = offsets
-            if start < 0 or start > end or end > data_length:
+            if (
+                start < 0
+                or start >= end
+                or end > data_length
+                or end - start != shape[0] * shape[1] * 2
+            ):
                 raise AcceptanceArtifactError("adapter tensor offsets are invalid")
             self.entries[key] = (start, end)
-        if not self.entries:
-            raise AcceptanceArtifactError("adapter contains no tensors")
+        spans = sorted(self.entries.values())
+        if (
+            not self.entries
+            or spans[0][0] != 0
+            or spans[-1][1] != data_length
+            or any(left[1] != right[0] for left, right in zip(spans, spans[1:]))
+        ):
+            raise AcceptanceArtifactError("adapter tensor data is invalid")
 
     def tensor_bytes(self, key: str) -> bytes:
         start, end = self.entries[key]
@@ -297,8 +335,13 @@ class AcceptanceArtifactVerifier:
             for key in (*initial.entries, *final.entries)
         ):
             raise AcceptanceArtifactError("adapter contains a non-language-layer tensor")
-        if set(initial.entries) != set(final.entries):
-            raise AcceptanceArtifactError("adapter tensor sets do not match")
+        if (
+            set(initial.entries) != _EXPECTED_ADAPTER_TENSORS
+            or set(final.entries) != _EXPECTED_ADAPTER_TENSORS
+        ):
+            raise AcceptanceArtifactError(
+                "adapter tensor architecture does not match the bounded LoRA"
+            )
         changed = sum(
             initial.tensor_bytes(key) != final.tensor_bytes(key)
             for key in initial.entries
@@ -307,7 +350,7 @@ class AcceptanceArtifactVerifier:
             raise AcceptanceArtifactError("optimizer step did not change an adapter tensor")
 
         checkpoint = run / "checkpoints/step_1/trainer"
-        checkpoint_files = self._nonempty_regular_files(checkpoint)
+        checkpoint_files = self._dcp_files(checkpoint)
         if not checkpoint_files:
             raise AcceptanceArtifactError("resumable trainer checkpoint is missing")
 
@@ -459,12 +502,24 @@ class AcceptanceArtifactVerifier:
             raise AcceptanceArtifactError(f"{label} trace slots are duplicated")
         return rows
 
-    def _nonempty_regular_files(self, directory: Path) -> tuple[Path, ...]:
+    def _dcp_files(self, directory: Path) -> tuple[Path, ...]:
         try:
             if directory.is_symlink() or not directory.is_dir():
                 return ()
             files = tuple(path for path in directory.rglob("*") if path.is_file())
-            if any(path.is_symlink() or path.stat().st_size <= 0 for path in files):
+            metadata = directory / ".metadata"
+            shards = tuple(path for path in files if path.suffix == ".distcp")
+            if (
+                len(files) != len(shards) + 1
+                or metadata not in files
+                or not shards
+                or any(path.is_symlink() or path.stat().st_size <= 8 for path in files)
+                or not metadata.read_bytes().startswith(b"\x80\x04")
+                or any(
+                    not shard.read_bytes().startswith(b"PK\x03\x04")
+                    for shard in shards
+                )
+            ):
                 return ()
             return files
         except OSError:

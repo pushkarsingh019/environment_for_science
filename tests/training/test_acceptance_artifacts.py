@@ -21,20 +21,45 @@ def _digest(value: bytes) -> str:
     return f"sha256:{hashlib.sha256(value).hexdigest()}"
 
 
-def _write_safetensors(path: Path, value: bytes) -> None:
-    key = "model.language_model.layers.0.self_attn.q_proj.lora_A.weight"
-    header = json.dumps(
-        {
-            key: {
-                "dtype": "F32",
-                "shape": [1],
-                "data_offsets": [0, len(value)],
-            }
-        },
+def _adapter_keys() -> tuple[str, ...]:
+    return tuple(
+        f"model.language_model.layers.{layer}.{block}.{target}.lora_{side}.weight"
+        for layer in (0, 1)
+        for block, targets in (
+            ("self_attn", ("q_proj", "k_proj", "v_proj", "o_proj")),
+            ("mlp", ("gate_proj", "up_proj", "down_proj")),
+        )
+        for target in targets
+        for side in ("A", "B")
+    )
+
+
+def _write_safetensors(
+    path: Path,
+    value: bytes,
+    *,
+    keys: tuple[str, ...] | None = None,
+) -> None:
+    if len(value) != 4:
+        raise ValueError("test tensor marker must contain four bytes")
+    offset = 0
+    header: dict[str, object] = {"__metadata__": {"format": "pt"}}
+    for key in keys or _adapter_keys():
+        contents = value * 4
+        shape = [8, 1] if key.endswith(".lora_A.weight") else [1, 8]
+        header[key] = {
+            "dtype": "BF16",
+            "shape": shape,
+            "data_offsets": [offset, offset + len(contents)],
+        }
+        offset += len(contents)
+    encoded = json.dumps(
+        header,
         sort_keys=True,
         separators=(",", ":"),
     ).encode()
-    path.write_bytes(struct.pack("<Q", len(header)) + header + value)
+    data = b"".join(value * 4 for _key in keys or _adapter_keys())
+    path.write_bytes(struct.pack("<Q", len(encoded)) + encoded + data)
 
 
 def _canonical(path: Path, value: object) -> None:
@@ -71,7 +96,12 @@ def _acceptance_tree(root: Path) -> Path:
             },
         )
         _write_safetensors(directory / "adapter_model.safetensors", tensor)
-    (checkpoint / "state.distcp").write_bytes(b"non-empty-resumable-state")
+    (checkpoint / ".metadata").write_bytes(
+        b"\x80\x04" + b"pinned-dcp-metadata"
+    )
+    (checkpoint / "__0_0.distcp").write_bytes(
+        b"PK\x03\x04" + b"pinned-dcp-shard"
+    )
     _canonical(
         root / "optimization-metrics.json",
         {"loss": 1.25, "gradient_norm": 0.75, "mismatch_kl": 0.02},
@@ -191,9 +221,9 @@ def test_verifier_proves_step_checkpoint_changed_adapter_reload_and_tool_loops(
         "gradient_norm": 0.75,
         "mismatch_kl": 0.02,
     }
-    assert evidence.changed_adapter_tensors == 1
-    assert evidence.adapter_tensor_count == 1
-    assert evidence.checkpoint_files == 1
+    assert evidence.changed_adapter_tensors == 28
+    assert evidence.adapter_tensor_count == 28
+    assert evidence.checkpoint_files == 2
     assert evidence.reloaded_served_identity == "proof-final"
     assert evidence.training_scenario_ids == ("eeg-04b947fbdffb3768",)
     assert len(evidence.training_trace_digests) == 8
@@ -213,6 +243,7 @@ def test_verifier_proves_step_checkpoint_changed_adapter_reload_and_tool_loops(
         ("failed_reload", "reloaded evaluation"),
         ("nonfinite_metric", "finite"),
         ("vision_tensor", "language-layer"),
+        ("single_tensor", "architecture"),
         ("fallback_without_resource_failure", "fallback"),
     ),
 )
@@ -227,7 +258,7 @@ def test_verifier_fails_closed_for_incomplete_or_nominal_evidence(
         initial = root / "run/broadcasts/step_0/adapter_model.safetensors"
         final.write_bytes(initial.read_bytes())
     elif mutation == "missing_checkpoint":
-        (root / "run/checkpoints/step_1/trainer/state.distcp").unlink()
+        (root / "run/checkpoints/step_1/trainer/.metadata").unlink()
     elif mutation == "failed_reload":
         path = root / "evals/reloaded.jsonl"
         rows = [json.loads(line) for line in path.read_text().splitlines()]
@@ -242,17 +273,16 @@ def test_verifier_fails_closed_for_incomplete_or_nominal_evidence(
         _write_safetensors(
             root / "run/broadcasts/step_1/adapter_model.safetensors",
             b"\x00\x00\x80?",
+            keys=("model.vision_tower.q_proj.lora_A.weight",),
         )
-        payload = root / "run/broadcasts/step_1/adapter_model.safetensors"
-        raw = payload.read_bytes()
-        length = struct.unpack("<Q", raw[:8])[0]
-        header = json.loads(raw[8 : 8 + length])
-        value = next(iter(header.values()))
-        rewritten = json.dumps(
-            {"model.vision_tower.q_proj.lora_A.weight": value},
-            separators=(",", ":"),
-        ).encode()
-        payload.write_bytes(struct.pack("<Q", len(rewritten)) + rewritten + raw[8 + length :])
+    elif mutation == "single_tensor":
+        _write_safetensors(
+            root / "run/broadcasts/step_1/adapter_model.safetensors",
+            b"\x00\x00\x80?",
+            keys=(
+                "model.language_model.layers.0.self_attn.q_proj.lora_A.weight",
+            ),
+        )
     else:
         receipt_path = root / "receipt.json"
         receipt = json.loads(receipt_path.read_text())
