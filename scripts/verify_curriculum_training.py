@@ -71,7 +71,15 @@ def main() -> int:
         sequence_length=16_384,
         evaluation_context_length=16_384,
         training_max_completion_tokens=128,
+        training_max_turns=65,
+        training_rollout_timeout_seconds=900,
+        training_temperature=1.0,
         evaluation_max_completion_tokens=256,
+        evaluation_max_turns=65,
+        evaluation_max_accepted_tool_calls=64,
+        evaluation_max_provider_tool_calls=64,
+        evaluation_rollout_timeout_seconds=900,
+        evaluation_temperature=0.0,
         trainer_language_layers=2,
         optimization_dtype="bfloat16",
         reduction_dtype="bfloat16",
@@ -91,6 +99,10 @@ def main() -> int:
             "taskset": args.heldout_taskset_digest,
             "context": 16_384,
             "max_completion_tokens": 256,
+            "max_turns": 65,
+            "max_accepted_tool_calls": 64,
+            "max_provider_tool_calls": 64,
+            "rollout_timeout_seconds": 900,
             "temperature": 0.0,
         }
     )
@@ -102,6 +114,10 @@ def main() -> int:
             "taskset": args.heldout_taskset_digest,
             "context": 16_384,
             "max_completion_tokens": 256,
+            "max_turns": 65,
+            "max_accepted_tool_calls": 64,
+            "max_provider_tool_calls": 64,
+            "rollout_timeout_seconds": 900,
             "temperature": 0.0,
         }
     )

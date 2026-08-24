@@ -45,7 +45,15 @@ def _configuration() -> dict[str, object]:
         "sequence_length": 16_384,
         "evaluation_context_length": 16_384,
         "training_max_completion_tokens": 128,
+        "training_max_turns": 65,
+        "training_rollout_timeout_seconds": 900,
+        "training_temperature": 1.0,
         "evaluation_max_completion_tokens": 256,
+        "evaluation_max_turns": 65,
+        "evaluation_max_accepted_tool_calls": 64,
+        "evaluation_max_provider_tool_calls": 64,
+        "evaluation_rollout_timeout_seconds": 900,
+        "evaluation_temperature": 0.0,
         "trainer_language_layers": 2,
         "optimization_dtype": "bfloat16",
         "reduction_dtype": "bfloat16",
@@ -96,6 +104,8 @@ def test_configuration_records_exact_splits_stack_seed_policy_and_selection() ->
     assert configuration.group_size == 4
     assert configuration.training_max_completion_tokens == 128
     assert configuration.evaluation_max_completion_tokens == 256
+    assert configuration.evaluation_max_accepted_tool_calls == 64
+    assert configuration.evaluation_temperature == 0.0
     assert configuration.trainer_language_layers == 2
     assert configuration.provider_sampling_seed is None
     assert configuration.adapter_selection == "final-step-predeclared"

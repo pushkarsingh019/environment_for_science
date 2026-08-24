@@ -66,7 +66,15 @@ class CurriculumRunConfiguration(_FrozenModel):
     sequence_length: Literal[16384]
     evaluation_context_length: Literal[16384]
     training_max_completion_tokens: Literal[128]
+    training_max_turns: Literal[65]
+    training_rollout_timeout_seconds: Literal[900]
+    training_temperature: float = Field(ge=1.0, le=1.0)
     evaluation_max_completion_tokens: Literal[256]
+    evaluation_max_turns: Literal[65]
+    evaluation_max_accepted_tool_calls: Literal[64]
+    evaluation_max_provider_tool_calls: Literal[64]
+    evaluation_rollout_timeout_seconds: Literal[900]
+    evaluation_temperature: float = Field(ge=0.0, le=0.0)
     trainer_language_layers: Literal[2]
     optimization_dtype: Literal["bfloat16"]
     reduction_dtype: Literal["bfloat16"]
