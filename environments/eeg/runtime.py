@@ -31,7 +31,7 @@ class _LegacyMarkerRecoveryRuntime:
     """Seeded synthetic marker-recovery Environment implementation."""
 
     def __init__(self, bundle: EnvironmentBundle) -> None:
-        self._bundle = bundle.model_copy(deep=True)
+        self._bundle = bundle
         visualization = validate_eeg_visualization(self._bundle.visualization)
         if not isinstance(visualization, EegOnsetRouteVisualization):
             raise BundleValidationError(
@@ -243,8 +243,7 @@ class EegEnvironmentModule:
 
     def __init__(self, bundle: EnvironmentBundle) -> None:
         self._bundle = bundle.model_copy(deep=True)
-        visualization = validate_eeg_visualization(self._bundle.visualization)
-        self._visualization = visualization.model_copy(deep=True)
+        self._visualization = validate_eeg_visualization(self._bundle.visualization)
         if bundle.generator_revision == "eeg-marker-generator-1":
             self._implementation: (
                 _LegacyMarkerRecoveryRuntime | EegPreflightRuntime | EegCurriculumRuntime

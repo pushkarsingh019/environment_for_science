@@ -124,7 +124,7 @@ class EnvironmentRegistry:
                         navigation_summary="Authoring and diagnostic recovery",
                         source_kind="editable_draft",
                     ),
-                    bundle=eeg_bundle.model_copy(deep=True),
+                    bundle=eeg_bundle,
                     seeded_scenarios=eeg_choices,
                     module_factory=EegEnvironmentModule,
                 ),
@@ -137,7 +137,7 @@ class EnvironmentRegistry:
                         navigation_summary="Sealed synthetic handoff",
                         source_kind="sealed_seed",
                     ),
-                    bundle=mesoscope_bundle.model_copy(deep=True),
+                    bundle=mesoscope_bundle,
                     seeded_scenarios=tuple(mesoscope_choices),
                     module_factory=MesoscopeEnvironmentModule,
                 ),
@@ -159,7 +159,7 @@ class EnvironmentRegistry:
 
     def runtime_validation_bundle(self, environment_id: str) -> EnvironmentBundle:
         module = self.module_for_bundle(self.bundle(environment_id))
-        return module.runtime_validation_bundle.model_copy(deep=True)
+        return module.runtime_validation_bundle
 
     def seeded_scenarios(
         self,
@@ -173,9 +173,9 @@ class EnvironmentRegistry:
     def visualization(self, environment_id: str) -> EnvironmentVisualization:
         module = self.module_for_bundle(self.bundle(environment_id))
         if isinstance(module, EegEnvironmentModule):
-            return module.visualization.model_copy(deep=True)
+            return module.visualization
         if isinstance(module, MesoscopeEnvironmentModule):
-            return module.visualization.model_copy(deep=True)
+            return module.visualization
         raise EnvironmentRegistryError("registered Environment has no presentation adapter")
 
     def module_for_bundle(self, bundle: EnvironmentBundle) -> EnvironmentModule:
@@ -183,11 +183,11 @@ class EnvironmentRegistry:
         if registration is None:
             identity = (bundle.bundle_id, bundle.generator_revision)
             if identity in _COMPATIBLE_EEG_BUNDLES:
-                return EegEnvironmentModule(bundle.model_copy(deep=True))
+                return EegEnvironmentModule(bundle)
             raise EnvironmentRegistryError(
                 f"Environment bundle {bundle.bundle_id!r} is not registered"
             )
-        return registration.module_factory(bundle.model_copy(deep=True))
+        return registration.module_factory(bundle)
 
     def _registration(self, environment_id: str) -> _Registration:
         try:
