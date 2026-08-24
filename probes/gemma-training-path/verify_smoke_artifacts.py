@@ -19,6 +19,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--final-model", default="proof-final")
     parser.add_argument("--expected-eval-episodes", type=int, default=4)
     parser.add_argument("--expected-eval-split", default="eval")
+    parser.add_argument("--expected-training-split", default="train")
     parser.add_argument(
         "--expected-scenario-id",
         action="append",
@@ -82,7 +83,7 @@ def inspect_eval(
     }
 
 
-def inspect_training(path: Path) -> dict:
+def inspect_training(path: Path, expected_split: str = "train") -> dict:
     rows = [json.loads(line) for line in path.read_text().splitlines() if line.strip()]
     assert len(rows) == 8, (
         f"expected 8 effective training episodes in {path}, found {len(rows)}"
@@ -92,7 +93,7 @@ def inspect_training(path: Path) -> dict:
     tool_loops = 0
     for episode in rows:
         assert episode["ok"], f"failed training episode in {path}"
-        assert episode["task"]["data"]["split"] == "train"
+        assert episode["task"]["data"]["split"] == expected_split
         assert len(episode["traces"]) == 1
         trace = episode["traces"][0]
         assert trace["ok"], f"failed training trace in {path}"
@@ -190,7 +191,10 @@ def main() -> None:
         "adapter_tensors": len(final_tensors),
         "changed_adapter_tensors": len(changed),
         "checkpoint_files": sum(path.is_file() for path in checkpoint.rglob("*")),
-        "training": inspect_training(training_traces),
+        "training": inspect_training(
+            training_traces,
+            expected_split=args.expected_training_split,
+        ),
         "baseline": baseline,
         "reloaded": reloaded,
     }
