@@ -3,12 +3,18 @@
 from __future__ import annotations
 
 import json
-from collections.abc import Mapping
+import math
+import socket
+import time
+from collections.abc import Callable, Mapping
 from typing import Any, Protocol
 from urllib import error as urllib_error
 from urllib import request as urllib_request
 
+from .model_runner import ModelProviderFailure
+
 _MAX_RESPONSE_BYTES = 4 * 1024 * 1024
+_MAX_ATTEMPTS = 3
 
 
 class HostedJsonTransport(Protocol):
@@ -34,6 +40,79 @@ class _RejectRedirectHandler(urllib_request.HTTPRedirectHandler):
     ) -> None:
         del request, file_pointer, code, message, headers, new_url
         return None
+
+
+class HostedRequestExecutor:
+    """Apply one bounded retry, deadline, and safe failure policy to hosted JSON."""
+
+    def __init__(
+        self,
+        *,
+        transport: HostedJsonTransport,
+        request_timeout_seconds: float,
+        sleeper: Callable[[float], None] = time.sleep,
+        monotonic: Callable[[], float] = time.monotonic,
+    ) -> None:
+        if request_timeout_seconds <= 0:
+            raise ValueError("provider timeout must be positive")
+        self._transport = transport
+        self._request_timeout_seconds = request_timeout_seconds
+        self._sleeper = sleeper
+        self._monotonic = monotonic
+
+    def execute(
+        self,
+        *,
+        url: str,
+        headers: dict[str, str],
+        payload: dict[str, Any],
+        episode_timeout_seconds: float,
+    ) -> tuple[object, Mapping[str, str]]:
+        started = self._monotonic()
+        status = 0
+        response_headers: Mapping[str, str] = {}
+        body: object = None
+        for attempt in range(1, _MAX_ATTEMPTS + 1):
+            remaining = episode_timeout_seconds - (self._monotonic() - started)
+            if remaining <= 0:
+                raise ModelProviderFailure(
+                    category="inference",
+                    code="inference.episode_timeout",
+                )
+            try:
+                status, response_headers, body = self._transport.post_json(
+                    url=url,
+                    headers=headers,
+                    payload=payload,
+                    timeout_seconds=min(self._request_timeout_seconds, remaining),
+                )
+            except (TimeoutError, socket.timeout) as failure:
+                raise ModelProviderFailure(
+                    category="inference",
+                    code=(
+                        "inference.episode_timeout"
+                        if episode_timeout_seconds < self._request_timeout_seconds
+                        else "inference.timeout"
+                    ),
+                ) from failure
+            except (urllib_error.URLError, OSError) as failure:
+                raise ModelProviderFailure(
+                    category="adapter",
+                    code="adapter.unavailable",
+                ) from failure
+            except ValueError as failure:
+                raise ModelProviderFailure(
+                    category="adapter",
+                    code="adapter.protocol_error",
+                ) from failure
+            if status != 429 and status < 500:
+                break
+            if attempt == _MAX_ATTEMPTS:
+                break
+            self._sleeper(_retry_delay(response_headers))
+        if not 200 <= status < 300:
+            raise _http_failure(status)
+        return _decode_body(body), response_headers
 
 
 class UrllibHostedJsonTransport:
@@ -97,4 +176,43 @@ class UrllibHostedJsonTransport:
         return body
 
 
-__all__ = ["HostedJsonTransport", "UrllibHostedJsonTransport"]
+def _retry_delay(headers: Mapping[str, str]) -> float:
+    value = next(
+        (value for key, value in headers.items() if key.casefold() == "retry-after"),
+        None,
+    )
+    if value is None:
+        return 0.25
+    try:
+        parsed = float(value)
+    except ValueError:
+        return 0.25
+    return parsed if math.isfinite(parsed) and 0.0 <= parsed <= 2.0 else 0.25
+
+
+def _http_failure(status: int) -> ModelProviderFailure:
+    if status in {401, 403}:
+        return ModelProviderFailure(category="adapter", code="adapter.protocol_error")
+    if status == 408:
+        return ModelProviderFailure(category="inference", code="inference.timeout")
+    if status == 429:
+        return ModelProviderFailure(category="inference", code="inference.overloaded")
+    if status >= 500:
+        return ModelProviderFailure(category="inference", code="inference.unavailable")
+    return ModelProviderFailure(category="adapter", code="adapter.protocol_error")
+
+
+def _decode_body(value: object) -> object:
+    if not isinstance(value, bytes):
+        return value
+    try:
+        return json.loads(value)
+    except (UnicodeDecodeError, json.JSONDecodeError):
+        return value.decode("utf-8", errors="replace")
+
+
+__all__ = [
+    "HostedJsonTransport",
+    "HostedRequestExecutor",
+    "UrllibHostedJsonTransport",
+]

@@ -3,18 +3,19 @@
 from __future__ import annotations
 
 import json
-import math
-import socket
 import time
 from collections.abc import Callable, Mapping
 from copy import deepcopy
 from typing import Any, Final, Literal
-from urllib import error as urllib_error
 
 from pydantic import ValidationError
 
 from .artifact_safety import contains_exact_material
-from .hosted_transport import HostedJsonTransport, UrllibHostedJsonTransport
+from .hosted_transport import (
+    HostedJsonTransport,
+    HostedRequestExecutor,
+    UrllibHostedJsonTransport,
+)
 from .model_runner import (
     ModelMessage,
     ModelProviderFailure,
@@ -34,7 +35,6 @@ OPENAI_RESPONSES_SAMPLING: Final = ModelSamplingSettings(
 )
 _OPENAI_API_KEY_ENV: Final = "OPENAI_API_KEY"
 _RESPONSES_URL: Final = "https://api.openai.com/v1/responses"
-_MAX_ATTEMPTS: Final = 3
 _INVALID_ARGUMENTS_KEY: Final = "__provider_invalid_arguments__"
 
 
@@ -60,10 +60,12 @@ class OpenAIResponsesProvider:
         if timeout_seconds <= 0:
             raise ValueError("provider timeout must be positive")
         self._api_key = api_key
-        self._transport = transport
-        self._timeout_seconds = timeout_seconds
-        self._sleeper = sleeper
-        self._monotonic = monotonic
+        self._executor = HostedRequestExecutor(
+            transport=transport,
+            request_timeout_seconds=timeout_seconds,
+            sleeper=sleeper,
+            monotonic=monotonic,
+        )
 
     @classmethod
     def from_environment(
@@ -98,55 +100,13 @@ class OpenAIResponsesProvider:
             "Authorization": f"Bearer {self._api_key}",
             "Content-Type": "application/json",
         }
-        started = self._monotonic()
-        status = 0
-        response_headers: Mapping[str, str] = {}
-        body: object = None
-        for attempt in range(1, _MAX_ATTEMPTS + 1):
-            remaining = request.transport_timeout_seconds - (
-                self._monotonic() - started
-            )
-            if remaining <= 0:
-                raise ModelProviderFailure(
-                    category="inference",
-                    code="inference.episode_timeout",
-                )
-            timeout = min(self._timeout_seconds, remaining)
-            try:
-                status, response_headers, body = self._transport.post_json(
-                    url=_RESPONSES_URL,
-                    headers=headers,
-                    payload=payload,
-                    timeout_seconds=timeout,
-                )
-            except (TimeoutError, socket.timeout) as failure:
-                raise ModelProviderFailure(
-                    category="inference",
-                    code=(
-                        "inference.episode_timeout"
-                        if request.transport_timeout_seconds < self._timeout_seconds
-                        else "inference.timeout"
-                    ),
-                ) from failure
-            except (urllib_error.URLError, OSError) as failure:
-                raise ModelProviderFailure(
-                    category="adapter",
-                    code="adapter.unavailable",
-                ) from failure
-            except ValueError as failure:
-                raise ModelProviderFailure(
-                    category="adapter",
-                    code="adapter.protocol_error",
-                ) from failure
-            if status not in {429} and status < 500:
-                break
-            if attempt == _MAX_ATTEMPTS:
-                break
-            self._sleeper(_retry_delay(response_headers))
-        if not 200 <= status < 300:
-            raise _http_failure(status)
         try:
-            decoded = _decode_body(body)
+            decoded, response_headers = self._executor.execute(
+                url=_RESPONSES_URL,
+                headers=headers,
+                payload=payload,
+                episode_timeout_seconds=request.transport_timeout_seconds,
+            )
             if contains_exact_material(decoded, (self._api_key,)):
                 raise ValueError("provider response reflected credential material")
             return _parse_response(decoded, response_headers=response_headers)
@@ -339,43 +299,11 @@ def _parse_usage(value: object) -> TokenUsage:
     )
 
 
-def _retry_delay(headers: Mapping[str, str]) -> float:
-    value = _header(headers, "retry-after")
-    if value is None:
-        return 0.25
-    try:
-        parsed = float(value)
-    except ValueError:
-        return 0.25
-    return parsed if math.isfinite(parsed) and 0.0 <= parsed <= 2.0 else 0.25
-
-
 def _header(headers: Mapping[str, str], name: str) -> str | None:
     for key, value in headers.items():
         if key.casefold() == name:
             return value
     return None
-
-
-def _http_failure(status: int) -> ModelProviderFailure:
-    if status in {401, 403}:
-        return ModelProviderFailure(category="adapter", code="adapter.protocol_error")
-    if status == 408:
-        return ModelProviderFailure(category="inference", code="inference.timeout")
-    if status == 429:
-        return ModelProviderFailure(category="inference", code="inference.overloaded")
-    if status >= 500:
-        return ModelProviderFailure(category="inference", code="inference.unavailable")
-    return ModelProviderFailure(category="adapter", code="adapter.protocol_error")
-
-
-def _decode_body(value: object) -> object:
-    if not isinstance(value, bytes):
-        return value
-    try:
-        return json.loads(value)
-    except (UnicodeDecodeError, json.JSONDecodeError):
-        return value.decode("utf-8", errors="replace")
 
 
 def _mapping(value: object) -> Mapping[str, Any]:
