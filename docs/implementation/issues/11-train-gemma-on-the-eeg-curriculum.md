@@ -23,13 +23,16 @@
 The prime-locked training compiler now emits separate content-addressed training, development,
 and evaluator-held-out targets with stable MCP retry identities and changed-field observations.
 Durable curriculum jobs bind the 96/32/64 counts and package digests in ordinary language. A
-fail-closed verifier requires all 96 training identities with equal rollout coverage, aligned
-tokens/masks/log probabilities, canonical Runtime evidence, 96 finite optimizer steps, changed
+fail-closed verifier requires all 96 training identities with at least four rollouts each, preserves
+replacement groups explicitly, and verifies aligned token/mask/log-probability metadata, canonical
+Runtime evidence, 96 finite optimizer steps, changed
 language-only LoRA tensors, resumable state, predeclared final-step selection, all 32 development
 identities, and matched 64-row sealed held-out ledgers. The paired bootstrap is deterministic and
 can report only improved, inconclusive, or regressed under the approved interval rule.
 
-The real E4B workstation run uses 96 source-ordered steps, four rollouts per training identity,
-BF16, a 16,384-token bound, no mechanical reward, and a final-step adapter selected before any
+The real E4B workstation run uses 96 source-ordered steps and groups of four, retaining any
+replacement rollouts. It uses BF16, a 16,384-token bound, no mechanical reward, and a final-step
+adapter selected before any
 held-out evaluation. Completion remains unchecked until native artifacts pass the product verifier
-and the fresh adapter reload and sealed base/trained evaluations are imported.
+and the fresh adapter reload and sealed base/trained evaluations are imported. See the
+[bounded curriculum operator procedure](../../gemma-curriculum-operations.md).
