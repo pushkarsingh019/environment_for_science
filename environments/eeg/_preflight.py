@@ -31,13 +31,14 @@ _PROFILE_DIAGNOSTIC_COMPONENTS_HZ: dict[str, tuple[float, ...]] = {
     "environment_shared": (26.0,),
     "participant_activity": (26.0,),
 }
+_DOMAINS: tuple[EvidenceDomain, ...] = ("eeg", "onset", "response", "recording")
 
 
 class EegPreflightRuntime:
     """Deterministic EEG behavior selected by the preflight generator revision."""
 
     def __init__(self, bundle: EnvironmentBundle) -> None:
-        self._bundle = bundle.model_copy(deep=True)
+        self._bundle = bundle
         fixture_document = (self._bundle.model_extra or {}).get("preflight_fixture")
         try:
             fixture = PreflightFixture.model_validate(fixture_document)
@@ -78,12 +79,12 @@ class EegPreflightRuntime:
             "case_id": case.id,
             "resolved": resolved,
             "window_sequence": window_sequence,
-            "domain_sequences": {domain: 1 for domain in _domains()},
+            "domain_sequences": dict.fromkeys(_DOMAINS, 1),
             "inspections": [],
             "state_changes": [],
             "targeted_intervention": False,
             "relevant_attempts": 0,
-            "latest_retest_revisions": {domain: None for domain in _domains()},
+            "latest_retest_revisions": dict.fromkeys(_DOMAINS),
             "current_evidence_ids": evidence_ids,
             "decision": None,
             "abort_request": None,
@@ -222,8 +223,8 @@ class EegPreflightRuntime:
         domain = RETEST_ACTIONS[action.type]
         observation = deepcopy(state.observation)
         hidden = deepcopy(state.hidden_state)
-        sequences = _hidden_object(hidden, "domain_sequences")
-        next_sequence = _integer_value(sequences.get(domain), "domain sequence") + 1
+        sequences = _object(hidden, "domain_sequences")
+        next_sequence = _integer_value(sequences.get(domain)) + 1
         sequences[domain] = next_sequence
         resolved = _hidden_bool(hidden, "resolved")
         seed = _scenario_seed(case.id, self._bundle)
@@ -271,9 +272,9 @@ class EegPreflightRuntime:
 
         evidence_id = _domain_evidence_id(observation, domain)
         _set_current_freshness(observation, domain, evidence_id, state.state_revision)
-        current_ids = _hidden_object(hidden, "current_evidence_ids")
+        current_ids = _object(hidden, "current_evidence_ids")
         current_ids[domain] = evidence_id
-        retest_revisions = _hidden_object(hidden, "latest_retest_revisions")
+        retest_revisions = _object(hidden, "latest_retest_revisions")
         retest_revisions[domain] = state.state_revision
         summary = _retest_summary(domain, observation)
         observation["summary"] = summary
@@ -394,7 +395,7 @@ def _initial_observation(
             "state_revision": state_revision,
             "status": "current",
         }
-        for domain in _domains()
+        for domain in _DOMAINS
     }
     return observation
 
@@ -634,25 +635,21 @@ def _fresh_after_latest_change(state: EpisodeState, domain: EvidenceDomain) -> b
     relevant_changes = [change for change in changes if change.get("domain") == domain]
     if not relevant_changes:
         return True
-    retest_revisions = _hidden_object(state.hidden_state, "latest_retest_revisions")
+    retest_revisions = _object(state.hidden_state, "latest_retest_revisions")
     latest_change_revision = _integer_value(
-        relevant_changes[-1].get("state_revision"),
-        "relevant state-change revision",
+        relevant_changes[-1].get("state_revision")
     )
     retest_revision = retest_revisions.get(domain)
     if retest_revision is None:
         return False
-    return (
-        _integer_value(retest_revision, "domain retest revision")
-        >= latest_change_revision
-    )
+    return _integer_value(retest_revision) >= latest_change_revision
 
 
 def _stale_evidence_domains(observation: dict[str, Any]) -> tuple[str, ...]:
     freshness = _object(observation, "evidence_freshness")
     return tuple(
         domain
-        for domain in _domains()
+        for domain in _DOMAINS
         if _object(freshness, domain).get("status") != "current"
     )
 
@@ -787,7 +784,7 @@ def _retest_summary(domain: EvidenceDomain, observation: dict[str, Any]) -> str:
 
 
 def _current_evidence_ids(observation: dict[str, Any]) -> dict[str, str]:
-    return {domain: _domain_evidence_id(observation, domain) for domain in _domains()}
+    return {domain: _domain_evidence_id(observation, domain) for domain in _DOMAINS}
 
 
 def _domain_evidence_id(observation: dict[str, Any], domain: EvidenceDomain) -> str:
@@ -921,10 +918,6 @@ def _scenario_seed(scenario_id: str, bundle: EnvironmentBundle) -> int:
     )
 
 
-def _domains() -> tuple[EvidenceDomain, ...]:
-    return ("eeg", "onset", "response", "recording")
-
-
 def _object(mapping: dict[str, Any], key: str) -> dict[str, Any]:
     value = mapping.get(key)
     if not isinstance(value, dict):
@@ -933,10 +926,6 @@ def _object(mapping: dict[str, Any], key: str) -> dict[str, Any]:
             code="internal",
         )
     return value
-
-
-def _hidden_object(mapping: dict[str, Any], key: str) -> dict[str, Any]:
-    return _object(mapping, key)
 
 
 def _hidden_list(mapping: dict[str, Any], key: str) -> list[dict[str, Any]]:
@@ -970,10 +959,10 @@ def _hidden_bool(mapping: dict[str, Any], key: str) -> bool:
 
 
 def _hidden_integer(mapping: dict[str, Any], key: str) -> int:
-    return _integer_value(mapping.get(key), key)
+    return _integer_value(mapping.get(key))
 
 
-def _integer_value(value: object, label: str) -> int:
+def _integer_value(value: object) -> int:
     if isinstance(value, bool) or not isinstance(value, int):
         raise RuntimeContractError(
             "the EEG preflight state is invalid",
