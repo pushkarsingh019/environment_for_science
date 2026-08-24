@@ -9,6 +9,9 @@ test("compares four models with bounded claims, failures, replays, and separate 
   await page.getByTestId("mode-evaluate").click();
 
   const panel = page.getByTestId("model-comparison-panel");
+  const successful = panel.getByTestId("comparison-fixture-successful");
+  await expect(successful).toBeVisible();
+  if (await successful.isEnabled()) await successful.click();
   await expect(panel.getByTestId("comparison-fixture-notice")).toContainText(
     "not a live provider or training result",
   );
@@ -64,6 +67,9 @@ test("keeps the default comparison readable and keyboard reachable on mobile", a
   await page.getByTestId("mode-evaluate").click();
 
   const panel = page.getByTestId("model-comparison-panel");
+  const successful = panel.getByTestId("comparison-fixture-successful");
+  await expect(successful).toBeVisible();
+  if (await successful.isEnabled()) await successful.click();
   await expect(panel.getByTestId("comparison-claim-improved")).toBeVisible();
   await panel.getByTestId("comparison-fixture-inconclusive").focus();
   await expect(panel.getByTestId("comparison-fixture-inconclusive")).toBeFocused();

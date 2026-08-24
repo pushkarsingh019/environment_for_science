@@ -44,6 +44,9 @@ test("runs the authoring, EEG, mesoscope, evaluation, training, replay, and rese
     "No model compute will run on this computer",
   );
   const comparison = page.getByTestId("model-comparison-panel");
+  const successful = comparison.getByTestId("comparison-fixture-successful");
+  await expect(successful).toBeVisible();
+  if (await successful.isEnabled()) await successful.click();
   await expect(comparison.getByTestId("comparison-fixture-notice")).toContainText(
     "Offline fixture",
   );

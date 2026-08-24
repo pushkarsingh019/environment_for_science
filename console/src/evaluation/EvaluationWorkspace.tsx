@@ -891,10 +891,17 @@ function ModelComparisonPanel() {
         <p className="evaluation-empty">Loading comparison evidence…</p>
       ) : (
         <>
-          {comparison.fixture_notice && (
+          {comparison.fixture_notice ? (
             <div className="fixture-banner" data-testid="comparison-fixture-notice">
               <strong>Offline fixture</strong>
               <span>{comparison.fixture_notice}</span>
+            </div>
+          ) : (
+            <div className="fixture-banner" data-testid="comparison-real-notice">
+              <strong>Verified real evaluation</strong>
+              <span>
+                Imported evaluator-owned held-out evidence; no fixture or hosted score was substituted.
+              </span>
             </div>
           )}
           <div className="run-control-row" aria-label="Offline comparison states">
