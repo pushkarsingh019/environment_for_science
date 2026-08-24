@@ -36,6 +36,16 @@ def external_prerequisite_summary(
     )
 
 
+def console_startup_commands(
+    *,
+    node_modules_present: bool,
+) -> tuple[tuple[str, ...], ...]:
+    """Return the lockfile-bound Console setup/build sequence."""
+
+    install = (() if node_modules_present else (("npm", "ci", "--ignore-scripts"),))
+    return (*install, ("npm", "run", "build"))
+
+
 def main(argv: Sequence[str] | None = None) -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--port", type=int, default=8000)
@@ -52,11 +62,12 @@ def main(argv: Sequence[str] | None = None) -> None:
 
     repository_root = Path(__file__).resolve().parent.parent
     console_directory = repository_root / "console"
-    subprocess.run(
-        ["npm", "run", "build"],
-        cwd=console_directory,
-        check=True,
-    )
+    for command in console_startup_commands(
+        node_modules_present=(console_directory / "node_modules").is_dir(),
+    ):
+        if command[1] == "ci":
+            print("Installing lockfile-bound Console dependencies…", flush=True)
+        subprocess.run(command, cwd=console_directory, check=True)
     console_dist = console_directory / "dist"
     uvicorn.run(
         create_app(

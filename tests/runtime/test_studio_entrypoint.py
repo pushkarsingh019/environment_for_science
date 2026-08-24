@@ -1,6 +1,19 @@
 """Documented one-command startup prerequisite reporting."""
 
-from studio.__main__ import external_prerequisite_summary
+from studio.__main__ import (
+    console_startup_commands,
+    external_prerequisite_summary,
+)
+
+
+def test_clean_checkout_installs_locked_console_dependencies_before_build() -> None:
+    assert console_startup_commands(node_modules_present=False) == (
+        ("npm", "ci", "--ignore-scripts"),
+        ("npm", "run", "build"),
+    )
+    assert console_startup_commands(node_modules_present=True) == (
+        ("npm", "run", "build"),
+    )
 
 
 def test_startup_reports_optional_credentials_without_values() -> None:

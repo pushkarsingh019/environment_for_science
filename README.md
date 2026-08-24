@@ -98,30 +98,28 @@ The Python package requires Python 3.9 or later. The console requires Node.js an
    .venv/bin/python -m pip install -e ".[dev]"
    ```
 
-2. Install the console dependencies:
+2. Optional: Install Chromium for the Playwright browser test:
 
    ```bash
    cd console
-   npm ci
-   cd ..
-   ```
-
-3. Optional: Install Chromium for the Playwright browser test:
-
-   ```bash
-   cd console
+   npm ci --ignore-scripts
    npx playwright install chromium
    cd ..
    ```
 
 ## Run the current product
 
-From the repository root, one command builds the Scientist Console and starts both it and
-the deterministic Runtime:
+From a clean checkout with `uv`, Node.js, and npm available, one command installs the locked
+Python and Console dependencies, builds the Scientist Console, and starts it with the deterministic
+Runtime:
 
 ```bash
-.venv/bin/python -m studio
+uv run --all-extras python -m studio
 ```
+
+An already prepared development environment can equivalently run
+`.venv/bin/python -m studio`. The startup command uses `npm ci --ignore-scripts` only when
+`console/node_modules` is absent, then executes the lockfile-bound build.
 
 The command reports whether optional OpenAI and Gemini credentials are configured and always
 states that Gemma compute is workstation-only. Missing hosted credentials do not block the seeded
