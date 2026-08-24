@@ -6,6 +6,7 @@ import hashlib
 import math
 import os
 import sqlite3
+from contextlib import closing
 from pathlib import Path
 from threading import RLock
 from typing import TYPE_CHECKING, Literal
@@ -248,7 +249,7 @@ class ModelComparisonRepository:
     """Persist fixture selection and immutable real results without deleting either."""
 
     def __init__(self, artifact_root: Path) -> None:
-        self._root = Path(artifact_root).expanduser().resolve()
+        self._root = artifact_root.expanduser().resolve()
         self._database = self._root / "model-comparisons.sqlite3"
         self._lock = RLock()
         try:
@@ -263,7 +264,7 @@ class ModelComparisonRepository:
 
     def current(self) -> ModelComparisonResult:
         try:
-            with self._lock, self._connect() as connection:
+            with self._lock, closing(self._connect()) as connection:
                 state = connection.execute(
                     """
                     SELECT mode, fixture_state, real_result_id
@@ -291,7 +292,7 @@ class ModelComparisonRepository:
     def select_fixture(self, state: FixtureState) -> ModelComparisonResult:
         result = seeded_comparison(state)
         try:
-            with self._lock, self._connect() as connection:
+            with self._lock, closing(self._connect()) as connection:
                 connection.execute(
                     """
                     UPDATE comparison_state
@@ -377,7 +378,7 @@ class ModelComparisonRepository:
             for snapshot in snapshots.values()
         )
         try:
-            with self._lock, self._connect() as connection:
+            with self._lock, closing(self._connect()) as connection:
                 existing = connection.execute(
                     "SELECT result_digest FROM real_results WHERE result_id = ?",
                     (result.comparison_id,),
@@ -432,7 +433,7 @@ class ModelComparisonRepository:
 
     def real_result_count(self) -> int:
         try:
-            with self._lock, self._connect() as connection:
+            with self._lock, closing(self._connect()) as connection:
                 row = connection.execute("SELECT COUNT(*) FROM real_results").fetchone()
             if row is None:
                 raise ValueError("missing real comparison count")
@@ -484,7 +485,7 @@ class ModelComparisonRepository:
         scenario: ScenarioResultLink,
     ) -> RunSnapshot:
         try:
-            with self._lock, self._connect() as connection:
+            with self._lock, closing(self._connect()) as connection:
                 row = connection.execute(
                     """
                     SELECT snapshot_json, snapshot_digest
@@ -512,7 +513,7 @@ class ModelComparisonRepository:
             ) from error
 
     def _prepare(self) -> None:
-        with self._connect() as connection:
+        with closing(self._connect()) as connection:
             connection.execute(
                 """
                 CREATE TABLE IF NOT EXISTS real_results(
@@ -1064,7 +1065,7 @@ def _provenance() -> ComparisonProvenance:
 
 
 def _digest_text(value: str) -> str:
-    return f"sha256:{hashlib.sha256(value.encode()).hexdigest()}"
+    return _digest_bytes(value.encode())
 
 
 def _digest_bytes(value: bytes) -> str:
