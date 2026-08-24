@@ -4395,7 +4395,7 @@ export const trainingApi = {
   async launchCurriculumJob(): Promise<CurriculumTrainingJob> {
     return request(
       "/api/training/curriculum-jobs",
-      (value) => parseCurriculumTrainingJob(value),
+      parseCurriculumTrainingJob,
       { method: "POST" },
     );
   },
@@ -4403,7 +4403,7 @@ export const trainingApi = {
   async beginCurriculumJob(jobId: string): Promise<CurriculumTrainingJob> {
     return request(
       `/api/training/curriculum-jobs/${encodeURIComponent(jobId)}/begin`,
-      (value) => parseCurriculumTrainingJob(value),
+      parseCurriculumTrainingJob,
       { method: "POST" },
     );
   },
@@ -4418,7 +4418,7 @@ export const trainingApi = {
   async launchAcceptanceJob(): Promise<TrainingAcceptanceJob> {
     return request(
       "/api/training/acceptance-jobs",
-      (value) => parseTrainingAcceptanceJob(value),
+      parseTrainingAcceptanceJob,
       { method: "POST" },
     );
   },
@@ -4426,7 +4426,7 @@ export const trainingApi = {
   async beginAcceptanceJob(jobId: string): Promise<TrainingAcceptanceJob> {
     return request(
       `/api/training/acceptance-jobs/${encodeURIComponent(jobId)}/begin`,
-      (value) => parseTrainingAcceptanceJob(value),
+      parseTrainingAcceptanceJob,
       { method: "POST" },
     );
   },
@@ -4434,7 +4434,7 @@ export const trainingApi = {
   async verifyAcceptanceJob(jobId: string): Promise<TrainingAcceptanceJob> {
     return request(
       `/api/training/acceptance-jobs/${encodeURIComponent(jobId)}/verify`,
-      (value) => parseTrainingAcceptanceJob(value),
+      parseTrainingAcceptanceJob,
       { method: "POST" },
     );
   },
@@ -4442,7 +4442,7 @@ export const trainingApi = {
   async retryAcceptanceJob(jobId: string): Promise<TrainingAcceptanceJob> {
     return request(
       `/api/training/acceptance-jobs/${encodeURIComponent(jobId)}/retry`,
-      (value) => parseTrainingAcceptanceJob(value),
+      parseTrainingAcceptanceJob,
       { method: "POST" },
     );
   },

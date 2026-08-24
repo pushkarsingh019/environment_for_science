@@ -14,6 +14,7 @@ from uuid import uuid4
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
+from .policy_evaluation.attestation_protocol import canonical_json
 from .training_acceptance import (
     AcceptanceArtifactError,
     AcceptanceArtifactVerifier,
@@ -57,7 +58,7 @@ class TrainingAcceptanceJobService:
     """Queue locally, verify imported evidence, and never execute model compute."""
 
     def __init__(self, artifact_root: Path) -> None:
-        self._root = Path(artifact_root).expanduser().resolve()
+        self._root = artifact_root.expanduser().resolve()
         self._database = self._root / _DATABASE_NAME
         self._imports = self._root / _IMPORT_DIRECTORY
         self._lock = RLock()
@@ -81,7 +82,7 @@ class TrainingAcceptanceJobService:
             "No model compute will run on this computer."
         )
         try:
-            with self._lock, self._connect() as connection:
+            with self._lock, closing(self._connect()) as connection:
                 connection.execute(
                     """
                     INSERT INTO training_acceptance_jobs(
@@ -201,7 +202,7 @@ class TrainingAcceptanceJobService:
         """Remove mutable demonstration rows while preserving verified evidence."""
 
         try:
-            with self._lock, self._connect() as connection:
+            with self._lock, closing(self._connect()) as connection:
                 connection.execute(
                     "DELETE FROM training_acceptance_jobs WHERE status != 'completed'"
                 )
@@ -242,7 +243,7 @@ class TrainingAcceptanceJobService:
         message: str,
     ) -> TrainingAcceptanceJob:
         try:
-            with self._lock, self._connect() as connection:
+            with self._lock, closing(self._connect()) as connection:
                 updated = connection.execute(
                     """
                     UPDATE training_acceptance_jobs
@@ -287,10 +288,10 @@ class TrainingAcceptanceJobService:
         evidence_json: str | None = None
         evidence_digest: str | None = None
         if evidence is not None:
-            evidence_json = _canonical_json(evidence.model_dump(mode="json"))
+            evidence_json = canonical_json(evidence.model_dump(mode="json"))
             evidence_digest = _digest(evidence_json.encode("utf-8"))
         try:
-            with self._lock, self._connect() as connection:
+            with self._lock, closing(self._connect()) as connection:
                 updated = connection.execute(
                     """
                     UPDATE training_acceptance_jobs
@@ -344,7 +345,7 @@ class TrainingAcceptanceJobService:
         )
 
     def _prepare(self) -> None:
-        with self._connect() as connection:
+        with closing(self._connect()) as connection:
             connection.execute(
                 """
                 CREATE TABLE IF NOT EXISTS training_acceptance_jobs(
@@ -373,16 +374,6 @@ class TrainingAcceptanceJobService:
         connection = sqlite3.connect(self._database, timeout=30.0)
         connection.row_factory = sqlite3.Row
         return connection
-
-
-def _canonical_json(value: object) -> str:
-    return json.dumps(
-        value,
-        sort_keys=True,
-        separators=(",", ":"),
-        ensure_ascii=False,
-        allow_nan=False,
-    )
 
 
 def _digest(value: bytes) -> str:
