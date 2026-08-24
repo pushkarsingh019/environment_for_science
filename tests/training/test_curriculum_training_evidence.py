@@ -8,8 +8,10 @@ import pytest
 from pydantic import ValidationError
 
 from studio.curriculum_training_evidence import (
+    CurriculumEvidenceError,
     CurriculumRunConfiguration,
     _aligned_training_node,
+    _taskset_digest,
     _tree_digest,
 )
 
@@ -81,8 +83,12 @@ def test_checkpoint_digest_is_content_bound_and_path_independent(
     digest = _tree_digest((first / "state",), root=first)
 
     assert digest == _tree_digest((second / "state",), root=second)
+    assert digest == _taskset_digest(first, "test taskset")
     (second / "state").write_bytes(b"changed")
     assert digest != _tree_digest((second / "state",), root=second)
+    (first / "linked").symlink_to(first / "state")
+    with pytest.raises(CurriculumEvidenceError, match="invalid"):
+        _taskset_digest(first, "test taskset")
 
 
 def test_prime_training_tokens_align_logprobs_to_true_mask_positions() -> None:

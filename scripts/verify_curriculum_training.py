@@ -26,6 +26,9 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--result-id", required=True)
     parser.add_argument("--run-dir", type=Path, required=True)
+    parser.add_argument("--training-taskset-root", type=Path, required=True)
+    parser.add_argument("--development-taskset-root", type=Path, required=True)
+    parser.add_argument("--heldout-taskset-root", type=Path, required=True)
     parser.add_argument("--base-development", type=Path, required=True)
     parser.add_argument("--trained-development", type=Path, required=True)
     parser.add_argument("--base-heldout", type=Path, required=True)
@@ -137,6 +140,9 @@ def main() -> int:
         evidence = verify_curriculum_training_evidence(
             result_id=args.result_id,
             run_directory=args.run_dir,
+            training_taskset_root=args.training_taskset_root,
+            development_taskset_root=args.development_taskset_root,
+            heldout_taskset_root=args.heldout_taskset_root,
             base_development_traces=args.base_development,
             trained_development_traces=args.trained_development,
             base_heldout=base,

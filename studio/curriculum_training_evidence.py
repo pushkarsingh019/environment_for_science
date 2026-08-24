@@ -176,6 +176,9 @@ def verify_curriculum_training_evidence(
     *,
     result_id: str,
     run_directory: Path,
+    training_taskset_root: Path,
+    development_taskset_root: Path,
+    heldout_taskset_root: Path,
     base_development_traces: Path,
     trained_development_traces: Path,
     base_heldout: HeldOutEvaluationEvidence,
@@ -188,6 +191,19 @@ def verify_curriculum_training_evidence(
     """Independently derive one full training result from native artifacts."""
 
     run = _directory(run_directory, "curriculum training run")
+    taskset_digests = (
+        _taskset_digest(training_taskset_root, "training taskset"),
+        _taskset_digest(development_taskset_root, "development taskset"),
+        _taskset_digest(heldout_taskset_root, "held-out taskset"),
+    )
+    if taskset_digests != (
+        configuration.training_taskset_digest,
+        configuration.development_taskset_digest,
+        configuration.heldout_taskset_digest,
+    ):
+        raise CurriculumEvidenceError(
+            "compiled taskset artifacts do not match the recorded configuration"
+        )
     training_rows = _training_rows(
         run,
         expected_call_model=training_call_model,
@@ -549,6 +565,14 @@ def _file_digest(path: Path) -> str:
         return f"sha256:{hashlib.sha256(path.read_bytes()).hexdigest()}"
     except OSError as error:
         raise CurriculumEvidenceError("adapter artifact could not be read") from error
+
+
+def _taskset_digest(path: Path, label: str) -> str:
+    root = _directory(path, label)
+    files = tuple(item for item in root.rglob("*") if item.is_file())
+    if not files or any(item.is_symlink() for item in files):
+        raise CurriculumEvidenceError(f"{label} artifact tree is invalid")
+    return _tree_digest(files, root=root)
 
 
 def _tree_digest(files: tuple[Path, ...], *, root: Path) -> str:
