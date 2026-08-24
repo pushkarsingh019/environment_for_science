@@ -2,16 +2,36 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 from fastapi.testclient import TestClient
 
 from studio.application import create_app
+from studio.model_comparison import (
+    ModelComparisonRepository,
+    ModelComparisonResult,
+    seeded_comparison,
+)
 
 
 def test_demo_reset_restores_seeded_state_and_preserves_real_job_rows(
     tmp_path: Path,
 ) -> None:
+    comparison_document = seeded_comparison("successful").model_dump(mode="json")
+    comparison_document.update(
+        {
+            "comparison_id": "model-comparison-real-reset0001",
+            "source": "real_evaluation",
+            "fixture_state": None,
+            "fixture_notice": None,
+        }
+    )
+    real_comparison = ModelComparisonResult.model_validate_json(
+        json.dumps(comparison_document)
+    )
+    ModelComparisonRepository(tmp_path / "comparisons").install_real(real_comparison)
+
     with TestClient(create_app(artifact_root=tmp_path)) as client:
         seeded = client.get("/api/draft").json()
         edited = client.post(
@@ -24,6 +44,7 @@ def test_demo_reset_restores_seeded_state_and_preserves_real_job_rows(
         assert edited.status_code == 200
         assert edited.json()["draft"]["revision_digest"] != seeded["revision_digest"]
         job = client.post("/api/training/acceptance-jobs").json()
+        curriculum_job = client.post("/api/training/curriculum-jobs").json()
         client.post("/api/model-comparison/fixtures/regressed")
 
         response = client.post("/api/demo/reset")
@@ -37,8 +58,8 @@ def test_demo_reset_restores_seeded_state_and_preserves_real_job_rows(
             "draft_digest": seeded["revision_digest"],
             "comparison_fixture_state": "successful",
             "seeded_scenarios_restored": True,
-            "immutable_training_jobs_preserved": 1,
-            "immutable_real_comparisons_preserved": 0,
+            "immutable_training_jobs_preserved": 2,
+            "immutable_real_comparisons_preserved": 1,
             "immutable_artifacts_deleted": 0,
             "summary": (
                 "Seeded draft, scenarios, and offline demonstration state were "
@@ -53,6 +74,13 @@ def test_demo_reset_restores_seeded_state_and_preserves_real_job_rows(
         )
         jobs = client.get("/api/training/acceptance-jobs").json()
         assert [item["job_id"] for item in jobs] == [job["job_id"]]
+        curriculum_jobs = client.get("/api/training/curriculum-jobs").json()
+        assert [item["job_id"] for item in curriculum_jobs] == [
+            curriculum_job["job_id"]
+        ]
+        assert ModelComparisonRepository(
+            tmp_path / "comparisons"
+        ).real_result_count() == 1
 
 
 def test_demo_reset_is_repeatable_and_never_reports_artifact_deletion(
