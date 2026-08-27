@@ -1,26 +1,15 @@
 import { useEffect, useMemo, useState } from "react";
 import type { FormEvent } from "react";
-import type {
-  ActionPresentation,
-  JsonObject,
-  JsonValue,
-} from "../types";
+import { asObject } from "../app/json";
+import type { ActionPreference } from "../app/studioTypes";
+import type { ActionPresentation, JsonObject, JsonValue } from "../types";
 
-const GROUPS: Array<{
-  id: ActionPresentation["group"];
-  label: string;
-}> = [
+const GROUPS: Array<{ id: ActionPresentation["group"]; label: string }> = [
   { id: "inspect", label: "Inspect" },
   { id: "collect", label: "Collect evidence" },
   { id: "remediate", label: "Remediate" },
   { id: "decide", label: "Decide" },
 ];
-
-function asObject(value: JsonValue | undefined): JsonObject | null {
-  return value !== null && typeof value === "object" && !Array.isArray(value)
-    ? value
-    : null;
-}
 
 function labelFor(name: string, schema: JsonObject): string {
   const title = schema.title;
@@ -47,21 +36,80 @@ function parsedValue(value: string, schema: JsonObject): JsonValue {
   return value;
 }
 
+function requiredNames(schema: JsonObject): string[] {
+  return Array.isArray(schema.required)
+    ? schema.required.filter((value): value is string => typeof value === "string")
+    : [];
+}
+
+interface RunActionComposerProps {
+  actions: ActionPresentation[];
+  permittedActions: string[];
+  busy: boolean;
+  suggestedValues?: Record<string, string[]>;
+  preferred?: ActionPreference | null;
+  onPreferredConsumed?: () => void;
+  onAction: (type: string, arguments_: JsonObject) => void;
+}
+
+interface ArgumentFieldProps {
+  name: string;
+  schema: JsonObject;
+  options: string[];
+  required: boolean;
+  busy: boolean;
+  value: string;
+  onChange: (value: string) => void;
+}
+
+function ArgumentField({ name, schema, options, required, busy, value, onChange }: ArgumentFieldProps) {
+  const label = labelFor(name, schema);
+  const id = `run-action-${name}`;
+  const numeric = schema.type === "integer" || schema.type === "number";
+  return (
+    <div className="run-action-argument">
+      <label htmlFor={id}>{label}</label>
+      {options.length > 0 ? (
+        <select
+          data-testid={argumentTestId(name)}
+          disabled={busy}
+          id={id}
+          onChange={(event) => onChange(event.target.value)}
+          required={required}
+          value={value}
+        >
+          <option value="">Select {label.toLocaleLowerCase()}</option>
+          {options.map((option) => (
+            <option key={option} value={option}>
+              {option}
+            </option>
+          ))}
+        </select>
+      ) : (
+        <input
+          data-testid={argumentTestId(name)}
+          disabled={busy}
+          id={id}
+          onChange={(event) => onChange(event.target.value)}
+          required={required}
+          type={numeric ? "number" : "text"}
+          value={value}
+        />
+      )}
+    </div>
+  );
+}
+
+/** Schema-driven action form: picker → argument fields → Apply, with nothing focusable between. */
 export function RunActionComposer({
   actions,
   permittedActions,
   busy,
-  resultSummary,
   suggestedValues = {},
+  preferred = null,
+  onPreferredConsumed,
   onAction,
-}: {
-  actions: ActionPresentation[];
-  permittedActions: string[];
-  busy: boolean;
-  resultSummary: string;
-  suggestedValues?: Record<string, string[]>;
-  onAction: (type: string, arguments_: JsonObject) => void;
-}) {
+}: RunActionComposerProps) {
   const available = useMemo(
     () => actions.filter((action) => permittedActions.includes(action.type)),
     [actions, permittedActions],
@@ -76,19 +124,25 @@ export function RunActionComposer({
     }
   }, [available, selectedType]);
 
+  useEffect(() => {
+    if (!preferred) return;
+    if (available.some((action) => action.type === preferred.type)) {
+      setSelectedType(preferred.type);
+      setValues(preferred.values ?? {});
+    }
+    onPreferredConsumed?.();
+  }, [preferred, available, onPreferredConsumed]);
+
   const selected = available.find((action) => action.type === selectedType) ?? null;
-  const properties = selected ? asObject(selected.input_schema.properties) ?? {} : {};
-  const required = selected && Array.isArray(selected.input_schema.required)
-    ? selected.input_schema.required.filter(
-        (value): value is string => typeof value === "string",
-      )
-    : [];
+  const properties = selected ? (asObject(selected.input_schema.properties) ?? {}) : {};
+  const required = selected ? requiredNames(selected.input_schema) : [];
+  const optionsFor = (name: string, schema: JsonObject): string[] => [
+    ...new Set([...enumValues(schema), ...(suggestedValues[name] ?? [])]),
+  ];
   const ready = required.every((name) => {
     const schema = asObject(properties[name]);
     const value = values[name] ?? "";
-    const options = schema
-      ? [...new Set([...enumValues(schema), ...(suggestedValues[name] ?? [])])]
-      : [];
+    const options = schema ? optionsFor(name, schema) : [];
     return value.trim().length > 0 && (options.length === 0 || options.includes(value));
   });
 
@@ -108,7 +162,9 @@ export function RunActionComposer({
 
   return (
     <form className="run-action-composer" onSubmit={submit}>
-      <label htmlFor="run-action-picker">Simulated action</label>
+      <label className="sr-only" htmlFor="run-action-picker">
+        Action
+      </label>
       <select
         data-testid="action-picker"
         disabled={busy || available.length === 0}
@@ -136,59 +192,29 @@ export function RunActionComposer({
       {Object.entries(properties).map(([name, rawSchema]) => {
         const schema = asObject(rawSchema);
         if (!schema) return null;
-        const options = [
-          ...new Set([...enumValues(schema), ...(suggestedValues[name] ?? [])]),
-        ];
-        const label = labelFor(name, schema);
-        const id = `run-action-${name}`;
         return (
-          <div className="run-action-argument" key={name}>
-            <label htmlFor={id}>{label}</label>
-            {options.length > 0 ? (
-              <select
-                data-testid={argumentTestId(name)}
-                disabled={busy}
-                id={id}
-                onChange={(event) =>
-                  setValues((current) => ({ ...current, [name]: event.target.value }))
-                }
-                required={required.includes(name)}
-                value={values[name] ?? ""}
-              >
-                <option value="">Select {label.toLocaleLowerCase()}</option>
-                {options.map((option) => (
-                  <option key={option} value={option}>{option}</option>
-                ))}
-              </select>
-            ) : (
-              <input
-                data-testid={argumentTestId(name)}
-                disabled={busy}
-                id={id}
-                onChange={(event) =>
-                  setValues((current) => ({ ...current, [name]: event.target.value }))
-                }
-                required={required.includes(name)}
-                type={schema.type === "integer" || schema.type === "number" ? "number" : "text"}
-                value={values[name] ?? ""}
-              />
-            )}
-          </div>
+          <ArgumentField
+            busy={busy}
+            key={name}
+            name={name}
+            onChange={(value) => setValues((current) => ({ ...current, [name]: value }))}
+            options={optionsFor(name, schema)}
+            required={required.includes(name)}
+            schema={schema}
+            value={values[name] ?? ""}
+          />
         );
       })}
 
-      {selected && <p className="action-description">{selected.description}</p>}
       <button
-        className="primary-button compact-button"
+        className="secondary-button"
         data-testid="apply-run-action"
         disabled={busy || !selected || !ready}
         type="submit"
       >
-        Apply simulated action
+        Apply
       </button>
-      <p aria-live="polite" className="action-result" data-testid="action-result">
-        {resultSummary}
-      </p>
+      {selected && <small className="action-description">{selected.description}</small>}
     </form>
   );
 }

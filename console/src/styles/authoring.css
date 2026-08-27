@@ -1,0 +1,288 @@
+/* Authoring (P5): bottom-bar composer, top-bar history and note import, Procedure strip. */
+
+/* Composer — bottom-bar left group */
+
+.authoring-composer {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.composer-input {
+  flex: 1;
+  min-width: 120px;
+  height: 36px;
+  padding: 0 12px;
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--ink);
+  font-size: 0.9rem;
+}
+
+.composer-input::placeholder {
+  color: var(--faint);
+}
+
+.composer-input:hover:not(:disabled) {
+  border-color: #c8c4bf;
+}
+
+.composer-input:disabled {
+  background: var(--mask);
+  color: var(--muted);
+}
+
+.bar-busy {
+  color: var(--muted);
+  font-size: 0.78rem;
+  white-space: nowrap;
+}
+
+.assistant-result {
+  display: block;
+  max-width: 360px;
+  margin-top: 2px;
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 0.74rem;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.assistant-result strong {
+  font-weight: 650;
+}
+
+.assistant-result.is-applied strong {
+  color: var(--green);
+}
+
+.assistant-result.is-unsupported strong {
+  color: var(--red);
+}
+
+/* History and note import — top-bar tools */
+
+.history-controls {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.history-controls svg {
+  width: 16px;
+  height: 16px;
+}
+
+.note-import {
+  display: inline-flex;
+}
+
+/* Procedure strip — scene-card footer in EEG Edit */
+
+.procedure-strip {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 14px 24px;
+  align-items: start;
+  padding: 14px 16px 16px;
+  border-top: 1px solid var(--line);
+}
+
+.montage-summary {
+  min-width: 0;
+}
+
+.montage-summary .eyebrow {
+  margin-bottom: 8px;
+}
+
+.montage-definition {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 24px;
+  margin: 0 0 8px;
+}
+
+.montage-definition > div {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+}
+
+.montage-definition dt {
+  color: var(--faint);
+  font-size: 0.66rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.montage-definition dd {
+  margin: 0;
+  color: var(--ink);
+  font-size: 0.9rem;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.scientific-claim {
+  max-width: 72ch;
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.78rem;
+  line-height: 1.45;
+}
+
+.scientific-claim strong {
+  color: #53504c;
+  font-weight: 650;
+}
+
+.setup-details {
+  min-width: 200px;
+  justify-self: end;
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+.setup-details > summary {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  min-height: 32px;
+  padding: 0 12px;
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--ink);
+  font-size: 0.82rem;
+  font-weight: 600;
+  list-style: none;
+}
+
+.setup-details > summary::-webkit-details-marker {
+  display: none;
+}
+
+.setup-details > summary:hover {
+  border-color: #c8c4bf;
+  background: #faf9f8;
+}
+
+.setup-details[open] > summary {
+  background: #f2f0ed;
+}
+
+.setup-values {
+  display: grid;
+  gap: 4px;
+  margin: 10px 0 0;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fbfaf8;
+}
+
+.setup-values > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.setup-values dt {
+  color: var(--muted);
+}
+
+.setup-values dd {
+  margin: 0;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+/* Staged notes */
+
+.draft-notes {
+  display: grid;
+  grid-column: 1 / -1;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.draft-note {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 2px 10px;
+  align-items: baseline;
+  min-width: 0;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fbfaf8;
+  font-size: 0.82rem;
+}
+
+.draft-note strong {
+  color: var(--ink);
+  font-weight: 650;
+  overflow-wrap: anywhere;
+}
+
+.note-tag {
+  color: var(--tone-attention);
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.draft-note p {
+  grid-column: 1 / -1;
+  margin: 0;
+  color: #4a4743;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.draft-note small {
+  grid-column: 1 / -1;
+  color: var(--faint);
+}
+
+@media (max-width: 800px) {
+  .authoring-composer {
+    flex-wrap: wrap;
+  }
+
+  .procedure-strip {
+    grid-template-columns: 1fr;
+  }
+
+  .setup-details {
+    justify-self: start;
+  }
+}
+
+@media (max-width: 600px) {
+  .composer-input {
+    width: 100%;
+    min-height: 44px;
+  }
+
+  .assistant-result {
+    max-width: 100%;
+  }
+
+  .setup-details > summary {
+    min-height: 44px;
+  }
+}

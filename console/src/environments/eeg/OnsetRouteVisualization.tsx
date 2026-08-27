@@ -47,7 +47,7 @@ export function EegOnsetRouteVisualization({
   const freshnessStatus = text(freshness.status, "unavailable");
   const observationSummary = text(
     observation.summary,
-    "Waiting for a Policy-visible observation.",
+    "Waiting for an observation.",
   );
   const ariaLabel =
     markerCount === undefined
@@ -129,7 +129,7 @@ export function EegOnsetRouteVisualization({
       <div className="observation-strip" aria-live="polite">
         <span className="observation-icon" aria-hidden="true" />
         <p>
-          <span>Latest Policy-visible observation</span>
+          <span>Latest observation</span>
           {observationSummary}
         </p>
       </div>

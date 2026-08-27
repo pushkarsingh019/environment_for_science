@@ -1,0 +1,74 @@
+/* Design tokens. One blue for primary actions and focus; everything else is warm neutrals. */
+:root {
+  color: #191919;
+  background: #f6f5f4;
+  font-family:
+    Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  color-scheme: light;
+
+  /* Surfaces and ink */
+  --canvas: #f6f5f4;
+  --surface: #ffffff;
+  --ink: #191919;
+  --muted: #6b6864;
+  --faint: #9a9691;
+  --line: #e5e3e0;
+  --line-strong: #d8d5d1;
+  --mask: #efeeec;
+
+  /* Accent */
+  --blue: #0075de;
+  --blue-deep: #005bab;
+  --blue-soft: #eef6fd;
+  --green: #26734d;
+  --green-soft: #edf7f1;
+  --red: #9f2f2f;
+  --red-soft: #fff1f0;
+
+  /* Shape */
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --shadow: 0 1px 2px rgb(0 0 0 / 4%), 0 8px 30px rgb(0 0 0 / 4%);
+
+  /* Signal edges */
+  --sig-eeg: var(--blue);
+  --sig-stimulus: #8a6a2e;
+  --sig-marker: #a03020;
+  --sig-response: #8a8580;
+  --sig-data: #8a8580;
+  --sig-plan: #67547d;
+  --sig-acq: #48796f;
+  --sig-package: #8a8580;
+  --sig-gate: #55514d;
+
+  /* Node tones */
+  --tone-ok: #26734d;
+  --tone-attention: #a8701a;
+  --tone-fault: #9f2f2f;
+  --tone-stale: #9a9691;
+  --tone-locked: #55514d;
+  --tone-active: #0075de;
+
+  /* EEG paper */
+  --paper: #fffdf8;
+  --paper-rule: #ece7dc;
+
+  /* Badges and mesoscope palette */
+  --badge-green: #2f6b3f;
+  --badge-green-soft: #e8f0ec;
+  --meso-violet: #67547d;
+  --meso-violet-soft: #f3eff7;
+  --meso-teal: #48796f;
+  --meso-teal-soft: #eff7f4;
+
+  /* Shell geometry */
+  --nav-w: 220px;
+  --rail-w: 288px;
+  --topbar-h: 56px;
+
+  /* Type */
+  --mono: ui-monospace, "SFMono-Regular", Consolas, monospace;
+}

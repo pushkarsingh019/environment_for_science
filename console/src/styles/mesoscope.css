@@ -1,0 +1,727 @@
+/* Mesoscope evidence (P4): sealed-bench run docks, contract cards and package ledgers in the rail,
+   and the sealed-seed footer in Edit. Mark styling for the phantom and tiles is kept verbatim so the
+   procedural renders stay pixel-stable. */
+
+/* ---------- Run docks inside the scene card ---------- */
+
+.mesoscope-handoff {
+  display: grid;
+  grid-template-columns: 3fr 2fr;
+  gap: 16px;
+  min-width: 0;
+  padding: 16px;
+}
+
+.mesoscope-handoff > .scene-caption {
+  grid-column: 1 / -1;
+  padding: 4px 0;
+}
+
+.mesoscope-handoff > .scene-dock {
+  min-width: 0;
+}
+
+/* ---------- Survey phantom and region tiles ---------- */
+
+.mesoscope-survey {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+  margin: 0;
+}
+
+.mesoscope-survey figcaption,
+.mesoscope-tiles-heading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  color: #45423f;
+  font-size: 0.8rem;
+  font-weight: 650;
+}
+
+.mesoscope-survey figcaption small,
+.mesoscope-tiles-heading small {
+  color: var(--muted);
+  font-size: 0.7rem;
+  font-weight: 450;
+  text-align: right;
+}
+
+.mesoscope-survey figcaption small {
+  font-family: var(--mono);
+}
+
+.mesoscope-tiles-heading {
+  margin-top: 6px;
+}
+
+.mesoscope-survey-field {
+  position: relative;
+  min-height: 258px;
+  overflow: hidden;
+  border: 1px solid #d7d1da;
+  border-radius: 10px;
+  background:
+    radial-gradient(circle at 28% 34%, rgb(116 93 137 / 26%), transparent 22%),
+    radial-gradient(circle at 72% 64%, rgb(72 121 111 / 22%), transparent 28%),
+    linear-gradient(135deg, #ede8f0, #f7f5f1 48%, #e8f0ed);
+}
+
+.mesoscope-survey-field > svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.mesoscope-survey-path {
+  fill: none;
+  stroke: rgb(74 66 82 / 36%);
+  stroke-width: 2.2;
+}
+
+.mesoscope-survey-path.is-b {
+  stroke: rgb(72 121 111 / 32%);
+  stroke-width: 1.4;
+}
+
+.mesoscope-survey-path.is-c {
+  stroke: rgb(103 84 125 / 22%);
+  stroke-width: 4;
+}
+
+.mesoscope-survey-region {
+  position: absolute;
+  display: grid;
+  width: 54px;
+  height: 48px;
+  place-items: center;
+  border: 2px solid var(--meso-violet);
+  border-radius: 8px;
+  background: rgb(255 255 255 / 68%);
+  color: #4f4062;
+  box-shadow: 0 4px 14px rgb(52 42 60 / 10%);
+}
+
+.mesoscope-survey-region strong {
+  align-self: end;
+  font-size: 0.76rem;
+}
+
+.mesoscope-survey-region small {
+  align-self: start;
+  font-size: 0.58rem;
+}
+
+.mesoscope-survey-region.is-r1 { top: 17%; left: 13%; }
+.mesoscope-survey-region.is-r2 { top: 26%; right: 15%; }
+.mesoscope-survey-region.is-r3 { bottom: 18%; left: 27%; border-color: var(--meso-teal); color: #315d55; }
+.mesoscope-survey-region.is-r4 { right: 18%; bottom: 12%; border-color: var(--meso-teal); color: #315d55; }
+
+.mesoscope-watermark {
+  position: absolute;
+  right: 10px;
+  bottom: 7px;
+  color: rgb(58 52 64 / 47%);
+  font-size: 0.53rem;
+  font-weight: 750;
+  letter-spacing: 0.08em;
+}
+
+.mesoscope-tile-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 9px;
+}
+
+.mesoscope-tile {
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid #d9d4dc;
+  border-radius: 9px;
+  background: var(--surface);
+}
+
+.mesoscope-tile.is-mismatch {
+  border-color: #d99c98;
+  box-shadow: inset 0 0 0 1px #efd0cd;
+}
+
+.mesoscope-tile-heading,
+.mesoscope-tile footer {
+  padding: 6px 8px;
+}
+
+.mesoscope-tile-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.mesoscope-tile-heading strong,
+.mesoscope-tile-heading span {
+  font-size: 0.67rem;
+}
+
+.mesoscope-tile-heading span {
+  padding: 2px 5px;
+  border-radius: 4px;
+  background: var(--meso-violet-soft);
+  color: var(--meso-violet);
+  font-weight: 700;
+}
+
+.mesoscope-tile-image {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  height: 105px;
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+}
+
+.mesoscope-tile-field {
+  fill: #222627;
+}
+
+.mesoscope-cell {
+  fill: #8bc0b4;
+  stroke: rgb(201 243 233 / 48%);
+  stroke-width: 0.9;
+}
+
+.mesoscope-cell.is-accent {
+  fill: #a990bd;
+  stroke: rgb(237 220 249 / 48%);
+}
+
+.mesoscope-tile-trace {
+  fill: none;
+  stroke: rgb(255 255 255 / 42%);
+  stroke-width: 0.8;
+}
+
+.mesoscope-missing-mark {
+  fill: none;
+  stroke: #b85e58;
+  stroke-width: 3;
+}
+
+.mesoscope-missing-label {
+  fill: #e5a49e;
+  font-size: 8px;
+  font-weight: 700;
+  text-anchor: middle;
+}
+
+.mesoscope-tile footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 0.66rem;
+}
+
+.mesoscope-tile.is-mismatch footer span:last-child {
+  color: var(--red);
+  font-weight: 700;
+}
+
+/* ---------- Package status dock ---------- */
+
+.mesoscope-validation-strip {
+  display: flex;
+  flex-wrap: wrap;
+  align-content: flex-start;
+  align-items: baseline;
+  gap: 4px 6px;
+  min-width: 0;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: #fbfaf9;
+}
+
+.mesoscope-validation-strip > .eyebrow,
+.mesoscope-validation-strip > p,
+.mesoscope-validation-strip > ul,
+.mesoscope-validation-strip > .mesoscope-terminal-status {
+  flex-basis: 100%;
+}
+
+.mesoscope-validation-strip > .eyebrow {
+  margin: 0 0 2px;
+}
+
+.mesoscope-validation-strip > strong {
+  font-size: 1.15rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  line-height: 1.2;
+}
+
+.mesoscope-validation-strip > span {
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.mesoscope-validation-strip > p {
+  margin: 6px 0 0;
+  color: var(--muted);
+  font-size: 0.8rem;
+  line-height: 1.5;
+}
+
+.mesoscope-validation-strip.is-valid {
+  border-color: #cfe3d6;
+  background: var(--green-soft);
+}
+
+.mesoscope-validation-strip.is-invalid {
+  border-color: #ebc1bd;
+  background: var(--red-soft);
+}
+
+.mesoscope-terminal-status {
+  width: fit-content;
+  margin-top: 8px;
+  padding: 5px 9px;
+  border: 1px solid currentcolor;
+  border-radius: 6px;
+  color: var(--green);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+}
+
+.mesoscope-validation-strip.is-invalid .mesoscope-terminal-status {
+  color: var(--red);
+}
+
+.mesoscope-validation-strip > ul {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.mesoscope-validation-strip li {
+  padding: 3px 8px;
+  border: 1px solid #ebc1bd;
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--red);
+  font-family: var(--mono);
+  font-size: 0.7rem;
+  font-weight: 600;
+}
+
+/* ---------- Rail: sealed contract cards ---------- */
+
+.mesoscope-contract-grid {
+  display: grid;
+  gap: 12px;
+}
+
+.mesoscope-contract-grid > article {
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+}
+
+.mesoscope-card-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.mesoscope-card-heading .eyebrow {
+  margin: 0;
+}
+
+.immutable-badge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 22px;
+  padding: 2px 8px;
+  border: 1px solid #d8d1df;
+  border-radius: 999px;
+  background: var(--meso-violet-soft);
+  color: var(--meso-violet);
+  font-size: 0.64rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.mesoscope-contract-grid h3 {
+  margin: 10px 0 2px;
+  font-size: 0.88rem;
+  overflow-wrap: anywhere;
+}
+
+.mesoscope-contract-grid article > p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.78rem;
+  line-height: 1.45;
+}
+
+.mesoscope-provenance {
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px solid var(--line);
+}
+
+.mesoscope-provenance-title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 2px;
+  color: #55514d;
+  font-size: 0.74rem;
+  font-weight: 650;
+}
+
+.mesoscope-classification-group {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+}
+
+.mesoscope-classification {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  min-height: 22px;
+  max-width: 100%;
+  padding: 2px 8px;
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  background: #f5f4f2;
+  color: #55514d;
+  font-size: 0.6rem;
+  font-weight: 750;
+  letter-spacing: 0.04em;
+  line-height: 1.2;
+  white-space: normal;
+}
+
+.mesoscope-classification small {
+  color: var(--faint);
+  font-size: 0.56rem;
+  font-weight: 650;
+  letter-spacing: 0;
+  overflow-wrap: anywhere;
+}
+
+.mesoscope-compact-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.mesoscope-compact-list li {
+  display: grid;
+  gap: 2px;
+  padding: 8px 0;
+  border-top: 1px solid var(--line);
+  font-size: 0.76rem;
+}
+
+.mesoscope-compact-list li:first-child {
+  border-top: 0;
+}
+
+.mesoscope-compact-list strong,
+.mesoscope-compact-list span {
+  overflow-wrap: anywhere;
+}
+
+.mesoscope-compact-list span {
+  color: var(--muted);
+  line-height: 1.4;
+}
+
+.mesoscope-compact-list small {
+  color: var(--meso-violet);
+  font-size: 0.66rem;
+  font-weight: 650;
+}
+
+.mesoscope-mini-definition {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin: 10px 0 0;
+}
+
+.mesoscope-mini-definition div {
+  padding-top: 8px;
+  border-top: 1px solid var(--line);
+}
+
+.mesoscope-mini-definition dt {
+  color: var(--faint);
+  font-size: 0.64rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.mesoscope-mini-definition dd {
+  margin: 2px 0 0;
+  color: #45423f;
+  font-size: 0.82rem;
+  font-weight: 650;
+}
+
+/* ---------- Rail: package evidence ledgers ---------- */
+
+.mesoscope-package-evidence {
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+}
+
+.mesoscope-package-evidence > summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  min-height: 44px;
+  padding: 10px 12px;
+  color: #45423f;
+  font-size: 0.84rem;
+  font-weight: 650;
+}
+
+.mesoscope-evidence-disclosures {
+  padding: 0 12px 10px;
+}
+
+.mesoscope-evidence-disclosures > details {
+  border-top: 1px solid var(--line);
+}
+
+.mesoscope-evidence-disclosures summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-height: 40px;
+  padding: 8px 0;
+  color: #55514d;
+  font-size: 0.76rem;
+  font-weight: 600;
+}
+
+.mesoscope-evidence-disclosures summary span {
+  display: inline-grid;
+  min-width: 22px;
+  min-height: 22px;
+  place-items: center;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--mask);
+  color: var(--muted);
+  font-size: 0.66rem;
+  font-weight: 650;
+}
+
+.mesoscope-table-scroll {
+  max-width: 100%;
+  margin-bottom: 10px;
+  overflow-x: auto;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+
+.mesoscope-evidence-table {
+  width: 100%;
+  border-collapse: collapse;
+  background: var(--surface);
+  font-size: 0.7rem;
+}
+
+.mesoscope-evidence-table th,
+.mesoscope-evidence-table td {
+  max-width: 190px;
+  padding: 6px 8px;
+  overflow: hidden;
+  border-bottom: 1px solid var(--line);
+  color: #55514d;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mesoscope-evidence-table th {
+  background: #faf9f7;
+  color: var(--faint);
+  font-size: 0.6rem;
+  font-weight: 650;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.mesoscope-evidence-table tr:last-child td {
+  border-bottom: 0;
+}
+
+.mesoscope-empty-evidence {
+  margin: 0 0 10px;
+  color: var(--muted);
+  font-size: 0.76rem;
+}
+
+.mesoscope-check-list {
+  margin: 0 0 10px;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  list-style: none;
+}
+
+.mesoscope-check-list li {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 7px 10px;
+  border-bottom: 1px solid var(--line);
+  color: #55514d;
+  font-size: 0.74rem;
+}
+
+.mesoscope-check-list li:last-child {
+  border-bottom: 0;
+}
+
+.mesoscope-check-list li.is-mismatch {
+  background: var(--red-soft);
+}
+
+.mesoscope-check-list strong {
+  color: var(--green);
+}
+
+.mesoscope-check-list .is-mismatch strong {
+  color: var(--red);
+}
+
+/* ---------- Rail: sealed run identity ---------- */
+
+.sealed-frozen-identity .identity-list dd {
+  font-family: var(--mono);
+  font-size: 0.8rem;
+}
+
+/* ---------- Edit: sealed seed footer ---------- */
+
+.sealed-facts {
+  display: grid;
+  grid-template-columns: minmax(0, 1.5fr) repeat(3, minmax(0, 1fr));
+  gap: 16px;
+  padding: 14px 16px 16px;
+  border-top: 1px solid var(--line);
+}
+
+.sealed-facts-lead {
+  min-width: 0;
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.82rem;
+  line-height: 1.5;
+}
+
+.sealed-facts-lead strong {
+  display: block;
+  margin-bottom: 2px;
+  color: var(--ink);
+  font-size: 0.92rem;
+}
+
+.sealed-facts-lead .state-chip {
+  display: inline-flex;
+  margin-top: 8px;
+}
+
+.sealed-fact {
+  min-width: 0;
+  margin: 0;
+  padding-left: 14px;
+  border-left: 1px solid var(--line);
+}
+
+.sealed-fact dt {
+  margin-bottom: 4px;
+  color: var(--faint);
+  font-size: 0.66rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.sealed-fact dd {
+  margin: 0;
+  color: #45423f;
+  font-size: 0.8rem;
+  line-height: 1.45;
+}
+
+/* ---------- Responsive ---------- */
+
+@media (max-width: 800px) {
+  .mesoscope-handoff {
+    grid-template-columns: 1fr;
+    padding: 12px;
+  }
+
+  .sealed-facts {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .sealed-facts-lead {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 520px) {
+  .mesoscope-survey figcaption,
+  .mesoscope-tiles-heading {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
+  }
+
+  .mesoscope-survey figcaption small,
+  .mesoscope-tiles-heading small {
+    text-align: left;
+  }
+
+  .mesoscope-survey-field {
+    min-height: 220px;
+  }
+
+  .sealed-facts {
+    grid-template-columns: 1fr;
+  }
+
+  .sealed-fact {
+    padding-left: 0;
+    border-left: 0;
+    padding-top: 10px;
+    border-top: 1px solid var(--line);
+  }
+}
